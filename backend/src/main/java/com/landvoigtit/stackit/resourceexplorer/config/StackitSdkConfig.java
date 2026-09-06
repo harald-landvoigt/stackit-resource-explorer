@@ -8,9 +8,12 @@ import cloud.stackit.sdk.objectstorage.v1api.api.ObjectStorageApi;
 import cloud.stackit.sdk.resourcemanager.v0api.api.ResourceManagerApi;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Singleton;
+import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import com.landvoigtit.stackit.resourceexplorer.billing.BillingApiClient;
@@ -21,6 +24,7 @@ import java.util.Base64;
 import java.util.Optional;
 
 @ApplicationScoped
+@Slf4j
 public class StackitSdkConfig {
 
     @ConfigProperty(name = "stackit.sdk.service-account-key-path")
@@ -37,6 +41,61 @@ public class StackitSdkConfig {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private volatile ResilientKeyFlowAuthenticator authenticator;
+
+    public void onStartup(@Observes final StartupEvent event) {
+        validateConfigurationOnStartup();
+    }
+
+    public void validateConfigurationOnStartup() {
+        final String pathStr = serviceAccountKeyPath.orElse(null);
+        log.info("Checking STACKIT service account key configuration. Configured path: '{}'", pathStr);
+        if (pathStr == null || pathStr.isBlank()) {
+            log.warn("STACKIT service account key path is NOT set. Cloud resource scrapers and live API discovery will be disabled.");
+            return;
+        }
+
+        final Path path = Path.of(pathStr);
+        if (!Files.exists(path)) {
+            log.error("STACKIT service account key file does NOT exist at path '{}'! " +
+                    "If running with Docker Compose, ensure the host keyfile exists and is mounted " +
+                    "(check STACKIT_KEY_FILE environment variable or place scraper.json alongside docker-compose.yml).", pathStr);
+            return;
+        }
+
+        if (Files.isDirectory(path)) {
+            log.error("STACKIT service account key path '{}' is a DIRECTORY, not a file! " +
+                    "This happens when Docker bind-mounts a host path that did not exist at container startup. " +
+                    "Please remove the created directory on the host and provide a valid JSON key file.", pathStr);
+            return;
+        }
+
+        if (!Files.isReadable(path)) {
+            log.error("STACKIT service account key file at '{}' is NOT readable. Check file permissions.", pathStr);
+            return;
+        }
+
+        try {
+            final long fileSize = Files.size(path);
+            if (fileSize == 0) {
+                log.error("STACKIT service account key file at '{}' is EMPTY (0 bytes).", pathStr);
+                return;
+            }
+            final String content = Files.readString(path);
+            final JsonNode node = objectMapper.readTree(content);
+            final String iss = (node.has("credentials") && node.get("credentials").has("iss"))
+                    ? node.get("credentials").get("iss").asText()
+                    : node.path("email").asText("<unknown>");
+            final String projId = node.path("projectId").asText("<none>");
+            log.info("STACKIT service account key file verified successfully at '{}' (size: {} bytes, subject: {}, projectId: {}).",
+                    pathStr, fileSize, iss, projId);
+        } catch (final Exception e) {
+            log.error("Failed to parse STACKIT service account key JSON from '{}': {}", pathStr, e.getMessage(), e);
+        }
+    }
+
+    public Optional<String> getServiceAccountKeyPath() {
+        return serviceAccountKeyPath != null ? serviceAccountKeyPath : Optional.empty();
+    }
 
     public String getBillingApiUrl() {
         return (billingApiUrl != null && !billingApiUrl.isBlank())
@@ -76,8 +135,11 @@ public class StackitSdkConfig {
         if (authenticator != null) {
             return authenticator;
         }
-        if (config == null || config.getServiceAccountKeyPath() == null || config.getServiceAccountKeyPath().isBlank()
-                || !Files.exists(Path.of(config.getServiceAccountKeyPath()))) {
+        if (config == null || config.getServiceAccountKeyPath() == null || config.getServiceAccountKeyPath().isBlank()) {
+            return null;
+        }
+        final Path path = Path.of(config.getServiceAccountKeyPath());
+        if (!Files.exists(path) || !Files.isRegularFile(path)) {
             return null;
         }
         try {
@@ -85,14 +147,20 @@ public class StackitSdkConfig {
             authenticator = new ResilientKeyFlowAuthenticator(baseClient, config);
             return authenticator;
         } catch (final IOException e) {
+            log.error("Failed to initialize ResilientKeyFlowAuthenticator with key at '{}': {}", config.getServiceAccountKeyPath(), e.getMessage(), e);
             throw new IllegalStateException("Failed to initialize ResilientKeyFlowAuthenticator", e);
         }
     }
 
     public synchronized ResilientKeyFlowAuthenticator getOrCreateAuthenticator() {
         if (authenticator == null) {
-            if (serviceAccountKeyPath == null || serviceAccountKeyPath.isEmpty() || serviceAccountKeyPath.get().isBlank()
-                    || !Files.exists(Path.of(serviceAccountKeyPath.get()))) {
+            if (serviceAccountKeyPath == null || serviceAccountKeyPath.isEmpty() || serviceAccountKeyPath.get().isBlank()) {
+                log.warn("Cannot create authenticator: stackit.sdk.service-account-key-path is not configured.");
+                return null;
+            }
+            final Path path = Path.of(serviceAccountKeyPath.get());
+            if (!Files.exists(path) || !Files.isRegularFile(path)) {
+                log.warn("Cannot create authenticator: service account key file does not exist or is not a regular file at '{}'.", serviceAccountKeyPath.get());
                 return null;
             }
             final CoreConfiguration config = coreConfiguration();
@@ -105,19 +173,23 @@ public class StackitSdkConfig {
         try {
             final ResilientKeyFlowAuthenticator auth = getOrCreateAuthenticator();
             if (auth == null) {
+                log.debug("Cannot retrieve access token claims: authenticator is not initialized.");
                 return null;
             }
             final String token = auth.getAccessToken();
             if (token == null || token.isBlank()) {
+                log.warn("Authentication returned an empty or null access token.");
                 return null;
             }
             final String[] parts = token.split("\\.");
             if (parts.length >= 2) {
                 final byte[] decoded = Base64.getUrlDecoder().decode(parts[1]);
                 return objectMapper.readTree(decoded);
+            } else {
+                log.warn("Access token received is not in valid JWT dot-separated format.");
             }
         } catch (final Exception e) {
-            // ignore network or decoding errors during dynamic discovery
+            log.error("Failed to retrieve STACKIT access token or decode claims: {}", e.getMessage(), e);
         }
         return null;
     }
@@ -139,6 +211,25 @@ public class StackitSdkConfig {
             final String pid = claims.get("stackit/project/project.id").asText();
             if (pid != null && !pid.isBlank()) {
                 return pid;
+            }
+        }
+        // Fallback: extract projectId directly from the service account keyfile
+        if (serviceAccountKeyPath != null && serviceAccountKeyPath.isPresent() && !serviceAccountKeyPath.get().isBlank()) {
+            final Path path = Path.of(serviceAccountKeyPath.get());
+            if (Files.isRegularFile(path)) {
+                try {
+                    final String content = Files.readString(path);
+                    final JsonNode node = objectMapper.readTree(content);
+                    if (node.has("projectId")) {
+                        final String pid = node.get("projectId").asText();
+                        if (pid != null && !pid.isBlank()) {
+                            log.debug("Discovered initial project ID {} directly from service account keyfile.", pid);
+                            return pid;
+                        }
+                    }
+                } catch (final Exception e) {
+                    log.debug("Could not read projectId from keyfile: {}", e.getMessage());
+                }
             }
         }
         return null;

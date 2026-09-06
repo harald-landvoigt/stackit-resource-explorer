@@ -42,6 +42,7 @@ public class ComputeResourceScraper {
         try {
             final List<Project> projects = projectDiscoveryService.discoverProjects();
             if (projects == null || projects.isEmpty()) {
+                log.warn("Compute resource scrape skipped: No accessible projects found.");
                 return;
             }
 

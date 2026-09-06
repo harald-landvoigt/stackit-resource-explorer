@@ -49,6 +49,7 @@ public class IamResourceScraper {
         try {
             final List<Project> projects = projectDiscoveryService.discoverProjects();
             if (projects == null || projects.isEmpty()) {
+                log.warn("IAM resource scrape skipped: No accessible projects found.");
                 return;
             }
 

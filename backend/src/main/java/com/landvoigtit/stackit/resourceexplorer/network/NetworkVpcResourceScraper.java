@@ -38,6 +38,7 @@ public class NetworkVpcResourceScraper {
         try {
             final List<Project> projects = projectDiscoveryService.discoverProjects();
             if (projects == null || projects.isEmpty()) {
+                log.warn("Network VPC resource scrape skipped: No accessible projects found.");
                 return;
             }
 

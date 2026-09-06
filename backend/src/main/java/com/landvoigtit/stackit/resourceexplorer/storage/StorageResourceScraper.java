@@ -42,6 +42,7 @@ public class StorageResourceScraper {
         try {
             final List<Project> projects = projectDiscoveryService.discoverProjects();
             if (projects == null || projects.isEmpty()) {
+                log.warn("Storage resource scrape skipped: No accessible projects found.");
                 return;
             }
 

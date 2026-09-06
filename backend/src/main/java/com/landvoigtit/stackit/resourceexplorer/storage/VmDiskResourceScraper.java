@@ -38,6 +38,7 @@ public class VmDiskResourceScraper {
         try {
             final List<Project> projects = projectDiscoveryService.discoverProjects();
             if (projects == null || projects.isEmpty()) {
+                log.warn("VM Disks resource scrape skipped: No accessible projects found.");
                 return;
             }
 

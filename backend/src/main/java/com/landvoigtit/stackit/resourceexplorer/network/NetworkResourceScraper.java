@@ -42,6 +42,7 @@ public class NetworkResourceScraper {
         try {
             final List<Project> projects = projectDiscoveryService.discoverProjects();
             if (projects == null || projects.isEmpty()) {
+                log.warn("Network resource scrape skipped: No accessible projects found.");
                 return;
             }
 
