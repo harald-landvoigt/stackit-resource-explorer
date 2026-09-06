@@ -4,7 +4,7 @@ services:
       context: ../
       dockerfile: docker/Dockerfile.backend
     volumes:
-      - ${STACKIT_LOCAL_KEY_FILE:-../../.keys/scraper.json}:/app/keys/scraper.json:ro
+      - ${STACKIT_KEY_FILE:-../../.keys/scraper.json}:/app/keys/scraper.json:ro
 
   frontend:
     build:
