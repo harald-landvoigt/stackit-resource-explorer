@@ -1,0 +1,10 @@
+**/.git
+**/.gitignore
+**/node_modules
+**/dist
+**/target
+**/.keys
+**/*.md
+**/docs
+**/conductor
+agy.txt

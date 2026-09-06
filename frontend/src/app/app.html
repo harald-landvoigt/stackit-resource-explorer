@@ -1,0 +1,262 @@
+<div class="app-container bg-black">
+  <!-- Header Banner -->
+  <mat-toolbar color="primary" class="header border-orange">
+    <span class="header-title text-orange font-bold">StackIT Resource Explorer</span>
+    <span class="spacer"></span>
+    <a href="https://www.landvoigt-it.com" target="_blank" rel="noopener noreferrer" class="header-by-link">by landvoigt-it.com</a>
+    <mat-icon class="text-orange">cloud_queue</mat-icon>
+  </mat-toolbar>
+
+  <!-- Error Message Banner -->
+  <div *ngIf="errorMessage()" class="header-error-banner error-banner" role="alert" aria-live="assertive">
+    <div class="header-error-content error-content">
+      <mat-icon class="header-error-icon error-icon">error_outline</mat-icon>
+      <span class="header-error-text error-text">{{ errorMessage() }}</span>
+    </div>
+    <button mat-icon-button (click)="clearError()" class="header-error-close error-close" aria-label="Dismiss error">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <div class="content-container">
+    <mat-tab-group class="custom-tab-group" [selectedIndex]="selectedIndex()" (selectedIndexChange)="selectedIndex.set($event)">
+      <mat-tab label="Resource Explorer">
+        <ng-template mat-tab-label>
+          <div class="tab-label-content">
+            <mat-icon class="tab-icon">layers</mat-icon>
+            <span class="tab-label-text">Resource Explorer</span>
+            <span class="tab-badge" *ngIf="totalCount() > 0">{{ totalCount() }}</span>
+          </div>
+        </ng-template>
+        <div class="tab-content">
+          <!-- Search Bar -->
+          <div class="search-container">
+            <mat-form-field appearance="outline" class="search-form-field" subscriptSizing="dynamic">
+              <mat-label>Search resources...</mat-label>
+              <input matInput 
+                     placeholder="Search by name, type, region, status or tags..." 
+                     [ngModel]="searchString()" 
+                     (ngModelChange)="onSearchStringChange($event)"
+                     (keyup.enter)="onSearch()"
+                     class="search-input">
+              <mat-icon matPrefix class="text-orange">search</mat-icon>
+            </mat-form-field>
+            <button mat-flat-button color="primary" (click)="onSearch()" class="search-button border-orange">
+              Search
+            </button>
+          </div>
+
+          <!-- Quick Filters -->
+          <div class="search-filters">
+            <button type="button" 
+                    class="filter-chip-btn tokenflow-filter-btn" 
+                    [class.active-filter]="searchString() === 'Token Flow' || searchString() === 'Token Flow (Deprecated)'"
+                    (click)="filterTokenFlow()"
+                    title="Filter service accounts and users using deprecated static API token flow">
+              <mat-icon class="filter-btn-icon">warning</mat-icon>
+              <span>Token Flow</span>
+            </button>
+            <button type="button" 
+                    class="filter-chip-btn keyflow-filter-btn" 
+                    [class.active-filter]="searchString() === 'Key Flow'"
+                    (click)="filterKeyFlow()"
+                    title="Filter service accounts using modern RSA Key Flow">
+              <mat-icon class="filter-btn-icon">vpn_key</mat-icon>
+              <span>Key Flow</span>
+            </button>
+          </div>
+
+          <!-- Main Columns Layout -->
+          <div class="columns-container">
+            <!-- Left Column: Summary Aggregations -->
+            <div class="left-column">
+              <mat-card class="dashboard-card border-orange">
+                <mat-card-header>
+                  <mat-card-title class="text-orange">Summary Aggregations</mat-card-title>
+                  <mat-card-subtitle>Active counts by dimension</mat-card-subtitle>
+                </mat-card-header>
+                <mat-card-content class="agg-content">
+                  <!-- Section 1: By Resource Type -->
+                  <div class="agg-section">
+                    <div class="agg-section-header">
+                      <span class="agg-section-title text-orange font-medium">By Resource Type</span>
+                    </div>
+                    <div class="agg-list">
+                      <div *ngIf="typeAggregations().length === 0" class="no-data">
+                        No resources found.
+                      </div>
+                      <div *ngFor="let agg of typeAggregations()" class="agg-item border-orange">
+                        <span class="agg-type text-orange font-medium">{{ agg.key || agg.type }}</span>
+                        <span class="agg-count bg-orange text-black font-bold">{{ agg.count }}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Section 2: By Region -->
+                  <div class="agg-section">
+                    <div class="agg-section-header">
+                      <span class="agg-section-title text-orange font-medium">By Region</span>
+                    </div>
+                    <div class="agg-list">
+                      <div *ngIf="regionAggregations().length === 0" class="no-data">
+                        No regions found.
+                      </div>
+                      <div *ngFor="let agg of regionAggregations()" class="agg-item border-orange">
+                        <span class="agg-type text-orange font-medium">{{ agg.key || agg.type }}</span>
+                        <span class="agg-count bg-orange text-black font-bold">{{ agg.count }}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Section 3: By State / Status -->
+                  <div class="agg-section">
+                    <div class="agg-section-header">
+                      <span class="agg-section-title text-orange font-medium">By State</span>
+                    </div>
+                    <div class="agg-list">
+                      <div *ngIf="statusAggregations().length === 0" class="no-data">
+                        No states found.
+                      </div>
+                      <div *ngFor="let agg of statusAggregations()" class="agg-item border-orange">
+                        <span class="agg-type text-orange font-medium">{{ agg.key || agg.type }}</span>
+                        <span class="agg-count bg-orange text-black font-bold" [class.bg-deleted]="(agg.key || agg.type)?.toUpperCase() === 'DELETED'">{{ agg.count }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </mat-card-content>
+              </mat-card>
+            </div>
+
+            <!-- Right Column: Resource List with Detailed Properties -->
+            <div class="right-column">
+              <mat-card class="dashboard-card border-orange">
+                <mat-card-header>
+                  <mat-card-title class="text-orange">Discovered Resources</mat-card-title>
+                  <mat-card-subtitle *ngIf="totalCount() > filteredResources().length">Showing {{ filteredResources().length }} of {{ totalCount() }} items</mat-card-subtitle>
+                  <mat-card-subtitle *ngIf="totalCount() <= filteredResources().length">Showing {{ filteredResources().length }} items</mat-card-subtitle>
+                </mat-card-header>
+                <mat-card-content class="list-content">
+                  <div class="resources-list">
+                    <div *ngIf="filteredResources().length === 0" class="no-data">
+                      No resources match your search query.
+                    </div>
+                    
+                    <div *ngFor="let res of filteredResources()" class="resource-card border-orange">
+                      <div class="resource-header">
+                        <span class="resource-name font-bold">{{ res.name }}</span>
+                        <mat-chip-set>
+                          <mat-chip *ngIf="isTokenFlowDeprecated(res)" class="deprecated-chip" title="Uses deprecated Token Flow with static API secrets">
+                            <mat-icon class="chip-warning-icon">warning</mat-icon>
+                            Token Flow (Deprecated)
+                          </mat-chip>
+                          <mat-chip class="type-chip">{{ res.type }}</mat-chip>
+                          <mat-chip class="status-chip" [class.active-status]="res.status === 'active' || res.status === 'paid'">{{ res.status }}</mat-chip>
+                        </mat-chip-set>
+                      </div>
+                      
+                      <div class="resource-details">
+                        <div class="detail-row">
+                          <span class="detail-label text-orange">Region:</span>
+                          <span class="detail-value">{{ res.region }}</span>
+                        </div>
+                        <div class="detail-row">
+                          <span class="detail-label text-orange">Project ID:</span>
+                          <span class="detail-value">{{ res.projectId }}</span>
+                        </div>
+                        <div class="detail-row" *ngIf="res.id">
+                          <span class="detail-label text-orange">Resource UUID:</span>
+                          <span class="detail-value">{{ res.id }}</span>
+                        </div>
+                        <div class="detail-row" *ngIf="res.resourceId && (!res.id || res.resourceId !== res.id)">
+                          <span class="detail-label text-orange">Resource ID:</span>
+                          <span class="detail-value">{{ res.resourceId }}</span>
+                        </div>
+                        
+                        <!-- Special Billing/Invoice Fields -->
+                        <div *ngIf="(res.type === 'billing' || res.type === 'billing-org') && res.data" class="detail-row billing-highlight">
+                          <span class="detail-label text-orange font-bold">Billing Details:</span>
+                          <span class="detail-value text-orange font-bold">
+                            {{ res.data['amount'] }} {{ res.data['currency'] }}
+                          </span>
+                        </div>
+
+                        <!-- General metadata object key-values (excluding amount and currency) -->
+                        <div *ngIf="res.data && getObjectKeys(res.data).length > 0" class="metadata-section">
+                          <span class="section-title text-orange font-medium">Metadata:</span>
+                          <div class="metadata-grid">
+                            <ng-container *ngFor="let key of getObjectKeys(res.data)">
+                              <div *ngIf="key !== 'amount' && key !== 'currency' && res.data[key] !== '' && res.data[key] !== null" class="meta-item">
+                                <span class="meta-key">{{ key }}:</span>
+                                <span class="meta-val">{{ formatMetaValue(res.data[key]) }}</span>
+                              </div>
+                            </ng-container>
+                          </div>
+                        </div>
+
+                        <!-- Tags -->
+                        <div *ngIf="res.tags && getObjectKeys(res.tags).length > 0" class="tags-section">
+                          <span class="section-title text-orange font-medium">Tags:</span>
+                          <div class="tags-container">
+                            <span *ngFor="let key of getObjectKeys(res.tags)" class="tag-badge">
+                              {{ key }}: {{ res.tags[key] }}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </mat-card-content>
+              </mat-card>
+            </div>
+          </div>
+        </div>
+      </mat-tab>
+      
+      <mat-tab label="Billing Summary">
+        <ng-template mat-tab-label>
+          <div class="tab-label-content">
+            <mat-icon class="tab-icon">receipt_long</mat-icon>
+            <span class="tab-label-text">Billing Summary</span>
+            <span class="tab-badge" *ngIf="billingSummary().length > 0">{{ billingSummary().length }}</span>
+          </div>
+        </ng-template>
+        <div class="tab-content">
+          <mat-card class="dashboard-card border-orange billing-card">
+            <mat-card-header>
+              <mat-card-title class="text-orange">Billing Summary</mat-card-title>
+              <mat-card-subtitle>Current calendar month costs (UTC)</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content class="list-content">
+              <div *ngIf="billingSummary().length === 0" class="no-data">
+                No billing data found for the current calendar month.
+              </div>
+              <div class="table-container" *ngIf="billingSummary().length > 0">
+                <table class="billing-table">
+                  <thead>
+                    <tr>
+                      <th>Name / ID</th>
+                      <th>Type</th>
+                      <th>Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let bill of billingSummary()" class="billing-table-row" [class.org-row]="bill.type === 'Organization'">
+                      <td>
+                        <div class="bill-name font-bold">{{ bill.name }}</div>
+                        <div class="bill-id text-orange font-medium">{{ bill.id }}</div>
+                      </td>
+                      <td class="bill-type">{{ bill.type }}</td>
+                      <td class="bill-amount font-bold text-orange">
+                        {{ bill.amount | number:'1.2-2' }} {{ bill.currency }}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </mat-tab>
+    </mat-tab-group>
+  </div>
+</div>

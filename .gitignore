@@ -1,0 +1,22 @@
+#AI
+GEMINI.md
+AGENTS.md
+
+# Build & dependencies
+frontend/node_modules/
+frontend/dist/
+backend/target/
+
+# Conductor notes
+conductor/
+
+# Keys and credentials
+.keys/
+scraper.json
+*.key.json
+
+# IDE and OS files
+.idea/
+.vscode/
+*.iml
+.DS_Store

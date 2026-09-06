@@ -63,23 +63,28 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
 - **Network Scrapers**:
   - **Virtual Private Clouds (VPC)**: Catalogs network VPC topologies (`/v1/projects/{projectId}/networks`), capturing prefixes, gateway routing, and labels.
   - **Load Balancers**: Catalogs application load balancers, listeners, and target pools via the STACKIT Load Balancer API.
-- **IAM Scraper**: Recursively catalogs identities and permissions across all discovered projects:
-  - **Members (Access Control)**: Project-level role bindings for users, groups, and service accounts via the STACKIT Authorization API (`/v2/project/{projectId}/members`).
+- **IAM & Authentication Scraper**: Recursively catalogs identities, permissions, and authentication flows across all discovered projects:
+  - **Members (Access Control)**: Project-level role bindings for users, groups, and service accounts via the STACKIT Authorization API (`/v2/project/{projectId}/members`). Correlates project members to service accounts to inherit authentication scheme metadata.
   - **Service Accounts (Defined Identities)**: Service accounts defined within each project via the STACKIT Service Account API (`/v2/projects/{projectId}/service-accounts`).
+  - **Authentication Scheme & Deprecation Detection**:
+    - Distinguishes modern asymmetric RSA/ECDSA key pairs (`Key Flow (RSA_2048)`), human SSO (`OIDC / Enterprise SSO`), and platform-managed identities.
+    - Detects and tags legacy static API secrets (`Token Flow (Deprecated)` - *"The legacy model where a long-lived, static API secret acted directly as a bearer token."*), exposing active token counts and expiration dates.
 - **Cost & Consumption Scraper**: Periodically queries the **STACKIT Cost API v3** (`https://cost.api.stackit.cloud/v3/costs/{customerAccountId}`) for the current calendar month in UTC:
   - Catalogs expenses for each project (`billing`) and computes the aggregate organization total (`billing-org`).
   - Automatically converts amounts from cents to EUR.
   - Features an on-demand fallback: when the `/resources/billing-summary` endpoint is queried, if no records exist in cache yet, it triggers an immediate scrape.
 - **Interactive UI Dashboard**:
-  - **Header & Attribution**: Top toolbar featuring platform title, sponsor attribution link (`by landvoigt-it.com`), custom modern STACKIT SVG/ICO favicon, and an integrated, dismissible error banner for network/API failures.
-  - **Segmented Tab Navigation**: High-contrast, responsive segmented control navigation bar with contextual icons (`layers`, `receipt_long`) and live item count badges reflecting total discovered inventory.
+  - **Authentication Quick Filters & Deprecation Badges**: 1-click quick-filter buttons located below the search bar:
+    - **Token Flow (Red)**: Filters service accounts and users utilizing deprecated static API tokens (`"Token Flow"`).
+    - **Key Flow (Orange)**: Filters service accounts utilizing modern asymmetric RSA key pairs (`"Key Flow"`).
+    - Prominent warning chips on resource cards utilizing deprecated static token credentials (searchable anytime via `"Token Flow"`).
   - **Resource Explorer**: Search and filter discovered resources in real time via PostgreSQL Full-Text Search. Returns results capped at 100 elements for ultra-fast rendering while displaying a `"Showing X of Y items"` indicator.
   - **Resource Details & UUIDs**: Displays the exact **Resource UUID** alongside any distinct human-readable **Resource ID** (such as bucket names or IAM accounts). Cleanly formats complex metadata (arrays of IPs or volumes) and excludes blank fields.
   - **Multi-Dimensional Summary Aggregations**: Backend-calculated exact counts stacked across three distinct dimensions:
     - **By Resource Type** (*VMs*, *Buckets*, *Invoices*, *Networks*, *IAM Policies*)
     - **By Region** (e.g. *eu01*, *eu01-1*, *eu01-3*, *global*)
     - **By State** (e.g. *ACTIVE*, *RUNNING*, *AVAILABLE*, and *DELETED* with warning accents)
-  - **Billing Summary**: Aggregated project and organization consumption for the current calendar month in UTC with currency conversions.
+  - **Billing Summary**: Aggregated project and organization consumption for the current calendar month in UTC with currency conversions. The Organization total is pinned to the first row, followed by projects ordered descending by costs.
 - **Production-Ready Persistence & Flyway Migrations**:
   - Schema lifecycle and GIN full-text index managed via versioned Flyway migrations (`V1.0.0__init_schema_and_fts_gin_index.sql`).
   - Hibernate ORM runs in `validate` mode to safeguard against schema drift.
@@ -104,7 +109,7 @@ To crawl projects, services, and billing across an organization or project hiera
 | **Load Balancers** | `loadbalancer.auditor` or `loadbalancer.viewer` | `loadbalancer.loadbalancer.read` |
 | **Object Storage** | `objectstorage.auditor` or `objectstorage.viewer` | `objectstorage.bucket.read` |
 | **IAM Members** | `authorization.auditor` | `authorization.member.read` |
-| **Service Accounts** | `service-account.viewer` | `serviceaccount.serviceaccount.read` |
+| **Service Accounts & Credentials** | `service-account.viewer` or `service-account.auditor` | `serviceaccount.serviceaccount.read`, `serviceaccount.token.read`, `serviceaccount.key.read` |
 | **Billing / Cost** | `cost.viewer` or `billing.viewer` | Read access to STACKIT Cost API v3 |
 
 > **Note**: If a service is not enabled for a project or the service account lacks access to a specific project, the scrapers log a non-fatal warning (`403 Forbidden` / `404 Not Found`) and continue processing remaining projects.
@@ -113,12 +118,49 @@ To crawl projects, services, and billing across an organization or project hiera
 
 ## Quickstart with Docker Compose
 
-Place your STACKIT service account key in `.keys/scraper.json` relative to the repository root.
+### Option A: Run Pre-built Images from GitHub Container Registry (Recommended)
 
-```bash
-cd docker
-docker compose up -d --build
-```
+You can run the entire stack without cloning the repository or installing build dependencies:
+
+1. **Download the Docker Compose file**:
+   ```bash
+   curl -sSL -O https://raw.githubusercontent.com/harald-landvoigt/stackit-resource-explorer/main/docker/docker-compose.yml
+   ```
+
+2. **Provide your STACKIT Service Account Key**:
+   Place your service account key as `scraper.json` in the same directory:
+   ```bash
+   cp /path/to/your/sa-key.json ./scraper.json
+   ```
+
+3. **Start the containers**:
+   ```bash
+   docker compose up -d
+   ```
+   Docker will automatically pull the pre-built images from GHCR:
+   - Backend: `ghcr.io/harald-landvoigt/stackit-resource-explorer/backend:latest`
+   - Frontend: `ghcr.io/harald-landvoigt/stackit-resource-explorer/frontend:latest`
+   - Database: `postgres:15-alpine`
+
+---
+
+### Option B: Build & Run from Source (Local Development)
+
+If you have cloned the repository and wish to build containers locally from source:
+
+1. Place your STACKIT service account key in `.keys/scraper.json` in the root of the repository.
+2. Run Docker Compose with the build step:
+   ```bash
+   cd docker
+   docker compose up -d --build
+   ```
+   *(Docker Compose automatically merges `docker-compose.override.yml` to build backend and frontend images from local source).*
+
+3. Alternatively, build the backend image directly with **Quarkus Jib**:
+   ```bash
+   cd ../backend
+   ./mvnw package -DskipTests -Dquarkus.container-image.build=true
+   ```
 
 ### Services & Port Mappings
 
@@ -137,7 +179,6 @@ The backend can be configured via `application.properties` or overridden with en
 | Property | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `stackit.sdk.service-account-key-path` | `STACKIT_SERVICE_ACCOUNT_KEY_PATH` | `/app/keys/scraper.json` | Path to service account credentials JSON |
-| `stackit.project-id` | `STACKIT_PROJECT_ID` | Required | Initial project ID used to bootstrap discovery |
 | `stackit.compute.schedule` | `STACKIT_COMPUTE_SCHEDULE` | `1h` | Schedule for Compute VM Scraper (`1h`, cron, or `off`) |
 | `stackit.storage.schedule` | `STACKIT_STORAGE_SCHEDULE` | `1h` | Schedule for Object Storage Scraper |
 | `stackit.vmdisks.schedule` | `STACKIT_VMDISKS_SCHEDULE` | `1h` | Schedule for VM Disk (Block Storage) Scraper |
@@ -202,22 +243,16 @@ The backend can be configured via `application.properties` or overridden with en
 
 ## Local Development & Testing
 
-### Monorepo Build Script
-To build both the backend and frontend artifacts:
-```bash
-./build.sh
-```
-
 ### Backend (Quarkus / Java 21)
 ```bash
 cd backend
-./mvnw test                  # Run unit and integration test suite
+./mvnw test                  # Run unit and integration test suite (59 tests)
 ./mvnw quarkus:dev           # Run dev mode with hot reload (Dev UI at http://localhost:8080/q/dev)
 ```
 
 ### Frontend (Angular 21 / Vitest)
 ```bash
 cd frontend
-npm test -- --watch=false    # Run unit tests via Vitest
+npm test -- --watch=false    # Run unit tests via Vitest (31 tests)
 ng serve                     # Start development server on port 4200 (proxies backend to 8080)
 ```

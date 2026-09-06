@@ -1,0 +1,52 @@
+@use '@angular/material' as mat;
+
+html {
+  height: 100%;
+  @include mat.theme(
+    (
+      color: (
+        theme-type: dark,
+        primary: mat.$orange-palette,
+        tertiary: mat.$orange-palette,
+      ),
+      typography: Roboto,
+      density: 0,
+    )
+  );
+}
+
+body {
+  color-scheme: dark;
+  background-color: #000000;
+  color: #e0e0e0;
+  font: var(--mat-sys-body-medium);
+  margin: 0;
+  height: 100%;
+}
+
+/* Custom overrides for pure black & orange theme (www.landvoigt-it.com style) */
+:root {
+  --mat-sys-surface: #000000;
+  --mat-sys-on-surface: #e0e0e0;
+  --mat-sys-primary: #ff6f00; /* Deep orange */
+  --mat-sys-on-primary: #000000;
+  --mat-sys-surface-container: #121212;
+  --mat-sys-surface-container-low: #080808;
+  --mat-sys-surface-container-high: #1c1c1c;
+  --mat-sys-outline: #ff6f00;
+  --mat-sys-primary-container: #ff6f00;
+  --mat-sys-on-primary-container: #000000;
+}
+
+/* Base custom utility classes */
+.text-orange {
+  color: #ff6f00 !important;
+}
+
+.border-orange {
+  border: 1px solid #ff6f00 !important;
+}
+
+.bg-black {
+  background-color: #000000 !important;
+}
