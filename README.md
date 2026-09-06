@@ -128,10 +128,18 @@ You can run the entire stack without cloning the repository or installing build 
    ```
 
 2. **Provide your STACKIT Service Account Key**:
-   Place your service account key as `scraper.json` in the same directory:
-   ```bash
-   cp /path/to/your/sa-key.json ./scraper.json
-   ```
+   - **Default**: Place your key as `scraper.json` in the same directory:
+     ```bash
+     cp /path/to/your/sa-key.json ./scraper.json
+     ```
+   - **Custom path via `.env`**:
+     ```bash
+     echo "STACKIT_KEY_FILE=/absolute/path/to/my-sa-key.json" > .env
+     ```
+   - **Custom path via inline variable**:
+     ```bash
+     STACKIT_KEY_FILE=/absolute/path/to/my-sa-key.json docker compose up -d
+     ```
 
 3. **Start the containers**:
    ```bash
@@ -148,15 +156,27 @@ You can run the entire stack without cloning the repository or installing build 
 
 If you have cloned the repository and wish to build containers locally from source:
 
-1. Place your STACKIT service account key in `.keys/scraper.json` in the root of the repository.
-2. Run Docker Compose with the build step:
+1. **Provide Service Account Key**:
+   - By default, the compose override looks for `.keys/scraper.json` at the repo root (`../../.keys/scraper.json` from `docker/`).
+   - Or configure your key path using `.env`:
+     ```bash
+     cd docker
+     cp .env.example .env
+     # Edit STACKIT_KEY_FILE=/path/to/your/sa-key.json in .env
+     ```
+   - Or pass it inline:
+     ```bash
+     STACKIT_KEY_FILE=/path/to/your/sa-key.json docker compose up -d --build
+     ```
+
+2. **Start the Stack with Local Build**:
    ```bash
    cd docker
    docker compose up -d --build
    ```
    *(Docker Compose automatically merges `docker-compose.override.yml` to build backend and frontend images from local source).*
 
-3. Alternatively, build the backend image directly with **Quarkus Jib**:
+3. **Alternatively, build the backend image directly with Quarkus Jib**:
    ```bash
    cd ../backend
    ./mvnw package -DskipTests -Dquarkus.container-image.build=true
@@ -174,11 +194,23 @@ If you have cloned the repository and wish to build containers locally from sour
 
 ## Configuration & Environment Variables
 
+### Docker Compose Variables (Host Level)
+
+These variables can be set in a `.env` file (see `docker/.env.example`) or passed directly on the command line:
+
+| Variable | Default (Standalone) | Default (Local Repo) | Description |
+| :--- | :--- | :--- | :--- |
+| `STACKIT_KEY_FILE` | `./scraper.json` | `../../.keys/scraper.json` | Host path to your STACKIT service account JSON key (supports absolute or relative paths) |
+| `IMAGE_TAG` | `latest` | `latest` | Container image tag pulled from GHCR (`backend` & `frontend`) |
+| `DB_PASSWORD` | `stackit` | `stackit` | PostgreSQL database password |
+
+### Backend Scraper & Application Variables (Container Level)
+
 The backend can be configured via `application.properties` or overridden with environment variables:
 
 | Property | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `stackit.sdk.service-account-key-path` | `STACKIT_SERVICE_ACCOUNT_KEY_PATH` | `/app/keys/scraper.json` | Path to service account credentials JSON |
+| `stackit.sdk.service-account-key-path` | `STACKIT_SERVICE_ACCOUNT_KEY_PATH` | `/app/keys/scraper.json` | Internal container path where the service account key is mounted |
 | `stackit.compute.schedule` | `STACKIT_COMPUTE_SCHEDULE` | `1h` | Schedule for Compute VM Scraper (`1h`, cron, or `off`) |
 | `stackit.storage.schedule` | `STACKIT_STORAGE_SCHEDULE` | `1h` | Schedule for Object Storage Scraper |
 | `stackit.vmdisks.schedule` | `STACKIT_VMDISKS_SCHEDULE` | `1h` | Schedule for VM Disk (Block Storage) Scraper |
