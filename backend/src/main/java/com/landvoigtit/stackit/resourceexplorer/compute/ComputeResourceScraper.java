@@ -36,6 +36,9 @@ public class ComputeResourceScraper {
     @Inject
     Validator validator;
 
+    @Inject
+    com.landvoigtit.stackit.resourceexplorer.config.StackitSdkConfig sdkConfig;
+
     @Scheduled(every = "${stackit.compute.schedule:1h}")
     public void scrape() {
         log.info("Starting Compute resource scrape...");
@@ -66,26 +69,37 @@ public class ComputeResourceScraper {
 
     private boolean scrapeProjectCompute(final Project project, final List<String> currentResourceIds) {
         final String projectIdStr = project.getProjectId().toString();
-        try {
-            final ServerListResponse serverListResponse = iaasApi.listServers(project.getProjectId(), true, null);
-            if (serverListResponse == null || serverListResponse.getItems() == null) {
-                return true;
-            }
-            for (final Server server : serverListResponse.getItems()) {
-                final ComputeResourceDto dto = ComputeResourceMapper.mapToDto(server);
-                if (validator.validate(dto).isEmpty()) {
-                    final StackitEntity entity = ComputeResourceMapper.mapToEntity(dto);
-                    entity.setProjectId(projectIdStr);
-                    repository.persistOrUpdate(entity);
-                    currentResourceIds.add(entity.getResourceId());
+        final List<String> regions = sdkConfig != null ? sdkConfig.getRegions() : StackitConstants.DEFAULT_REGIONS;
+        boolean allRegionsSucceeded = true;
+
+        for (final String region : regions) {
+            try {
+                final IaasApi regionalApi = sdkConfig != null ? sdkConfig.iaasApiForRegion(region, iaasApi) : iaasApi;
+                final ServerListResponse serverListResponse = regionalApi.listServers(project.getProjectId(), true, null);
+                if (serverListResponse == null || serverListResponse.getItems() == null) {
+                    continue;
+                }
+                for (final Server server : serverListResponse.getItems()) {
+                    final ComputeResourceDto dto = ComputeResourceMapper.mapToDto(server);
+                    if (validator.validate(dto).isEmpty()) {
+                        final StackitEntity entity = ComputeResourceMapper.mapToEntity(dto);
+                        entity.setProjectId(projectIdStr);
+                        repository.persistOrUpdate(entity);
+                        currentResourceIds.add(entity.getResourceId());
+                    } else {
+                        log.warn("Invalid Server DTO: {}", dto.getServerId());
+                    }
+                }
+            } catch (final Exception e) {
+                final String msg = e.getMessage() != null ? e.getMessage() : "";
+                if (msg.contains("404") || msg.contains("403") || msg.contains("not_found")) {
+                    log.debug("Compute not enabled or accessible for project {} in region {}: {}", projectIdStr, region, msg);
                 } else {
-                    log.warn("Invalid Server DTO: {}", dto.getServerId());
+                    log.warn("Failed to scrape Compute resources for project {} in region {}: {}", projectIdStr, region, e.getMessage());
+                    allRegionsSucceeded = false;
                 }
             }
-            return true;
-        } catch (final Exception e) {
-            log.warn("Failed to scrape Compute resources for project {}: {}", projectIdStr, e.getMessage());
-            return false;
         }
+        return allRegionsSucceeded;
     }
 }

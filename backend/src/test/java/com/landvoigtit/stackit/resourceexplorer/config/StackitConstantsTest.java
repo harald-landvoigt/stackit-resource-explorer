@@ -58,6 +58,9 @@ public class StackitConstantsTest {
 
         assertEquals("eu-central-1", StackitConstants.DEFAULT_REGION);
         assertEquals("global", StackitConstants.GLOBAL_REGION);
+        assertEquals("eu01", StackitConstants.REGION_EU01);
+        assertEquals("eu02", StackitConstants.REGION_EU02);
+        assertEquals(java.util.List.of("eu01", "eu02"), StackitConstants.DEFAULT_REGIONS);
         assertEquals("ACTIVE", StackitConstants.STATUS_ACTIVE);
         assertEquals("AVAILABLE", StackitConstants.STATUS_AVAILABLE);
         assertEquals("service-account", StackitConstants.ROLE_SERVICE_ACCOUNT);

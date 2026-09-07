@@ -8,8 +8,8 @@ import cloud.stackit.sdk.resourcemanager.v0api.model.GetProjectResponse;
 import cloud.stackit.sdk.resourcemanager.v0api.model.Parent;
 import cloud.stackit.sdk.resourcemanager.v0api.model.ParentListInner;
 import cloud.stackit.sdk.resourcemanager.v0api.model.Project;
-import cloud.stackit.sdk.objectstorage.v1api.api.ObjectStorageApi;
-import cloud.stackit.sdk.objectstorage.v1api.model.ListBucketsResponse;
+import cloud.stackit.sdk.objectstorage.v2api.api.ObjectStorageApi;
+import cloud.stackit.sdk.objectstorage.v2api.model.ListBucketsResponse;
 import com.landvoigtit.stackit.resourceexplorer.config.StackitSdkConfig;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
@@ -60,7 +60,7 @@ public class StorageIntegrationTest {
                 }
                 final String projectIdStr = project.getProjectId().toString();
                 try {
-                    final ListBucketsResponse bucketsResponse = objectStorageApi.listBuckets(projectIdStr);
+                    final ListBucketsResponse bucketsResponse = objectStorageApi.listBuckets(projectIdStr, "eu01");
                     assertNotNull(bucketsResponse, "Buckets response should not be null for project " + projectIdStr);
                     log.info("Successfully fetched storage buckets for project {}.", projectIdStr);
                 } catch (final Exception e) {

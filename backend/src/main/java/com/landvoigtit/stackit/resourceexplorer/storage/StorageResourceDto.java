@@ -15,4 +15,10 @@ public class StorageResourceDto {
     private String region;
 
     private String storageClass;
+
+    private Boolean objectLockEnabled;
+
+    private String urlPathStyle;
+
+    private String urlVirtualHostedStyle;
 }

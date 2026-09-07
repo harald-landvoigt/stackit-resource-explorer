@@ -18,6 +18,8 @@ public class NetworkVpcResourceDto {
     @NotBlank
     private String status;
 
+    private String region;
+
     private List<String> prefixes;
     private String gateway;
     private String publicIp;

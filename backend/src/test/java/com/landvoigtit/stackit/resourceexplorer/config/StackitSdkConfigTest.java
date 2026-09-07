@@ -40,4 +40,16 @@ public class StackitSdkConfigTest {
         assertNull(config.getDiscoveredOrganizationId());
         assertNull(config.getDiscoveredProjectId());
     }
+
+    @Test
+    public void testRegionsConfiguration() {
+        final StackitSdkConfig config = new StackitSdkConfig();
+        assertEquals(StackitConstants.DEFAULT_REGIONS, config.getRegions());
+
+        config.regions = java.util.List.of("eu01", "eu02", "eu03");
+        assertEquals(java.util.List.of("eu01", "eu02", "eu03"), config.getRegions());
+
+        config.regions = java.util.List.of(" EU01 ", "eu02", "EU01");
+        assertEquals(java.util.List.of("eu01", "eu02"), config.getRegions());
+    }
 }

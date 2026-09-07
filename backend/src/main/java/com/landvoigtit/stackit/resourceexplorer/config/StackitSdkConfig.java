@@ -4,7 +4,7 @@ import cloud.stackit.sdk.core.KeyFlowAuthenticator;
 import cloud.stackit.sdk.core.config.CoreConfiguration;
 import cloud.stackit.sdk.iaas.v1api.api.IaasApi;
 import cloud.stackit.sdk.alb.v2api.api.AlbApi;
-import cloud.stackit.sdk.objectstorage.v1api.api.ObjectStorageApi;
+import cloud.stackit.sdk.objectstorage.v2api.api.ObjectStorageApi;
 import cloud.stackit.sdk.resourcemanager.v0api.api.ResourceManagerApi;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,7 +21,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Base64;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 @ApplicationScoped
 @Slf4j
@@ -39,8 +41,12 @@ public class StackitSdkConfig {
     @ConfigProperty(name = "stackit.service-account.api-url", defaultValue = StackitConstants.DEFAULT_SERVICE_ACCOUNT_API_URL)
     String serviceAccountApiUrl;
 
+    @ConfigProperty(name = "stackit.regions", defaultValue = "eu01,eu02")
+    List<String> regions;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
     private volatile ResilientKeyFlowAuthenticator authenticator;
+    private final ConcurrentHashMap<String, IaasApi> regionalIaasApis = new ConcurrentHashMap<>();
 
     public void onStartup(@Observes final StartupEvent event) {
         validateConfigurationOnStartup();
@@ -113,6 +119,57 @@ public class StackitSdkConfig {
         return (serviceAccountApiUrl != null && !serviceAccountApiUrl.isBlank())
                 ? serviceAccountApiUrl
                 : StackitConstants.DEFAULT_SERVICE_ACCOUNT_API_URL;
+    }
+
+    public List<String> getRegions() {
+        if (regions == null || regions.isEmpty()) {
+            return StackitConstants.DEFAULT_REGIONS;
+        }
+        final List<String> list = regions.stream()
+                .map(String::trim)
+                .map(String::toLowerCase)
+                .filter(r -> !r.isBlank())
+                .distinct()
+                .toList();
+        return list.isEmpty() ? StackitConstants.DEFAULT_REGIONS : list;
+    }
+
+    public void registerRegionalIaasApi(final String region, final IaasApi api) {
+        if (region != null && !region.isBlank() && api != null) {
+            regionalIaasApis.put(region.trim().toLowerCase(), api);
+        }
+    }
+
+    public IaasApi iaasApiForRegion(final String region) {
+        return iaasApiForRegion(region, null);
+    }
+
+    public IaasApi iaasApiForRegion(final String region, final IaasApi defaultApi) {
+        if (region == null || region.isBlank()) {
+            if (defaultApi != null) {
+                return defaultApi;
+            }
+            final CoreConfiguration config = coreConfiguration();
+            return iaasApi(okHttpClient(config), config);
+        }
+        final String trimmed = region.trim().toLowerCase();
+        if (regionalIaasApis.containsKey(trimmed)) {
+            return regionalIaasApis.get(trimmed);
+        }
+        if (defaultApi != null && defaultApi.getClass().getName().contains("Mock")) {
+            return defaultApi;
+        }
+        return regionalIaasApis.computeIfAbsent(trimmed, r -> {
+            try {
+                final CoreConfiguration config = coreConfiguration();
+                final OkHttpClient client = okHttpClient(config);
+                final IaasApi api = new IaasApi(client, config);
+                api.setCustomBaseUrl("https://iaas.api." + r + ".stackit.cloud");
+                return api;
+            } catch (final IOException e) {
+                throw new IllegalStateException("Failed to initialize regional IaasApi for region " + r, e);
+            }
+        });
     }
 
     public String getMembersUrl(final String projectId) {

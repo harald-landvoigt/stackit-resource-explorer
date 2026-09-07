@@ -27,14 +27,15 @@ public class NetworkResourceMapper {
             return null;
         }
         final StackitEntity entity = new StackitEntity();
+        final String region = dto.getRegion() != null && !dto.getRegion().isBlank() ? dto.getRegion() : StackitConstants.ALB_DEFAULT_REGION;
         if (dto.getLoadBalancerId() != null) {
-            entity.setId(UUID.nameUUIDFromBytes(dto.getLoadBalancerId().getBytes()));
+            entity.setId(UUID.nameUUIDFromBytes((region + "/" + dto.getLoadBalancerId()).getBytes()));
             entity.setResourceId(dto.getLoadBalancerId());
         }
         entity.setName(dto.getName());
         entity.setType(StackitConstants.RESOURCE_TYPE_NETWORK);
         entity.setStatus(StackitConstants.STATUS_ACTIVE);
-        entity.setRegion(dto.getRegion() != null && !dto.getRegion().isBlank() ? dto.getRegion() : StackitConstants.ALB_DEFAULT_REGION);
+        entity.setRegion(region);
         entity.setProjectId(StackitConstants.UNKNOWN_PROJECT_ID); // Set by scraper
         entity.setCreatedAt(Instant.now());
         entity.setUpdatedAt(Instant.now());
