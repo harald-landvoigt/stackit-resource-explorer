@@ -3,7 +3,7 @@ package com.landvoigtit.stackit.resourceexplorer;
 import cloud.stackit.sdk.iaas.v1api.model.Server;
 import cloud.stackit.sdk.iaas.v1api.model.Network;
 import cloud.stackit.sdk.iaas.v1api.model.Volume;
-import cloud.stackit.sdk.objectstorage.v1api.model.Bucket;
+import cloud.stackit.sdk.objectstorage.v2api.model.Bucket;
 import cloud.stackit.sdk.alb.v2api.model.LoadBalancer;
 import cloud.stackit.sdk.resourcemanager.v0api.model.Member;
 import com.landvoigtit.stackit.resourceexplorer.compute.ComputeResourceDto;
@@ -80,8 +80,25 @@ public class DomainMappersTest {
     @Test
     public final void testStorageMapping() {
         final Bucket bucket = new Bucket();
+        bucket.setName("test-bucket");
+        bucket.setRegion("eu02");
+        bucket.setObjectLockEnabled(true);
+        bucket.setUrlPathStyle("https://object.storage.eu02.stackit.cloud/test-bucket");
+        bucket.setUrlVirtualHostedStyle("https://test-bucket.object.storage.eu02.stackit.cloud");
+
         final StorageResourceDto dto = StorageResourceMapper.mapToDto(bucket);
         assertNotNull(dto);
+        assertEquals("test-bucket", dto.getBucketName());
+        assertEquals("eu02", dto.getRegion());
+        assertTrue(dto.getObjectLockEnabled());
+        assertEquals("https://object.storage.eu02.stackit.cloud/test-bucket", dto.getUrlPathStyle());
+
+        final StackitEntity entity = StorageResourceMapper.mapToEntity(dto);
+        assertNotNull(entity);
+        assertEquals("test-bucket", entity.getName());
+        assertEquals("eu02", entity.getRegion());
+        assertEquals(Boolean.TRUE, entity.getData().get("objectLockEnabled"));
+        assertEquals("https://object.storage.eu02.stackit.cloud/test-bucket", entity.getData().get("urlPathStyle"));
     }
 
     @Test

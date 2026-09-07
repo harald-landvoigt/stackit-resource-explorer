@@ -32,6 +32,9 @@ public class NetworkVpcResourceScraper {
     @Inject
     Validator validator;
 
+    @Inject
+    com.landvoigtit.stackit.resourceexplorer.config.StackitSdkConfig sdkConfig;
+
     @Scheduled(every = "${stackit.network-vpc.schedule:1h}")
     public void scrape() {
         log.info("Starting Network VPC resource scrape...");
@@ -62,27 +65,41 @@ public class NetworkVpcResourceScraper {
 
     private boolean scrapeProjectNetworks(final Project project, final List<String> currentResourceIds) {
         final String projectIdStr = project.getProjectId().toString();
-        try {
-            final NetworkListResponse response = iaasApi.listNetworks(project.getProjectId(), null);
-            if (response == null || response.getItems() == null) {
-                return true;
-            }
+        final List<String> regions = sdkConfig != null ? sdkConfig.getRegions() : StackitConstants.DEFAULT_REGIONS;
+        boolean allRegionsSucceeded = true;
 
-            for (final Network network : response.getItems()) {
-                final NetworkVpcResourceDto dto = NetworkVpcResourceMapper.mapToDto(network);
-                if (validator.validate(dto).isEmpty()) {
-                    final StackitEntity entity = NetworkVpcResourceMapper.mapToEntity(dto);
-                    entity.setProjectId(projectIdStr);
-                    repository.persistOrUpdate(entity);
-                    currentResourceIds.add(entity.getResourceId());
+        for (final String region : regions) {
+            try {
+                final IaasApi regionalApi = sdkConfig != null ? sdkConfig.iaasApiForRegion(region, iaasApi) : iaasApi;
+                final NetworkListResponse response = regionalApi.listNetworks(project.getProjectId(), null);
+                if (response == null || response.getItems() == null) {
+                    continue;
+                }
+
+                for (final Network network : response.getItems()) {
+                    final NetworkVpcResourceDto dto = NetworkVpcResourceMapper.mapToDto(network);
+                    if (dto.getRegion() == null || dto.getRegion().isBlank()) {
+                        dto.setRegion(region);
+                    }
+                    if (validator.validate(dto).isEmpty()) {
+                        final StackitEntity entity = NetworkVpcResourceMapper.mapToEntity(dto);
+                        entity.setProjectId(projectIdStr);
+                        repository.persistOrUpdate(entity);
+                        currentResourceIds.add(entity.getResourceId());
+                    } else {
+                        log.warn("Invalid Network VPC DTO: {}", dto.getNetworkId());
+                    }
+                }
+            } catch (final Exception e) {
+                final String msg = e.getMessage() != null ? e.getMessage() : "";
+                if (msg.contains("404") || msg.contains("403") || msg.contains("not_found")) {
+                    log.debug("Network VPC not enabled or accessible for project {} in region {}: {}", projectIdStr, region, msg);
                 } else {
-                    log.warn("Invalid Network VPC DTO: {}", dto.getNetworkId());
+                    log.warn("Failed to scrape Network VPC resources for project {} in region {}: {}", projectIdStr, region, e.getMessage());
+                    allRegionsSucceeded = false;
                 }
             }
-            return true;
-        } catch (final Exception e) {
-            log.warn("Failed to scrape Network VPC resources for project {}: {}", projectIdStr, e.getMessage());
-            return false;
         }
+        return allRegionsSucceeded;
     }
 }

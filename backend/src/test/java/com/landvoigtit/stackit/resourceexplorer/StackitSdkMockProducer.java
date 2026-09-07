@@ -17,9 +17,9 @@ import cloud.stackit.sdk.iaas.v1api.model.VolumeListResponse;
 import cloud.stackit.sdk.alb.v2api.api.AlbApi;
 import cloud.stackit.sdk.alb.v2api.model.LoadBalancer;
 import cloud.stackit.sdk.alb.v2api.model.ListLoadBalancersResponse;
-import cloud.stackit.sdk.objectstorage.v1api.api.ObjectStorageApi;
-import cloud.stackit.sdk.objectstorage.v1api.model.Bucket;
-import cloud.stackit.sdk.objectstorage.v1api.model.ListBucketsResponse;
+import cloud.stackit.sdk.objectstorage.v2api.api.ObjectStorageApi;
+import cloud.stackit.sdk.objectstorage.v2api.model.Bucket;
+import cloud.stackit.sdk.objectstorage.v2api.model.ListBucketsResponse;
 import cloud.stackit.sdk.resourcemanager.v0api.api.ResourceManagerApi;
 import cloud.stackit.sdk.resourcemanager.v0api.model.Project;
 import cloud.stackit.sdk.resourcemanager.v0api.model.ListProjectsResponse;
@@ -154,11 +154,11 @@ public class StackitSdkMockProducer {
             super(mockConfig);
         }
         @Override
-        public ListBucketsResponse listBuckets(final String projectId) {
+        public ListBucketsResponse listBuckets(final String projectId, final String region) {
             final ListBucketsResponse resp = new ListBucketsResponse();
             final Bucket b = new Bucket();
-            b.setName("mock-bucket");
-            b.setRegion("eu-central-1");
+            b.setName("mock-bucket-" + (region != null ? region : "eu01"));
+            b.setRegion(region != null ? region : "eu01");
             resp.setBuckets(List.of(b));
             return resp;
         }
@@ -172,7 +172,7 @@ public class StackitSdkMockProducer {
         public ListLoadBalancersResponse listLoadBalancers(final String projectId, final String region, final String pageSize, final String pageId) {
             final ListLoadBalancersResponse resp = new ListLoadBalancersResponse();
             final LoadBalancer lb = new LoadBalancer();
-            lb.setName("mock-lb");
+            lb.setName("mock-lb-" + (region != null ? region : "eu01"));
             lb.setExternalAddress("192.168.1.1");
             resp.setLoadBalancers(List.of(lb));
             return resp;

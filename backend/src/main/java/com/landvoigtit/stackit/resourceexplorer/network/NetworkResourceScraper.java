@@ -36,6 +36,9 @@ public class NetworkResourceScraper {
     @Inject
     Validator validator;
 
+    @Inject
+    com.landvoigtit.stackit.resourceexplorer.config.StackitSdkConfig sdkConfig;
+
     @Scheduled(every = "${stackit.network.schedule:1h}")
     public void scrape() {
         log.info("Starting Network resource scrape...");
@@ -66,28 +69,41 @@ public class NetworkResourceScraper {
 
     private boolean scrapeProjectAlb(final Project project, final List<String> currentResourceIds) {
         final String projectIdStr = project.getProjectId().toString();
-        try {
-            final String limit = "100";
-            final ListLoadBalancersResponse albResponse = albApi.listLoadBalancers(projectIdStr, StackitConstants.ALB_DEFAULT_REGION, limit, null);
-            if (albResponse == null || albResponse.getLoadBalancers() == null) {
-                return true;
-            }
+        final List<String> regions = sdkConfig != null ? sdkConfig.getRegions() : StackitConstants.DEFAULT_REGIONS;
+        boolean allRegionsSucceeded = true;
 
-            for (final LoadBalancer lb : albResponse.getLoadBalancers()) {
-                final NetworkResourceDto dto = NetworkResourceMapper.mapToDto(lb);
-                if (validator.validate(dto).isEmpty()) {
-                    final StackitEntity entity = NetworkResourceMapper.mapToEntity(dto);
-                    entity.setProjectId(projectIdStr);
-                    repository.persistOrUpdate(entity);
-                    currentResourceIds.add(entity.getResourceId());
+        for (final String region : regions) {
+            try {
+                final String limit = "100";
+                final ListLoadBalancersResponse albResponse = albApi.listLoadBalancers(projectIdStr, region, limit, null);
+                if (albResponse == null || albResponse.getLoadBalancers() == null) {
+                    continue;
+                }
+
+                for (final LoadBalancer lb : albResponse.getLoadBalancers()) {
+                    final NetworkResourceDto dto = NetworkResourceMapper.mapToDto(lb);
+                    if (dto.getRegion() == null || dto.getRegion().isBlank()) {
+                        dto.setRegion(region);
+                    }
+                    if (validator.validate(dto).isEmpty()) {
+                        final StackitEntity entity = NetworkResourceMapper.mapToEntity(dto);
+                        entity.setProjectId(projectIdStr);
+                        repository.persistOrUpdate(entity);
+                        currentResourceIds.add(entity.getResourceId());
+                    } else {
+                        log.warn("Invalid Network DTO: {}", dto.getLoadBalancerId());
+                    }
+                }
+            } catch (final Exception e) {
+                final String msg = e.getMessage() != null ? e.getMessage() : "";
+                if (msg.contains("404") || msg.contains("403") || msg.contains("not_found")) {
+                    log.debug("ALB not enabled or accessible for project {} in region {}: {}", projectIdStr, region, msg);
                 } else {
-                    log.warn("Invalid Network DTO: {}", dto.getLoadBalancerId());
+                    log.warn("Failed to scrape ALB resources for project {} in region {}: {}", projectIdStr, region, e.getMessage());
+                    allRegionsSucceeded = false;
                 }
             }
-            return true;
-        } catch (final Exception e) {
-            log.warn("Failed to scrape ALB resources for project {}: {}", projectIdStr, e.getMessage());
-            return false;
         }
+        return allRegionsSucceeded;
     }
 }

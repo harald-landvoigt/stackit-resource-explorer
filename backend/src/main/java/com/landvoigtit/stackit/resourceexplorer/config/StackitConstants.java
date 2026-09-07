@@ -1,5 +1,7 @@
 package com.landvoigtit.stackit.resourceexplorer.config;
 
+import java.util.List;
+
 /**
  * Centralized constant definitions for STACKIT API endpoints, resource types, and default configuration values.
  */
@@ -48,6 +50,9 @@ public final class StackitConstants {
     // Default Regions
     public static final String DEFAULT_REGION = "eu-central-1";
     public static final String ALB_DEFAULT_REGION = "eu01";
+    public static final String REGION_EU01 = "eu01";
+    public static final String REGION_EU02 = "eu02";
+    public static final List<String> DEFAULT_REGIONS = List.of(REGION_EU01, REGION_EU02);
     public static final String GLOBAL_REGION = "global";
 
     // Status Values
