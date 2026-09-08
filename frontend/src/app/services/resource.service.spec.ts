@@ -45,6 +45,7 @@ describe('ResourceService', () => {
       typeAggregations: [{ key: 'VMs', count: 1 }],
       regionAggregations: [{ key: 'eu-central-1', count: 1 }],
       statusAggregations: [{ key: 'ACTIVE', count: 1 }],
+      projectAggregations: [{ key: 'Production Project', count: 1 }],
       aggregations: [{ key: 'VMs', count: 1 }]
     };
 
@@ -54,6 +55,7 @@ describe('ResourceService', () => {
       expect(result.typeAggregations.length).toBe(1);
       expect(result.regionAggregations.length).toBe(1);
       expect(result.statusAggregations.length).toBe(1);
+      expect(result.projectAggregations?.length).toBe(1);
       expect(result).toEqual(mockSearchResult);
     });
 

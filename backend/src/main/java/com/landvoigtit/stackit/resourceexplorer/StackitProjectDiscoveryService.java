@@ -67,7 +67,7 @@ public class StackitProjectDiscoveryService {
         return null;
     }
 
-    public final List<Project> discoverProjects() {
+    public List<Project> discoverProjects() {
         final String configuredKeyPath = sdkConfig.getServiceAccountKeyPath().orElse("<not configured>");
         final String saEmail = sdkConfig.getServiceAccountEmail();
         String orgId = sdkConfig.getDiscoveredOrganizationId();

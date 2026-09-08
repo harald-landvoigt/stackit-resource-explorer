@@ -16,6 +16,17 @@ public class ResourceSearchResultDto {
     private List<AggregationItemDto> typeAggregations;
     private List<AggregationItemDto> regionAggregations;
     private List<AggregationItemDto> statusAggregations;
+    private List<AggregationItemDto> projectAggregations;
+
+    // Backward compatibility constructor without projectAggregations
+    public ResourceSearchResultDto(
+            final List<StackitResourceDto> resources,
+            final long totalCount,
+            final List<AggregationItemDto> typeAggregations,
+            final List<AggregationItemDto> regionAggregations,
+            final List<AggregationItemDto> statusAggregations) {
+        this(resources, totalCount, typeAggregations, regionAggregations, statusAggregations, java.util.Collections.emptyList());
+    }
 
     // Backward compatibility alias for typeAggregations
     public List<AggregationItemDto> getAggregations() {

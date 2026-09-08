@@ -146,8 +146,35 @@ public class StackitResourceService {
         final List<AggregationItemDto> regionAggs = repository.aggregateByRegion(query);
         final List<AggregationItemDto> statusAggs = repository.aggregateByStatus(query);
 
+        // Project aggregations
+        final List<AggregationItemDto> rawProjectAggs = repository.aggregateByProject(query);
+        final List<cloud.stackit.sdk.resourcemanager.v0api.model.Project> projects = projectDiscoveryService != null
+                ? projectDiscoveryService.discoverProjects()
+                : java.util.Collections.emptyList();
+
+        final java.util.Map<String, String> projectNames = new java.util.HashMap<>();
+        if (projects != null) {
+            for (final cloud.stackit.sdk.resourcemanager.v0api.model.Project p : projects) {
+                if (p.getProjectId() != null && p.getName() != null && !p.getName().isBlank()) {
+                    projectNames.put(p.getProjectId().toString(), p.getName());
+                }
+            }
+        }
+
+        final List<AggregationItemDto> projectAggs = new java.util.ArrayList<>();
+        if (rawProjectAggs != null) {
+            for (final AggregationItemDto agg : rawProjectAggs) {
+                final String rawKey = agg.getKey();
+                String displayName = rawKey;
+                if (!"Global / No Project".equalsIgnoreCase(rawKey) && projectNames.containsKey(rawKey)) {
+                    displayName = projectNames.get(rawKey);
+                }
+                projectAggs.add(new AggregationItemDto(displayName, agg.getCount()));
+            }
+        }
+
         final long totalCount = formattedTypeAggs.stream().mapToLong(AggregationItemDto::getCount).sum();
-        return new ResourceSearchResultDto(resourceDtos, totalCount, formattedTypeAggs, regionAggs, statusAggs);
+        return new ResourceSearchResultDto(resourceDtos, totalCount, formattedTypeAggs, regionAggs, statusAggs, projectAggs);
     }
 
     public final String formatTypeLabel(final String type) {
