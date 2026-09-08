@@ -80,8 +80,9 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
     - Prominent warning chips on resource cards utilizing deprecated static token credentials (searchable anytime via `"Token Flow"`).
   - **Resource Explorer**: Search and filter discovered resources in real time via PostgreSQL Full-Text Search. Returns results capped at 100 elements for ultra-fast rendering while displaying a `"Showing X of Y items"` indicator.
   - **Resource Details & UUIDs**: Displays the exact **Resource UUID** alongside any distinct human-readable **Resource ID** (such as bucket names or IAM accounts). Cleanly formats complex metadata (arrays of IPs or volumes) and excludes blank fields.
-  - **Multi-Dimensional Summary Aggregations**: Backend-calculated exact counts stacked across three distinct dimensions:
+  - **Multi-Dimensional Summary Aggregations**: Backend-calculated exact counts stacked across four distinct dimensions:
     - **By Resource Type** (*VMs*, *Buckets*, *Invoices*, *Networks*, *IAM Policies*)
+    - **By Project** (e.g. *resource-explorer*, *sandbox-1*, *sandbox-2*, or *Global / No Project* with automatic project ID-to-name resolution)
     - **By Region** (e.g. *eu01*, *eu01-1*, *eu01-3*, *global*)
     - **By State** (e.g. *ACTIVE*, *RUNNING*, *AVAILABLE*, and *DELETED* with warning accents)
   - **Billing Summary**: Aggregated project and organization consumption for the current calendar month in UTC with currency conversions. The Organization total is pinned to the first row, followed by projects ordered descending by costs.
@@ -256,6 +257,12 @@ The backend can be configured via `application.properties` or overridden with en
       { "key": "Networks", "count": 150 },
       { "key": "IAM Policies", "count": 50 }
     ],
+    "projectAggregations": [
+      { "key": "resource-explorer", "count": 750 },
+      { "key": "sandbox-1", "count": 500 },
+      { "key": "sandbox-2", "count": 150 },
+      { "key": "Global / No Project", "count": 50 }
+    ],
     "regionAggregations": [
       { "key": "eu01-3", "count": 850 },
       { "key": "eu01", "count": 550 },
@@ -278,13 +285,13 @@ The backend can be configured via `application.properties` or overridden with en
 ### Backend (Quarkus / Java 21)
 ```bash
 cd backend
-./mvnw test                  # Run unit and integration test suite (59 tests)
+./mvnw test                  # Run unit and integration test suite (68 tests)
 ./mvnw quarkus:dev           # Run dev mode with hot reload (Dev UI at http://localhost:8080/q/dev)
 ```
 
 ### Frontend (Angular 21 / Vitest)
 ```bash
 cd frontend
-npm test -- --watch=false    # Run unit tests via Vitest (31 tests)
+npm test -- --watch=false    # Run unit tests via Vitest (32 tests)
 ng serve                     # Start development server on port 4200 (proxies backend to 8080)
 ```

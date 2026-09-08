@@ -131,6 +131,7 @@ Searches discovered resources using Full-Text Search.
 - Capped at 100 resources (`LIMIT 100`) for low-latency response times.
 - Returns exact total count and multi-dimensional aggregations:
   - `typeAggregations`: Categorized counts (*VMs*, *Buckets*, *Invoices*, *Networks*, *IAM Policies*).
+  - `projectAggregations`: Counts by STACKIT project (*resource-explorer*, *sandbox-1*, *sandbox-2*, *Global / No Project*) with project IDs resolved to human-readable names via `StackitProjectDiscoveryService`.
   - `regionAggregations`: Counts by cloud region / AZ (*eu01*, *eu01-3*, *global*).
   - `statusAggregations`: Counts by resource lifecycle state (*ACTIVE*, *RUNNING*, *AVAILABLE*, *DELETED*).
 

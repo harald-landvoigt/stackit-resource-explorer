@@ -34,6 +34,7 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
   - Both quick filter buttons can be toggled; clicking an active filter button clears the filter.
 - **Summary Aggregations Card (Left Column)**: Stacked sections displaying exact backend-computed breakdowns across the full dataset:
   - **By Resource Type**: Counts for *VMs*, *Buckets*, *Invoices*, *Networks*, *IAM Policies*.
+  - **By Project**: Counts partitioned per STACKIT project (e.g. *resource-explorer*, *sandbox-1*, *sandbox-2*, or *Global / No Project*).
   - **By Region**: Counts by region / availability zone (e.g. *eu01*, *eu01-3*, *global*).
   - **By State**: Counts by status and lifecycle (*ACTIVE*, *RUNNING*, *AVAILABLE*, and *DELETED* with red accent).
 - **Discovered Resources Card (Right Column)**: Scrollable list of resource cards capped at 100 elements for optimal browser performance, showing `"Showing X of Y items"` subtitle when capped:
@@ -71,6 +72,7 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
   - `resources`: Resource collection capped at 100 elements for fast rendering.
   - `totalCount`: Exact total matching count across the backend database.
   - `typeAggregations`: Signal storing exact category breakdown.
+  - `projectAggregations`: Signal storing exact project breakdown.
   - `regionAggregations`: Signal storing exact cloud region breakdown.
   - `statusAggregations`: Signal storing exact state/lifecycle breakdown.
   - `billingSummary`: Current-month cost summaries.
@@ -79,7 +81,7 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
   - `searchString`: Input query string.
   - `filteredResources`: Computed signal deriving matching items from search terms.
 - **Service Layer**: `ResourceService` encapsulates HTTP communication:
-  - `GET /resources?q=...`: Retrieves `ResourceSearchResult` containing capped resources, `totalCount`, and all 3 aggregation arrays.
+  - `GET /resources?q=...`: Retrieves `ResourceSearchResult` containing capped resources, `totalCount`, and all 4 aggregation arrays.
   - `GET /resources/billing-summary`: Retrieves aggregated calendar-month costs.
 
 ---
@@ -103,7 +105,7 @@ npm start
 Runs at `http://localhost:4200/`. API calls to `/resources` are proxied to `http://localhost:8080` via `proxy.conf.json`.
 
 ### Run Unit Tests (Vitest)
-Unit tests are powered by **Vitest** and Angular Testing Utilities (31 unit tests):
+Unit tests are powered by **Vitest** and Angular Testing Utilities (32 unit tests):
 ```bash
 npm test -- --watch=false
 ```
