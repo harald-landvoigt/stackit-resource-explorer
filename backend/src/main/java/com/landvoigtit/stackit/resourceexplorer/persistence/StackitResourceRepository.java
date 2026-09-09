@@ -104,6 +104,11 @@ public class StackitResourceRepository implements PanacheRepositoryBase<StackitE
         return executeAggregation(columnExpr, query, false);
     }
 
+    public List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> aggregateByProject(final String query) {
+        final String columnExpr = "CASE WHEN project_id IS NULL OR project_id = '' OR LOWER(project_id) = 'unknown' THEN 'Global / No Project' ELSE project_id END";
+        return executeAggregation(columnExpr, query, true);
+    }
+
     private List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> executeAggregation(
             final String columnExpr,
             final String query,

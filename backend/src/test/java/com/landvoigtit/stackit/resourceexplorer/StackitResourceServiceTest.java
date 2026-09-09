@@ -176,10 +176,28 @@ public class StackitResourceServiceTest {
             public java.util.List<AggregationItemDto> aggregateByStatus(String query) {
                 return java.util.List.of(new AggregationItemDto("ACTIVE", 195L), new AggregationItemDto("DELETED", 5L));
             }
+
+            @Override
+            public java.util.List<AggregationItemDto> aggregateByProject(String query) {
+                return java.util.List.of(
+                        new AggregationItemDto("11111111-1111-1111-1111-111111111111", 150L),
+                        new AggregationItemDto("Global / No Project", 50L)
+                );
+            }
+        };
+
+        final StackitProjectDiscoveryService discoveryFake = new StackitProjectDiscoveryService(null, null) {
+            @Override
+            public java.util.List<cloud.stackit.sdk.resourcemanager.v0api.model.Project> discoverProjects() {
+                final cloud.stackit.sdk.resourcemanager.v0api.model.Project p = new cloud.stackit.sdk.resourcemanager.v0api.model.Project();
+                p.setProjectId(UUID.fromString("11111111-1111-1111-1111-111111111111"));
+                p.setName("Production Project");
+                return java.util.List.of(p);
+            }
         };
 
         final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
-        final StackitResourceService svc = new StackitResourceService(repoFake, validator, null, null);
+        final StackitResourceService svc = new StackitResourceService(repoFake, validator, discoveryFake, null);
 
         final ResourceSearchResultDto result = svc.searchResources("sample");
         assertTrue(searchCalled[0]);
@@ -200,6 +218,13 @@ public class StackitResourceServiceTest {
         assertEquals(195L, result.getStatusAggregations().get(0).getCount());
         assertEquals("DELETED", result.getStatusAggregations().get(1).getKey());
         assertEquals(5L, result.getStatusAggregations().get(1).getCount());
+
+        assertNotNull(result.getProjectAggregations());
+        assertEquals(2, result.getProjectAggregations().size());
+        assertEquals("Production Project", result.getProjectAggregations().get(0).getKey());
+        assertEquals(150L, result.getProjectAggregations().get(0).getCount());
+        assertEquals("Global / No Project", result.getProjectAggregations().get(1).getKey());
+        assertEquals(50L, result.getProjectAggregations().get(1).getCount());
     }
 
     @Test
@@ -232,6 +257,11 @@ public class StackitResourceServiceTest {
             @Override
             public java.util.List<AggregationItemDto> aggregateByStatus(String query) {
                 return java.util.List.of(new AggregationItemDto("READY", 1L));
+            }
+
+            @Override
+            public java.util.List<AggregationItemDto> aggregateByProject(String query) {
+                return java.util.List.of(new AggregationItemDto("proj-1", 1L));
             }
         };
 

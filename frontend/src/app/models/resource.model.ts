@@ -35,6 +35,7 @@ export interface ResourceSearchResult {
   typeAggregations: AggregationItem[];
   regionAggregations: AggregationItem[];
   statusAggregations: AggregationItem[];
+  projectAggregations?: AggregationItem[];
   aggregations?: AggregationItem[];
 }
 

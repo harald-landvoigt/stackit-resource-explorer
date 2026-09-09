@@ -92,7 +92,23 @@
                     </div>
                   </div>
 
-                  <!-- Section 2: By Region -->
+                  <!-- Section 2: By Project -->
+                  <div class="agg-section">
+                    <div class="agg-section-header">
+                      <span class="agg-section-title text-orange font-medium">By Project</span>
+                    </div>
+                    <div class="agg-list">
+                      <div *ngIf="projectAggregations().length === 0" class="no-data">
+                        No projects found.
+                      </div>
+                      <div *ngFor="let agg of projectAggregations()" class="agg-item border-orange">
+                        <span class="agg-type text-orange font-medium">{{ agg.key || agg.type }}</span>
+                        <span class="agg-count bg-orange text-black font-bold">{{ agg.count }}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Section 3: By Region -->
                   <div class="agg-section">
                     <div class="agg-section-header">
                       <span class="agg-section-title text-orange font-medium">By Region</span>
@@ -108,7 +124,7 @@
                     </div>
                   </div>
 
-                  <!-- Section 3: By State / Status -->
+                  <!-- Section 4: By State / Status -->
                   <div class="agg-section">
                     <div class="agg-section-header">
                       <span class="agg-section-title text-orange font-medium">By State</span>
