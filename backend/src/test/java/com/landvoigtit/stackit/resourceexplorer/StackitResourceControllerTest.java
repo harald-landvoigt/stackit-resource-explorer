@@ -109,7 +109,8 @@ public class StackitResourceControllerTest {
             .body("totalCount", org.hamcrest.Matchers.greaterThanOrEqualTo(1))
             .body("typeAggregations.size()", org.hamcrest.Matchers.greaterThanOrEqualTo(1))
             .body("regionAggregations.size()", org.hamcrest.Matchers.greaterThanOrEqualTo(1))
-            .body("statusAggregations.size()", org.hamcrest.Matchers.greaterThanOrEqualTo(1));
+            .body("statusAggregations.size()", org.hamcrest.Matchers.greaterThanOrEqualTo(1))
+            .body("projectAggregations.size()", org.hamcrest.Matchers.greaterThanOrEqualTo(1));
 
         // Test GET /resources without query param
         given()
@@ -121,6 +122,7 @@ public class StackitResourceControllerTest {
             .body("totalCount", org.hamcrest.Matchers.greaterThanOrEqualTo(1))
             .body("typeAggregations.size()", org.hamcrest.Matchers.greaterThanOrEqualTo(1))
             .body("regionAggregations.size()", org.hamcrest.Matchers.greaterThanOrEqualTo(1))
-            .body("statusAggregations.size()", org.hamcrest.Matchers.greaterThanOrEqualTo(1));
+            .body("statusAggregations.size()", org.hamcrest.Matchers.greaterThanOrEqualTo(1))
+            .body("projectAggregations.size()", org.hamcrest.Matchers.greaterThanOrEqualTo(1));
     }
 }

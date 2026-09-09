@@ -70,6 +70,8 @@ export class App implements OnInit {
 
   // Expanded S3 policy and ACL detail views
   readonly expandedPolicyIds = signal<Set<string>>(new Set());
+  // Exact project aggregations calculated by the backend across the full query dataset
+  readonly projectAggregations = signal<AggregationItem[]>([]);
 
   ngOnInit(): void {
     this.loadResources();
@@ -84,6 +86,7 @@ export class App implements OnInit {
         this.typeAggregations.set(data?.typeAggregations || data?.aggregations || []);
         this.regionAggregations.set(data?.regionAggregations || []);
         this.statusAggregations.set(data?.statusAggregations || []);
+        this.projectAggregations.set(data?.projectAggregations || []);
         if (this.lastErrorSource === 'resources') {
           this.errorMessage.set(null);
           this.lastErrorSource = null;
@@ -91,6 +94,7 @@ export class App implements OnInit {
       },
       error: (err) => {
         console.error('Failed to load resources', err);
+        this.projectAggregations.set([]);
         this.lastErrorSource = 'resources';
         this.errorMessage.set(this.extractErrorMessage(err));
       }

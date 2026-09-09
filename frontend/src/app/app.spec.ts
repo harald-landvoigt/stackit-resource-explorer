@@ -48,6 +48,9 @@ describe('App', () => {
       { key: 'ACTIVE', count: 1 },
       { key: 'PAID', count: 1 }
     ],
+    projectAggregations: [
+      { key: 'Production Project', count: 2 }
+    ],
     aggregations: [
       { key: 'VMs', count: 1 },
       { key: 'Invoices', count: 1 }
@@ -172,15 +175,38 @@ describe('App', () => {
     expect(app.statusAggregations()).toContainEqual({ key: 'ACTIVE', count: 1 });
     expect(app.statusAggregations()).toContainEqual({ key: 'PAID', count: 1 });
 
+    expect(app.projectAggregations().length).toBe(1);
+    expect(app.projectAggregations()).toContainEqual({ key: 'Production Project', count: 2 });
+
     const compiled = fixture.nativeElement as HTMLElement;
     const sectionTitles = compiled.querySelectorAll('.agg-section-title');
-    expect(sectionTitles.length).toBe(3);
+    expect(sectionTitles.length).toBe(4);
     expect(sectionTitles[0].textContent).toContain('By Resource Type');
-    expect(sectionTitles[1].textContent).toContain('By Region');
-    expect(sectionTitles[2].textContent).toContain('By State');
+    expect(sectionTitles[1].textContent).toContain('By Project');
+    expect(sectionTitles[2].textContent).toContain('By Region');
+    expect(sectionTitles[3].textContent).toContain('By State');
 
     const aggItems = compiled.querySelectorAll('.agg-item');
-    expect(aggItems.length).toBe(5);
+    expect(aggItems.length).toBe(6);
+  });
+
+  it('should display "No projects found." when projectAggregations is empty', () => {
+    mockResourceService.getResources.mockReturnValue(of({
+      resources: [],
+      totalCount: 0,
+      typeAggregations: [],
+      regionAggregations: [],
+      statusAggregations: [],
+      projectAggregations: []
+    }));
+
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const compiled = fixture.nativeElement as HTMLElement;
+
+    const noDataElements = compiled.querySelectorAll('.no-data');
+    const noDataTexts = Array.from(noDataElements).map(el => el.textContent?.trim());
+    expect(noDataTexts).toContain('No projects found.');
   });
 
   it('should query backend resources when Search is executed', () => {
