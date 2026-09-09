@@ -19,7 +19,16 @@ import cloud.stackit.sdk.alb.v2api.model.LoadBalancer;
 import cloud.stackit.sdk.alb.v2api.model.ListLoadBalancersResponse;
 import cloud.stackit.sdk.objectstorage.v2api.api.ObjectStorageApi;
 import cloud.stackit.sdk.objectstorage.v2api.model.Bucket;
+import cloud.stackit.sdk.objectstorage.v2api.model.ComplianceLockResponse;
+import cloud.stackit.sdk.objectstorage.v2api.model.CreateAccessKeyPayload;
+import cloud.stackit.sdk.objectstorage.v2api.model.CreateAccessKeyResponse;
+import cloud.stackit.sdk.objectstorage.v2api.model.CreateCredentialsGroupPayload;
+import cloud.stackit.sdk.objectstorage.v2api.model.CreateCredentialsGroupResponse;
+import cloud.stackit.sdk.objectstorage.v2api.model.CredentialsGroup;
+import cloud.stackit.sdk.objectstorage.v2api.model.DefaultRetentionResponse;
+import cloud.stackit.sdk.objectstorage.v2api.model.DeleteAccessKeyResponse;
 import cloud.stackit.sdk.objectstorage.v2api.model.ListBucketsResponse;
+import cloud.stackit.sdk.objectstorage.v2api.model.ListCredentialsGroupsResponse;
 import cloud.stackit.sdk.resourcemanager.v0api.api.ResourceManagerApi;
 import cloud.stackit.sdk.resourcemanager.v0api.model.Project;
 import cloud.stackit.sdk.resourcemanager.v0api.model.ListProjectsResponse;
@@ -160,6 +169,52 @@ public class StackitSdkMockProducer {
             b.setName("mock-bucket-" + (region != null ? region : "eu01"));
             b.setRegion(region != null ? region : "eu01");
             resp.setBuckets(List.of(b));
+            return resp;
+        }
+
+        @Override
+        public ListCredentialsGroupsResponse listCredentialsGroups(final String projectId, final String region) {
+            final ListCredentialsGroupsResponse resp = new ListCredentialsGroupsResponse();
+            resp.setCredentialsGroups(List.of());
+            return resp;
+        }
+
+        @Override
+        public CreateCredentialsGroupResponse createCredentialsGroup(final String projectId, final String region, final CreateCredentialsGroupPayload payload) {
+            final CreateCredentialsGroupResponse resp = new CreateCredentialsGroupResponse();
+            final CredentialsGroup cg = new CredentialsGroup();
+            cg.setCredentialsGroupId("mock-cg-id");
+            cg.setDisplayName(payload != null ? payload.getDisplayName() : "resource-explorer-audit");
+            resp.setCredentialsGroup(cg);
+            return resp;
+        }
+
+        @Override
+        public CreateAccessKeyResponse createAccessKey(final String projectId, final String region, final CreateAccessKeyPayload payload, final String credentialsGroupId) {
+            final CreateAccessKeyResponse resp = new CreateAccessKeyResponse();
+            resp.setKeyId("mock-key-id");
+            resp.setAccessKey("mock-access-key");
+            resp.setSecretAccessKey("mock-secret-key");
+            return resp;
+        }
+
+        @Override
+        public DeleteAccessKeyResponse deleteAccessKey(final String projectId, final String region, final String keyId, final String credentialsGroupId) {
+            return new DeleteAccessKeyResponse();
+        }
+
+        @Override
+        public DefaultRetentionResponse getDefaultRetention(final String projectId, final String region, final String bucketName) {
+            final DefaultRetentionResponse resp = new DefaultRetentionResponse();
+            resp.setBucket(bucketName);
+            resp.setDays(30);
+            return resp;
+        }
+
+        @Override
+        public ComplianceLockResponse getComplianceLock(final String projectId, final String region) {
+            final ComplianceLockResponse resp = new ComplianceLockResponse();
+            resp.setMaxRetentionDays(365);
             return resp;
         }
     }

@@ -58,7 +58,7 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
   - Captures rich metadata: Availability Zone (mapped into region), power status (`RUNNING`, `SHUTOFF`), machine type/size, boot volume ID & termination policy, attached volume IDs, security groups, SSH keypair names, and IPv4/public IP addresses.
   - Automatically parses server labels and maps them to resource tags.
 - **Storage Scrapers**:
-  - **Object Storage**: Catalogs buckets, regions, and configuration across projects. Gracefully handles inactive services (`404`) and permission boundaries (`403`).
+  - **Object Storage & S3 Security Analysis**: Catalogs buckets and regional endpoints. Uses dynamic Just-In-Time (JIT) S3 access credentials to inspect bucket ACLs, raw bucket policy JSON, and compliance locks (Object Lock & retention periods). Evaluates public exposure risks, applying status badges: 🔴 **Public** (with exposure method), 🟢 **Private**, or 🟠 **UNKNOWN** (when ACL data is unreadable or JIT access is forbidden). Provides an expandable policy and ACL viewer in the UI.
   - **VM Disks (Block Storage)**: Catalogs persistent block storage volumes (`/v1/projects/{projectId}/volumes`), capturing volume size, status, performance class, source, and attached server IDs.
 - **Network Scrapers**:
   - **Virtual Private Clouds (VPC)**: Catalogs network VPC topologies (`/v1/projects/{projectId}/networks`), capturing prefixes, gateway routing, and labels.
@@ -74,7 +74,8 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
   - Automatically converts amounts from cents to EUR.
   - Features an on-demand fallback: when the `/resources/billing-summary` endpoint is queried, if no records exist in cache yet, it triggers an immediate scrape.
 - **Interactive UI Dashboard**:
-  - **Authentication Quick Filters & Deprecation Badges**: 1-click quick-filter buttons located below the search bar:
+  - **Authentication & Security Quick Filters**:
+    - **Public Buckets (Red)**: 1-click filter for publicly exposed storage buckets (`is-public: true`).
     - **Token Flow (Red)**: Filters service accounts and users utilizing deprecated static API tokens (`"Token Flow"`).
     - **Key Flow (Orange)**: Filters service accounts utilizing modern asymmetric RSA key pairs (`"Key Flow"`).
     - Prominent warning chips on resource cards utilizing deprecated static token credentials (searchable anytime via `"Token Flow"`).
@@ -108,10 +109,50 @@ To crawl projects, services, and billing across an organization or project hiera
 | **VM Disks (Storage)** | `iaas.viewer` or `iaas.admin` | `iaas.volume.read` to list block storage volumes |
 | **Network VPC** | `iaas.viewer` or `iaas.admin` | `iaas.network.read` to list VPC networks |
 | **Load Balancers** | `loadbalancer.auditor` or `loadbalancer.viewer` | `loadbalancer.loadbalancer.read` |
-| **Object Storage** | `objectstorage.auditor` or `objectstorage.viewer` | `objectstorage.bucket.read` |
+| **Object Storage (Basic Discovery)** | `objectstorage.auditor` or `objectstorage.viewer` | `object-storage.bucket.list`, `object-storage.service.list` (lists buckets; public exposure status will be UNKNOWN) |
+| **Object Storage (S3 Security Audit)** | `objectstorage.admin` or custom role | Full 10 scraper permissions (see details below) for JIT S3 key minting, compliance lock inspection, and ACL/policy scraping |
 | **IAM Members** | `authorization.auditor` | `authorization.member.read` |
 | **Service Accounts & Credentials** | `service-account.viewer` or `service-account.auditor` | `serviceaccount.serviceaccount.read`, `serviceaccount.token.read`, `serviceaccount.key.read` |
 | **Billing / Cost** | `cost.viewer` or `billing.viewer` | Read access to STACKIT Cost API v3 |
+
+### Object Storage Scraper Role & Granular IAM Permissions
+
+To enable the full S3 Security Audit (inspecting bucket ACLs, bucket policies, and compliance locks without degradation), the scraper service account requires either the predefined `objectstorage.admin` role or a custom IAM role with the following **10 permissions**:
+
+```
+object-storage.access-key.create
+object-storage.access-key.delete
+object-storage.access-key.list
+object-storage.bucket.list
+object-storage.compliance-lock.list
+object-storage.credentials-group.create
+object-storage.credentials-group.delete
+object-storage.credentials-group.list
+object-storage.service-account.list
+object-storage.service.list
+```
+
+#### Why Each Permission is Needed:
+* **`object-storage.bucket.list`**: Lists all storage buckets in each region (`GET /v1/projects/{projectId}/buckets`).
+* **`object-storage.service.list`**: Discovers enabled Object Storage service regions (`GET /v1/projects/{projectId}/regions`).
+* **`object-storage.compliance-lock.list`**: Reads project-level compliance lock and retention configurations (`GET /v1/projects/{projectId}/compliance-lock`).
+* **`object-storage.credentials-group.create`**: Creates the dedicated ephemeral audit credentials group (`resource-explorer-audit`) in the target project.
+* **`object-storage.credentials-group.list`**: Checks for an existing audit credentials group before creating a new one.
+* **`object-storage.credentials-group.delete`**: Cleans up the audit credentials group upon cleanup.
+* **`object-storage.access-key.create`**: Mints a short-lived (15-minute) S3 access key pair (`accessKey` / `secretAccessKey`) used exclusively for data-plane inspection.
+* **`object-storage.access-key.list`**: Queries active access keys within the audit credentials group.
+* **`object-storage.access-key.delete`**: Immediately deletes the ephemeral access key upon completion of the scrape in a `finally` block.
+* **`object-storage.service-account.list`**: Lists service accounts associated with Object Storage credentials and groups.
+
+> [!WARNING]
+> ### Storage Admin (`objectstorage.admin`) or Custom Scraper Role Required for S3 ACL & Policy Scraping
+> In STACKIT Object Storage, S3 access keys cannot have fine-grained permissions attached directly, nor can S3 data-plane credentials be derived from a service user without creating credentials groups and access keys.
+> To inspect bucket ACLs, bucket policies, and compliance locks, the scraper uses **dynamic Just-In-Time (JIT) S3 credential minting**: it creates an ephemeral audit credentials group (`resource-explorer-audit`) and a temporary access key, queries the regional S3 data plane, and immediately deletes both the access key and credentials group in a `finally` block.
+> 
+> **You MUST assign either the `objectstorage.admin` (Storage Admin) role or a custom role containing the 10 permissions above** to the service account on target projects (or at the organization/folder level).
+> 
+> - **With `objectstorage.admin` or custom scraper role**: The scraper evaluates bucket exposure as **Public** (🔴) or **Private** (🟢), and records granular ACL grants and bucket policy statements.
+> - **Without these permissions** (e.g., if only `objectstorage.viewer` or `objectstorage.auditor` is assigned): The scraper can list bucket names via the control-plane API, but JIT key generation will fail with `403 Forbidden`. The scraper gracefully degrades by recording the `ACL_NOT_ACCESSIBLE` security finding, tagging the bucket with `is-public: unknown`, and rendering an **orange badge for UNKNOWN** (🟠).
 
 > **Note**: If a service is not enabled for a project or the service account lacks access to a specific project, the scrapers log a non-fatal warning (`403 Forbidden` / `404 Not Found`) and continue processing remaining projects.
 
@@ -212,6 +253,7 @@ The backend can be configured via `application.properties` or overridden with en
 | Property | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `stackit.sdk.service-account-key-path` | `STACKIT_SERVICE_ACCOUNT_KEY_PATH` | `/app/keys/scraper.json` | Internal container path where the service account key is mounted |
+| `stackit.storage.s3.endpoint-template` | `STACKIT_S3_ENDPOINT_TEMPLATE` | `https://object.storage.%s.onstackit.cloud` | Regional S3 data-plane endpoint template (`%s` is replaced by region, e.g. `eu01`) |
 | `stackit.compute.schedule` | `STACKIT_COMPUTE_SCHEDULE` | `1h` | Schedule for Compute VM Scraper (`1h`, cron, or `off`) |
 | `stackit.storage.schedule` | `STACKIT_STORAGE_SCHEDULE` | `1h` | Schedule for Object Storage Scraper |
 | `stackit.vmdisks.schedule` | `STACKIT_VMDISKS_SCHEDULE` | `1h` | Schedule for VM Disk (Block Storage) Scraper |
@@ -285,13 +327,13 @@ The backend can be configured via `application.properties` or overridden with en
 ### Backend (Quarkus / Java 21)
 ```bash
 cd backend
-./mvnw test                  # Run unit and integration test suite (68 tests)
+./mvnw test                  # Run unit and integration test suite (89 tests)
 ./mvnw quarkus:dev           # Run dev mode with hot reload (Dev UI at http://localhost:8080/q/dev)
 ```
 
 ### Frontend (Angular 21 / Vitest)
 ```bash
 cd frontend
-npm test -- --watch=false    # Run unit tests via Vitest (32 tests)
+npm test -- --watch=false    # Run unit tests via Vitest (37 tests)
 ng serve                     # Start development server on port 4200 (proxies backend to 8080)
 ```

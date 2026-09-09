@@ -11,7 +11,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTabsModule } from '@angular/material/tabs';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ResourceService } from './services/resource.service';
-import { StackitResource, BillingSummary, AggregationItem } from './models/resource.model';
+import { StackitResource, BillingSummary, AggregationItem, StorageResourceData } from './models/resource.model';
 
 @Component({
   selector: 'app-root',
@@ -68,6 +68,8 @@ export class App implements OnInit {
   // Exact status/state aggregations calculated by the backend across the full query dataset
   readonly statusAggregations = signal<AggregationItem[]>([]);
 
+  // Expanded S3 policy and ACL detail views
+  readonly expandedPolicyIds = signal<Set<string>>(new Set());
   // Exact project aggregations calculated by the backend across the full query dataset
   readonly projectAggregations = signal<AggregationItem[]>([]);
 
@@ -230,6 +232,50 @@ export class App implements OnInit {
       this.searchString.set('Key Flow');
     }
     this.onSearch();
+  }
+
+  filterPublicBuckets(): void {
+    if (this.searchString() === 'is-public: true') {
+      this.searchString.set('');
+    } else {
+      this.searchString.set('is-public: true');
+    }
+    this.onSearch();
+  }
+
+  togglePolicyDetails(id: string): void {
+    this.expandedPolicyIds.update((set) => {
+      const next = new Set(set);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  isPolicyExpanded(id: string): boolean {
+    return this.expandedPolicyIds().has(id);
+  }
+
+  formatPolicyJson(policy: string | null | undefined): string {
+    if (!policy) return '';
+    try {
+      const parsed = typeof policy === 'string' ? JSON.parse(policy) : policy;
+      return JSON.stringify(parsed, null, 2);
+    } catch {
+      return String(policy);
+    }
+  }
+
+  hasStorageSecurityDetails(res: StackitResource): boolean {
+    if (!res || !res.data) return false;
+    return !!(res.data['bucketPolicy'] || res.data['acl'] || res.data['securityFindings'] || res.data['retention']);
+  }
+
+  getStorageData(res: StackitResource): StorageResourceData | undefined {
+    return res.data as StorageResourceData | undefined;
   }
 
   isTokenFlowDeprecated(res: StackitResource): boolean {

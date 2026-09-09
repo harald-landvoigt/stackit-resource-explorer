@@ -397,4 +397,49 @@ public class StackitResourceRepositoryTest {
         assertTrue(globalAgg.isPresent());
         assertEquals(2L, globalAgg.get().getCount());
     }
+
+    @Test
+    @Transactional
+    public void testPersistOrUpdatePrunesDuplicateWithDifferentId() {
+        final String bucketName = "my-test-dedup-bucket";
+        // Given an old entity with old UUID
+        final StackitEntity oldEntity = new StackitEntity();
+        final UUID oldId = UUID.nameUUIDFromBytes(bucketName.getBytes());
+        oldEntity.setId(oldId);
+        oldEntity.setResourceId(bucketName);
+        oldEntity.setName(bucketName);
+        oldEntity.setType("storage");
+        oldEntity.setStatus("AVAILABLE");
+        oldEntity.setRegion("eu01");
+        oldEntity.setProjectId("proj-123");
+        oldEntity.setCreatedAt(Instant.now().minusSeconds(3600));
+        oldEntity.setUpdatedAt(Instant.now().minusSeconds(3600));
+        oldEntity.setData(Map.of("storageClass", "standard"));
+        repository.persist(oldEntity);
+        repository.flush();
+
+        assertNotNull(repository.findById(oldId));
+
+        // When a new entity with namespaced UUID is persisted via persistOrUpdate
+        final StackitEntity newEntity = new StackitEntity();
+        final UUID newId = UUID.nameUUIDFromBytes(("eu01/" + bucketName).getBytes());
+        newEntity.setId(newId);
+        newEntity.setResourceId(bucketName);
+        newEntity.setName(bucketName);
+        newEntity.setType("storage");
+        newEntity.setStatus("AVAILABLE");
+        newEntity.setRegion("eu01");
+        newEntity.setProjectId("proj-123");
+        newEntity.setCreatedAt(Instant.now());
+        newEntity.setUpdatedAt(Instant.now());
+        newEntity.setData(Map.of("storageClass", "standard", "isPublic", false));
+        repository.persistOrUpdate(newEntity);
+        repository.flush();
+
+        // Then the new entity exists and the old duplicate has been cleaned up
+        assertNotNull(repository.findById(newId));
+        assertNull(repository.findById(oldId));
+        assertEquals(1, repository.list("type = ?1 and projectId = ?2 and resourceId = ?3 and deletedAt is null",
+                "storage", "proj-123", "my-test-dedup-bucket").size());
+    }
 }

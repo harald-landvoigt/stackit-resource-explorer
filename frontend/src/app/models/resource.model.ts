@@ -38,4 +38,35 @@ export interface ResourceSearchResult {
   projectAggregations?: AggregationItem[];
   aggregations?: AggregationItem[];
 }
+export interface StorageGrant {
+  grantee?: string;
+  granteeType?: string;
+  permission?: string;
+}
 
+export interface StorageAcl {
+  owner?: string;
+  ownerId?: string;
+  grants?: StorageGrant[];
+}
+
+export interface StorageRetention {
+  mode?: string;
+  retentionDays?: number;
+  defaultRetentionSet?: boolean;
+  projectMaxRetentionDays?: number;
+}
+
+export interface StorageResourceData {
+  storageClass?: string;
+  objectLockEnabled?: boolean;
+  urlPathStyle?: string;
+  urlVirtualHostedStyle?: string;
+  isPublic?: boolean | null;
+  publicAccessType?: string;
+  bucketPolicy?: string;
+  acl?: StorageAcl;
+  retention?: StorageRetention;
+  securityFindings?: string[];
+  [key: string]: any;
+}

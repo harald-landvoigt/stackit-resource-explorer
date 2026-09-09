@@ -32,6 +32,7 @@ services:
       - STACKIT_SERVICE_ACCOUNT_KEY_PATH=/app/keys/scraper.json
       - STACKIT_COMPUTE_SCHEDULE=1h
       - STACKIT_STORAGE_SCHEDULE=1h
+      - STACKIT_S3_ENDPOINT_TEMPLATE=https://object.storage.%s.onstackit.cloud
       - STACKIT_NETWORK_SCHEDULE=1h
       - STACKIT_NETWORK_VPC_SCHEDULE=1h
       - STACKIT_VMDISKS_SCHEDULE=1h

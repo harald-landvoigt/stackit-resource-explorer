@@ -76,6 +76,44 @@ Each scraper implements independent schedules (configurable via `application.pro
 #### VM Disk Scraper Details
 - Maps persistent block storage volumes with size in GB, status (`AVAILABLE`, `ATTACHED`), performance class, source, and attached server IDs.
 
+#### Storage Scraper Details (S3 & Object Storage)
+- **Multi-Region Bucket Discovery**: Discovers buckets across configured regions (`eu01`, `eu02`) via `ObjectStorageApi.listBuckets`.
+- **Retention & Compliance Lock**: Fetches project-level maximum compliance lock (`getComplianceLock`) and bucket default retention configurations (`getDefaultRetention`).
+- **Dynamic JIT S3 Credential Minting (`S3JitKeyManager`)**:
+  - Dynamically creates an ephemeral audit credentials group (`resource-explorer-audit`) and a temporary S3 access key (`expires = now + 15m`).
+  - Uses regional AWS SDK v2 `S3Client` configured with STACKIT path-style endpoints to inspect bucket ACLs (`getBucketAcl`), raw bucket policies (`getBucketPolicy`), and public access blocks (`getPublicAccessBlock`).
+  - **Guaranteed Cleanup**: Automatically deletes the access key and credentials group in a `finally` block immediately after inspection.
+- **Security Risk Evaluation (`StorageSecurityEvaluator`)**:
+  - Analyzes ACL grants (`AllUsers`, `AuthenticatedUsers`) and bucket policy statements (wildcard principals, TLS enforcement).
+  - Categorizes public exposure into `PUBLIC_READ`, `PUBLIC_WRITE`, `PUBLIC_READ_WRITE`, `NOT_PUBLIC`, or `UNKNOWN`.
+  - Persists raw bucket policy JSON directly in `StackitEntity.data["bucketPolicy"]` and tags entities with `is-public` (`true`, `false`, or `unknown`).
+- **IAM Permission Requirement & Warning**:
+  - **`objectstorage.admin` (Storage Admin) or Custom Scraper Role is REQUIRED**:
+    To perform Just-In-Time S3 credential minting and evaluate ACLs and bucket policies without degradation, the service account must have `objectstorage.admin` or a custom role with the following **10 permissions**:
+    ```
+    object-storage.access-key.create
+    object-storage.access-key.delete
+    object-storage.access-key.list
+    object-storage.bucket.list
+    object-storage.compliance-lock.list
+    object-storage.credentials-group.create
+    object-storage.credentials-group.delete
+    object-storage.credentials-group.list
+    object-storage.service-account.list
+    object-storage.service.list
+    ```
+    - `object-storage.bucket.list`: List buckets in each region (`GET /v1/projects/{projectId}/buckets`).
+    - `object-storage.service.list`: Discover enabled service regions (`GET /v1/projects/{projectId}/regions`).
+    - `object-storage.compliance-lock.list`: Read compliance lock & retention settings (`GET /v1/projects/{projectId}/compliance-lock`).
+    - `object-storage.credentials-group.create`: Create ephemeral audit credentials group (`resource-explorer-audit`).
+    - `object-storage.credentials-group.list`: Inspect existing credentials groups.
+    - `object-storage.credentials-group.delete`: Delete ephemeral credentials group during cleanup.
+    - `object-storage.access-key.create`: Generate short-lived (15-minute) S3 access key pair.
+    - `object-storage.access-key.list`: Query active access keys for the credentials group.
+    - `object-storage.access-key.delete`: Immediately delete the ephemeral S3 access key in `finally` cleanup.
+    - `object-storage.service-account.list`: List service accounts associated with object storage.
+  - **Fallback on Read-Only Roles**: If the service account only has `objectstorage.viewer` or `objectstorage.auditor`, JIT key creation will fail with `403 Forbidden`. The scraper gracefully degrades: public exposure is marked `UNKNOWN`, tagged with `is-public: unknown`, and recorded with finding `ACL_NOT_ACCESSIBLE` (rendered as an orange badge in the frontend).
+
 #### Network VPC Scraper Details
 - Maps virtual networks with IPv4/IPv6 CIDR prefixes, default gateway IPs, and network tags.
 
@@ -103,6 +141,7 @@ Each scraper implements independent schedules (configurable via `application.pro
 | Property | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `stackit.sdk.service-account-key-path` | `STACKIT_SERVICE_ACCOUNT_KEY_PATH` | `/app/keys/scraper.json` | Path to service account JSON key file |
+| `stackit.storage.s3.endpoint-template` | `STACKIT_S3_ENDPOINT_TEMPLATE` | `https://object.storage.%s.onstackit.cloud` | S3 data-plane endpoint template (`%s` replaced by region) |
 | `stackit.compute.schedule` | `STACKIT_COMPUTE_SCHEDULE` | `1h` | Interval or cron for Compute VM Scraper |
 | `stackit.storage.schedule` | `STACKIT_STORAGE_SCHEDULE` | `1h` | Interval or cron for Object Storage Scraper |
 | `stackit.vmdisks.schedule` | `STACKIT_VMDISKS_SCHEDULE` | `1h` | Interval or cron for VM Disk (Block Storage) Scraper |

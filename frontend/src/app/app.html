@@ -64,6 +64,14 @@
               <mat-icon class="filter-btn-icon">vpn_key</mat-icon>
               <span>Key Flow</span>
             </button>
+            <button type="button" 
+                    class="filter-chip-btn public-filter-btn" 
+                    [class.active-filter]="searchString() === 'is-public: true'"
+                    (click)="filterPublicBuckets()"
+                    title="Filter publicly accessible S3 storage buckets">
+              <mat-icon class="filter-btn-icon">public</mat-icon>
+              <span>Public Buckets</span>
+            </button>
           </div>
 
           <!-- Main Columns Layout -->
@@ -165,6 +173,32 @@
                             <mat-icon class="chip-warning-icon">warning</mat-icon>
                             Token Flow (Deprecated)
                           </mat-chip>
+                          <ng-container *ngIf="res.type === 'storage'">
+                            <ng-container *ngIf="getStorageData(res) as storage; else unknownStorage">
+                              <mat-chip *ngIf="storage.isPublic === true" class="public-badge" title="Bucket is publicly accessible over the internet">
+                                <mat-icon class="chip-warning-icon">public</mat-icon>
+                                Public{{ storage.publicAccessType ? ' (' + storage.publicAccessType + ')' : '' }}
+                              </mat-chip>
+                              <mat-chip *ngIf="storage.isPublic === false" class="private-badge" title="Bucket has no public read/write grants or policies">
+                                <mat-icon class="chip-safe-icon">lock</mat-icon>
+                                Private
+                              </mat-chip>
+                              <mat-chip *ngIf="storage.isPublic == null || storage.publicAccessType === 'UNKNOWN'" class="unknown-badge" title="Bucket ACL could not be read; public exposure status unknown">
+                                <mat-icon class="chip-unknown-icon">help_outline</mat-icon>
+                                UNKNOWN
+                              </mat-chip>
+                              <mat-chip *ngIf="storage.retention?.mode" class="retention-badge" title="Retention compliance policy is active on this bucket">
+                                <mat-icon class="chip-lock-icon">verified_user</mat-icon>
+                                {{ storage.retention?.mode }}{{ storage.retention?.retentionDays ? ' (' + storage.retention?.retentionDays + 'd)' : '' }}
+                              </mat-chip>
+                            </ng-container>
+                            <ng-template #unknownStorage>
+                              <mat-chip class="unknown-badge" title="Bucket ACL could not be read; public exposure status unknown">
+                                <mat-icon class="chip-unknown-icon">help_outline</mat-icon>
+                                UNKNOWN
+                              </mat-chip>
+                            </ng-template>
+                          </ng-container>
                           <mat-chip class="type-chip">{{ res.type }}</mat-chip>
                           <mat-chip class="status-chip" [class.active-status]="res.status === 'active' || res.status === 'paid'">{{ res.status }}</mat-chip>
                         </mat-chip-set>
@@ -201,7 +235,7 @@
                           <span class="section-title text-orange font-medium">Metadata:</span>
                           <div class="metadata-grid">
                             <ng-container *ngFor="let key of getObjectKeys(res.data)">
-                              <div *ngIf="key !== 'amount' && key !== 'currency' && res.data[key] !== '' && res.data[key] !== null" class="meta-item">
+                              <div *ngIf="key !== 'amount' && key !== 'currency' && key !== 'bucketPolicy' && key !== 'acl' && key !== 'securityFindings' && key !== 'retention' && res.data[key] !== '' && res.data[key] !== null" class="meta-item">
                                 <span class="meta-key">{{ key }}:</span>
                                 <span class="meta-val">{{ formatMetaValue(res.data[key]) }}</span>
                               </div>
@@ -216,6 +250,73 @@
                             <span *ngFor="let key of getObjectKeys(res.tags)" class="tag-badge">
                               {{ key }}: {{ res.tags[key] }}
                             </span>
+                          </div>
+                        </div>
+
+                        <!-- S3 Bucket Policy & ACL Details Toggle -->
+                        <div *ngIf="hasStorageSecurityDetails(res)" class="storage-security-toggle">
+                          <button mat-stroked-button class="toggle-policy-btn border-orange" (click)="togglePolicyDetails(res.id)">
+                            <mat-icon>{{ isPolicyExpanded(res.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                            <span>{{ isPolicyExpanded(res.id) ? 'Hide Policy & ACLs' : 'View Policy & ACLs' }}</span>
+                          </button>
+                        </div>
+
+                        <!-- Expandable S3 Details Container -->
+                        <div *ngIf="isPolicyExpanded(res.id) && getStorageData(res) as storage" class="bucket-policy-details border-orange">
+                          <!-- Security Findings -->
+                          <div *ngIf="storage.securityFindings && storage.securityFindings.length > 0" class="findings-section">
+                            <div class="findings-title text-orange font-bold">
+                              <mat-icon class="finding-warn-icon">security</mat-icon>
+                              Security Findings:
+                            </div>
+                            <div class="findings-list">
+                              <span *ngFor="let finding of storage.securityFindings" class="finding-chip">
+                                <mat-icon class="finding-icon">warning_amber</mat-icon>
+                                {{ finding }}
+                              </span>
+                            </div>
+                          </div>
+
+                          <!-- ACL Grants -->
+                          <div *ngIf="storage.acl; else noAclTpl" class="acl-section">
+                            <div class="section-title text-orange font-bold">Access Control List (ACL):</div>
+                            <div *ngIf="storage.acl.owner" class="acl-owner">
+                              <span class="owner-label text-orange font-medium">Owner:</span>
+                              <span class="owner-value">{{ storage.acl.owner }}</span>
+                            </div>
+                            <div *ngIf="storage.acl.grants && storage.acl.grants.length > 0" class="grants-table-container">
+                              <table class="grants-table">
+                                <thead>
+                                  <tr>
+                                    <th>Grantee</th>
+                                    <th>Permission</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  <tr *ngFor="let grant of storage.acl.grants">
+                                    <td class="grantee-col">{{ grant.grantee }}</td>
+                                    <td class="permission-col font-bold" [class.perm-warn]="grant.permission === 'FULL_CONTROL' || grant.permission === 'WRITE'">{{ grant.permission }}</td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                          <ng-template #noAclTpl>
+                            <div class="acl-section">
+                              <div class="section-title text-orange font-bold">Access Control List (ACL):</div>
+                              <div class="no-acl-text text-orange font-medium">ACL data could not be read (access restricted or unreadable).</div>
+                            </div>
+                          </ng-template>
+
+                          <!-- Bucket Policy JSON -->
+                          <div class="policy-section">
+                            <div class="section-title text-orange font-bold">Bucket Policy:</div>
+                            <div *ngIf="storage.bucketPolicy; else noPolicyTpl">
+                              <pre class="policy-json"><code>{{ formatPolicyJson(storage.bucketPolicy) }}</code></pre>
+                            </div>
+                            <ng-template #noPolicyTpl>
+                              <div class="no-policy-text">No bucket policy configured.</div>
+                            </ng-template>
                           </div>
                         </div>
                       </div>
