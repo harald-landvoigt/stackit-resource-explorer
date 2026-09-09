@@ -15,6 +15,17 @@ public class StackitResourceRepository implements PanacheRepositoryBase<StackitE
         if (entity == null || entity.getId() == null) {
             return;
         }
+        // Prune any stale duplicate entities with the same (type, projectId, resourceId) but a different id
+        if (entity.getType() != null && entity.getProjectId() != null && entity.getResourceId() != null) {
+            final List<StackitEntity> duplicates = list("type = ?1 and projectId = ?2 and resourceId = ?3 and id != ?4",
+                    entity.getType(), entity.getProjectId(), entity.getResourceId(), entity.getId());
+            if (!duplicates.isEmpty()) {
+                for (final StackitEntity dup : duplicates) {
+                    delete(dup);
+                }
+                flush();
+            }
+        }
         final StackitEntity existing = findById(entity.getId());
         if (existing != null) {
             existing.setName(entity.getName());
@@ -102,6 +113,11 @@ public class StackitResourceRepository implements PanacheRepositoryBase<StackitE
     public List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> aggregateByStatus(final String query) {
         final String columnExpr = "CASE WHEN deleted_at IS NOT NULL THEN 'DELETED' ELSE UPPER(coalesce(status, 'UNKNOWN')) END";
         return executeAggregation(columnExpr, query, false);
+    }
+
+    public List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> aggregateByProject(final String query) {
+        final String columnExpr = "CASE WHEN project_id IS NULL OR project_id = '' OR LOWER(project_id) = 'unknown' THEN 'Global / No Project' ELSE project_id END";
+        return executeAggregation(columnExpr, query, true);
     }
 
     private List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> executeAggregation(

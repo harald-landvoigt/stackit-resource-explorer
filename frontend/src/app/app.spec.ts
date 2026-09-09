@@ -512,7 +512,7 @@ describe('App', () => {
       fixture.detectChanges();
       const compiled = fixture.nativeElement as HTMLElement;
       const buttons = compiled.querySelectorAll('.filter-chip-btn');
-      expect(buttons.length).toBe(2);
+      expect(buttons.length).toBe(3);
 
       // First button is Token Flow in red
       expect(buttons[0].classList).toContain('tokenflow-filter-btn');
@@ -521,6 +521,10 @@ describe('App', () => {
       // Second button is Key Flow in orange
       expect(buttons[1].classList).toContain('keyflow-filter-btn');
       expect(buttons[1].textContent).toContain('Key Flow');
+
+      // Third button is Public Buckets in red/alert
+      expect(buttons[2].classList).toContain('public-filter-btn');
+      expect(buttons[2].textContent).toContain('Public Buckets');
     });
 
     it('should render deprecated warning chip on resources using Token Flow (Deprecated)', () => {
@@ -578,6 +582,246 @@ describe('App', () => {
       const keyFlowBtn = compiled.querySelector('.keyflow-filter-btn');
       expect(keyFlowBtn).toBeTruthy();
       expect(keyFlowBtn?.textContent).toContain('Key Flow');
+    });
+  });
+
+  describe('S3 Storage Badges, Quick Filter and Policy Viewer', () => {
+    it('should render Public badge (red) and Private badge (green) for storage buckets', () => {
+      const publicBucket: StackitResource = {
+        id: 'bucket-pub',
+        resourceId: 'public-data',
+        name: 'public-data',
+        type: 'storage',
+        status: 'AVAILABLE',
+        region: 'eu01',
+        projectId: 'proj-1',
+        data: {
+          isPublic: true,
+          publicAccessType: 'PUBLIC_READ'
+        }
+      };
+
+      const privateBucket: StackitResource = {
+        id: 'bucket-priv',
+        resourceId: 'private-data',
+        name: 'private-data',
+        type: 'storage',
+        status: 'AVAILABLE',
+        region: 'eu01',
+        projectId: 'proj-1',
+        data: {
+          isPublic: false,
+          publicAccessType: 'NOT_PUBLIC'
+        }
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [publicBucket, privateBucket],
+        totalCount: 2,
+        typeAggregations: [{ key: 'Buckets', count: 2 }],
+        regionAggregations: [{ key: 'eu01', count: 2 }],
+        statusAggregations: [{ key: 'AVAILABLE', count: 2 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const publicBadge = compiled.querySelector('.public-badge');
+      expect(publicBadge).toBeTruthy();
+      expect(publicBadge?.textContent).toContain('Public');
+
+      const privateBadge = compiled.querySelector('.private-badge');
+      expect(privateBadge).toBeTruthy();
+      expect(privateBadge?.textContent).toContain('Private');
+    });
+
+    it('should render UNKNOWN orange badge when isPublic is null or publicAccessType is UNKNOWN', () => {
+      const unknownBucket: StackitResource = {
+        id: 'bucket-unk',
+        resourceId: 'unknown-access-data',
+        name: 'unknown-access-data',
+        type: 'storage',
+        status: 'AVAILABLE',
+        region: 'eu01',
+        projectId: 'proj-1',
+        data: {
+          isPublic: null,
+          publicAccessType: 'UNKNOWN',
+          securityFindings: ['ACL_NOT_ACCESSIBLE']
+        }
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [unknownBucket],
+        totalCount: 1,
+        typeAggregations: [{ key: 'Buckets', count: 1 }],
+        regionAggregations: [{ key: 'eu01', count: 1 }],
+        statusAggregations: [{ key: 'AVAILABLE', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const unknownBadge = compiled.querySelector('.unknown-badge');
+      expect(unknownBadge).toBeTruthy();
+      expect(unknownBadge?.textContent).toContain('UNKNOWN');
+
+      const unknownIcon = unknownBadge?.querySelector('.chip-unknown-icon');
+      expect(unknownIcon).toBeTruthy();
+      expect(unknownIcon?.textContent).toContain('help_outline');
+    });
+
+    it('should display unreadable ACL notice when policy details are expanded and acl is null', () => {
+      const bucketWithoutAcl: StackitResource = {
+        id: 'bucket-no-acl',
+        resourceId: 'no-acl-bucket',
+        name: 'no-acl-bucket',
+        type: 'storage',
+        status: 'AVAILABLE',
+        region: 'eu01',
+        projectId: 'proj-1',
+        data: {
+          isPublic: null,
+          publicAccessType: 'UNKNOWN',
+          securityFindings: ['ACL_NOT_ACCESSIBLE']
+        }
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [bucketWithoutAcl],
+        totalCount: 1,
+        typeAggregations: [{ key: 'Buckets', count: 1 }],
+        regionAggregations: [{ key: 'eu01', count: 1 }],
+        statusAggregations: [{ key: 'AVAILABLE', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const app = fixture.componentInstance;
+      const compiled = fixture.nativeElement as HTMLElement;
+
+      app.togglePolicyDetails('bucket-no-acl');
+      fixture.detectChanges();
+
+      const policyDetails = compiled.querySelector('.bucket-policy-details');
+      expect(policyDetails).toBeTruthy();
+      expect(policyDetails?.textContent).toContain('ACL data could not be read');
+      expect(policyDetails?.textContent).toContain('ACL_NOT_ACCESSIBLE');
+    });
+
+    it('should render Compliance Lock badge if retention mode is set', () => {
+      const lockedBucket: StackitResource = {
+        id: 'bucket-lock',
+        resourceId: 'locked-data',
+        name: 'locked-data',
+        type: 'storage',
+        status: 'AVAILABLE',
+        region: 'eu01',
+        projectId: 'proj-1',
+        data: {
+          retention: {
+            mode: 'COMPLIANCE',
+            retentionDays: 90,
+            defaultRetentionSet: true
+          }
+        }
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [lockedBucket],
+        totalCount: 1,
+        typeAggregations: [{ key: 'Buckets', count: 1 }],
+        regionAggregations: [{ key: 'eu01', count: 1 }],
+        statusAggregations: [{ key: 'AVAILABLE', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const retentionBadge = compiled.querySelector('.retention-badge');
+      expect(retentionBadge).toBeTruthy();
+      expect(retentionBadge?.textContent).toContain('COMPLIANCE');
+    });
+
+    it('should render Public Buckets filter button and toggle filter', () => {
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const app = fixture.componentInstance;
+      const compiled = fixture.nativeElement as HTMLElement;
+
+      const publicBtn = compiled.querySelector('.public-filter-btn') as HTMLButtonElement;
+      expect(publicBtn).toBeTruthy();
+      expect(publicBtn.textContent).toContain('Public Buckets');
+
+      // Click to filter
+      app.filterPublicBuckets();
+      expect(app.searchString()).toBe('is-public: true');
+      expect(mockResourceService.getResources).toHaveBeenCalledWith('is-public: true');
+
+      // Click again to toggle off
+      app.filterPublicBuckets();
+      expect(app.searchString()).toBe('');
+      expect(mockResourceService.getResources).toHaveBeenCalledWith('');
+    });
+
+    it('should expand and collapse policy & ACL details when toggle button is clicked', () => {
+      const bucketWithPolicy: StackitResource = {
+        id: 'bucket-policy-1',
+        resourceId: 'policy-bucket',
+        name: 'policy-bucket',
+        type: 'storage',
+        status: 'AVAILABLE',
+        region: 'eu01',
+        projectId: 'proj-1',
+        data: {
+          isPublic: true,
+          bucketPolicy: '{"Version":"2012-10-17","Statement":[]}',
+          acl: {
+            owner: 'test-owner',
+            grants: [
+              { grantee: 'http://acs.amazonaws.com/groups/global/AllUsers', permission: 'READ' }
+            ]
+          },
+          securityFindings: ['PUBLIC_READ_VIA_POLICY', 'MISSING_TLS_ENFORCEMENT']
+        }
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [bucketWithPolicy],
+        totalCount: 1,
+        typeAggregations: [{ key: 'Buckets', count: 1 }],
+        regionAggregations: [{ key: 'eu01', count: 1 }],
+        statusAggregations: [{ key: 'AVAILABLE', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const app = fixture.componentInstance;
+      const compiled = fixture.nativeElement as HTMLElement;
+
+      // Initially details are collapsed
+      let policyDetails = compiled.querySelector('.bucket-policy-details');
+      expect(policyDetails).toBeNull();
+
+      // Toggle open
+      app.togglePolicyDetails('bucket-policy-1');
+      fixture.detectChanges();
+
+      policyDetails = compiled.querySelector('.bucket-policy-details');
+      expect(policyDetails).toBeTruthy();
+      expect(policyDetails?.textContent).toContain('test-owner');
+      expect(policyDetails?.textContent).toContain('AllUsers');
+      expect(policyDetails?.textContent).toContain('PUBLIC_READ_VIA_POLICY');
+      expect(policyDetails?.textContent).toContain('Version');
+
+      // Toggle close
+      app.togglePolicyDetails('bucket-policy-1');
+      fixture.detectChanges();
+      policyDetails = compiled.querySelector('.bucket-policy-details');
+      expect(policyDetails).toBeNull();
     });
   });
 });

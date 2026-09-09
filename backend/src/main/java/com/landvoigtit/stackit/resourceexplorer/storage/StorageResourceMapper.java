@@ -54,7 +54,41 @@ public class StorageResourceMapper {
         if (dto.getUrlVirtualHostedStyle() != null) {
             data.put("urlVirtualHostedStyle", dto.getUrlVirtualHostedStyle());
         }
+        if (dto.getIsPublic() != null) {
+            data.put("isPublic", dto.getIsPublic());
+        }
+        if (dto.getPublicAccessType() != null) {
+            data.put("publicAccessType", dto.getPublicAccessType());
+        }
+        if (dto.getBucketPolicy() != null) {
+            data.put("bucketPolicy", dto.getBucketPolicy());
+        }
+        if (dto.getAcl() != null) {
+            data.put("acl", dto.getAcl());
+        }
+        if (dto.getRetention() != null) {
+            data.put("retention", dto.getRetention());
+        }
+        if (dto.getSecurityFindings() != null) {
+            data.put("securityFindings", dto.getSecurityFindings());
+        }
         entity.setData(data);
+
+        final Map<String, String> tags = new HashMap<>();
+        if (dto.getIsPublic() != null) {
+            tags.put("is-public", String.valueOf(dto.getIsPublic()));
+        } else if ("UNKNOWN".equalsIgnoreCase(dto.getPublicAccessType())) {
+            tags.put("is-public", "unknown");
+        }
+        if (dto.getPublicAccessType() != null) {
+            tags.put("public-access", dto.getPublicAccessType());
+        }
+        if (dto.getRetention() != null && dto.getRetention().getMode() != null) {
+            tags.put("retention-mode", dto.getRetention().getMode().toLowerCase());
+        }
+        if (!tags.isEmpty()) {
+            entity.setTags(tags);
+        }
         return entity;
     }
 }

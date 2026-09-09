@@ -296,4 +296,150 @@ public class StackitResourceRepositoryTest {
         final List<StackitEntity> limited = repository.search("agg-node-" + uniqueSuffix, 2);
         assertEquals(2, limited.size());
     }
+
+    @Test
+    @Transactional
+    public void testAggregateByProject() {
+        final String uniqueSuffix = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        final String searchToken = "projtest" + uniqueSuffix;
+
+        // 3 entities in project-alpha
+        for (int i = 0; i < 3; i++) {
+            final StackitEntity e = new StackitEntity();
+            e.setId(UUID.randomUUID());
+            e.setResourceId("proj-res-a-" + i + "-" + uniqueSuffix);
+            e.setName(searchToken);
+            e.setType("compute");
+            e.setStatus("ACTIVE");
+            e.setRegion("eu01");
+            e.setProjectId("project-alpha-" + uniqueSuffix);
+            e.setCreatedAt(Instant.now());
+            e.setUpdatedAt(Instant.now());
+            repository.persist(e);
+        }
+
+        // 2 entities in project-beta
+        for (int i = 0; i < 2; i++) {
+            final StackitEntity e = new StackitEntity();
+            e.setId(UUID.randomUUID());
+            e.setResourceId("proj-res-b-" + i + "-" + uniqueSuffix);
+            e.setName(searchToken);
+            e.setType("storage");
+            e.setStatus("ACTIVE");
+            e.setRegion("eu01");
+            e.setProjectId("project-beta-" + uniqueSuffix);
+            e.setCreatedAt(Instant.now());
+            e.setUpdatedAt(Instant.now());
+            repository.persist(e);
+        }
+
+        // 1 entity with unknown project ID (Global / No Project)
+        final StackitEntity globalEntity = new StackitEntity();
+        globalEntity.setId(UUID.randomUUID());
+        globalEntity.setResourceId("proj-res-g-" + uniqueSuffix);
+        globalEntity.setName(searchToken);
+        globalEntity.setType("network");
+        globalEntity.setStatus("ACTIVE");
+        globalEntity.setRegion("eu01");
+        globalEntity.setProjectId(com.landvoigtit.stackit.resourceexplorer.config.StackitConstants.UNKNOWN_PROJECT_ID);
+        globalEntity.setCreatedAt(Instant.now());
+        globalEntity.setUpdatedAt(Instant.now());
+        repository.persist(globalEntity);
+
+        // 1 entity with empty string project ID (also Global / No Project)
+        final StackitEntity blankEntity = new StackitEntity();
+        blankEntity.setId(UUID.randomUUID());
+        blankEntity.setResourceId("proj-res-blank-" + uniqueSuffix);
+        blankEntity.setName(searchToken);
+        blankEntity.setType("iam");
+        blankEntity.setStatus("ACTIVE");
+        blankEntity.setRegion("eu01");
+        blankEntity.setProjectId("");
+        blankEntity.setCreatedAt(Instant.now());
+        blankEntity.setUpdatedAt(Instant.now());
+        repository.persist(blankEntity);
+
+        // 1 deleted entity in project-alpha (should NOT be included)
+        final StackitEntity deletedEntity = new StackitEntity();
+        deletedEntity.setId(UUID.randomUUID());
+        deletedEntity.setResourceId("proj-res-del-" + uniqueSuffix);
+        deletedEntity.setName(searchToken);
+        deletedEntity.setType("compute");
+        deletedEntity.setStatus("ACTIVE");
+        deletedEntity.setRegion("eu01");
+        deletedEntity.setProjectId("project-alpha-" + uniqueSuffix);
+        deletedEntity.setCreatedAt(Instant.now());
+        deletedEntity.setUpdatedAt(Instant.now());
+        deletedEntity.setDeletedAt(Instant.now());
+        repository.persist(deletedEntity);
+
+        repository.flush();
+
+        // Aggregate by project with search query matching all entities for this test run
+        final List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> aggs =
+                repository.aggregateByProject(searchToken);
+
+        assertNotNull(aggs);
+        assertEquals(3, aggs.size());
+
+        // project-alpha should have count 3
+        final var alphaAgg = aggs.stream().filter(a -> ("project-alpha-" + uniqueSuffix).equals(a.getKey())).findFirst();
+        assertTrue(alphaAgg.isPresent());
+        assertEquals(3L, alphaAgg.get().getCount());
+
+        // project-beta should have count 2
+        final var betaAgg = aggs.stream().filter(a -> ("project-beta-" + uniqueSuffix).equals(a.getKey())).findFirst();
+        assertTrue(betaAgg.isPresent());
+        assertEquals(2L, betaAgg.get().getCount());
+
+        // Global / No Project should have count 2 (null + blank)
+        final var globalAgg = aggs.stream().filter(a -> "Global / No Project".equals(a.getKey())).findFirst();
+        assertTrue(globalAgg.isPresent());
+        assertEquals(2L, globalAgg.get().getCount());
+    }
+
+    @Test
+    @Transactional
+    public void testPersistOrUpdatePrunesDuplicateWithDifferentId() {
+        final String bucketName = "my-test-dedup-bucket";
+        // Given an old entity with old UUID
+        final StackitEntity oldEntity = new StackitEntity();
+        final UUID oldId = UUID.nameUUIDFromBytes(bucketName.getBytes());
+        oldEntity.setId(oldId);
+        oldEntity.setResourceId(bucketName);
+        oldEntity.setName(bucketName);
+        oldEntity.setType("storage");
+        oldEntity.setStatus("AVAILABLE");
+        oldEntity.setRegion("eu01");
+        oldEntity.setProjectId("proj-123");
+        oldEntity.setCreatedAt(Instant.now().minusSeconds(3600));
+        oldEntity.setUpdatedAt(Instant.now().minusSeconds(3600));
+        oldEntity.setData(Map.of("storageClass", "standard"));
+        repository.persist(oldEntity);
+        repository.flush();
+
+        assertNotNull(repository.findById(oldId));
+
+        // When a new entity with namespaced UUID is persisted via persistOrUpdate
+        final StackitEntity newEntity = new StackitEntity();
+        final UUID newId = UUID.nameUUIDFromBytes(("eu01/" + bucketName).getBytes());
+        newEntity.setId(newId);
+        newEntity.setResourceId(bucketName);
+        newEntity.setName(bucketName);
+        newEntity.setType("storage");
+        newEntity.setStatus("AVAILABLE");
+        newEntity.setRegion("eu01");
+        newEntity.setProjectId("proj-123");
+        newEntity.setCreatedAt(Instant.now());
+        newEntity.setUpdatedAt(Instant.now());
+        newEntity.setData(Map.of("storageClass", "standard", "isPublic", false));
+        repository.persistOrUpdate(newEntity);
+        repository.flush();
+
+        // Then the new entity exists and the old duplicate has been cleaned up
+        assertNotNull(repository.findById(newId));
+        assertNull(repository.findById(oldId));
+        assertEquals(1, repository.list("type = ?1 and projectId = ?2 and resourceId = ?3 and deletedAt is null",
+                "storage", "proj-123", "my-test-dedup-bucket").size());
+    }
 }
