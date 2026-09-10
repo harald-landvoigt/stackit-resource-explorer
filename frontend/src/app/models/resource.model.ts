@@ -70,3 +70,20 @@ export interface StorageResourceData {
   securityFindings?: string[];
   [key: string]: any;
 }
+
+export interface VmDiskResourceData {
+  sizeGb?: number;
+  performanceClass?: string;
+  availabilityZone?: string;
+  bootable?: boolean;
+  encrypted?: boolean;
+  sourceType?: string;
+  sourceId?: string;
+  attached?: boolean;
+  attachmentStatus?: string;
+  serverId?: string;
+  serverName?: string;
+  bootVolume?: boolean;
+  [key: string]: any;
+}
+

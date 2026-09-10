@@ -31,6 +31,12 @@ public final class VmDiskResourceMapper {
         dto.setEncrypted(volume.getEncrypted());
         if (volume.getServerId() != null) {
             dto.setServerId(volume.getServerId().toString());
+            dto.setAttached(true);
+        } else {
+            dto.setAttached(false);
+        }
+        if (volume.getBootable() != null) {
+            dto.setBootVolume(volume.getBootable());
         }
 
         if (volume.getLabels() instanceof Map<?, ?> rawMap) {
@@ -87,8 +93,17 @@ public final class VmDiskResourceMapper {
         if (dto.getEncrypted() != null) {
             data.put("encrypted", dto.getEncrypted());
         }
-        if (dto.getServerId() != null) {
+        final boolean isAttached = Boolean.TRUE.equals(dto.getAttached()) || dto.getServerId() != null;
+        data.put("attached", isAttached);
+        data.put("attachmentStatus", isAttached ? "ATTACHED" : "UNATTACHED");
+        if (dto.getServerId() != null && !dto.getServerId().isBlank()) {
             data.put("serverId", dto.getServerId());
+        }
+        if (dto.getServerName() != null && !dto.getServerName().isBlank()) {
+            data.put("serverName", dto.getServerName());
+        }
+        if (dto.getBootVolume() != null) {
+            data.put("bootVolume", dto.getBootVolume());
         }
         entity.setData(data);
         return entity;

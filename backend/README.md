@@ -53,7 +53,7 @@ Each scraper implements independent schedules (configurable via `application.pro
 | Scraper Class | Resource Type | Target STACKIT API | Default Schedule |
 | :--- | :--- | :--- | :--- |
 | `ComputeResourceScraper` | `compute` | IaaS API (`/v1/projects/{projectId}/servers`) | `1h` |
-| `VmDiskResourceScraper` | `vm-disk` | IaaS API (`/v1/projects/{projectId}/volumes`) | `1h` |
+| `VmDiskResourceScraper` | `vmdisks` | IaaS API (`/v1/projects/{projectId}/volumes`) | `1h` |
 | `NetworkVpcResourceScraper` | `network-vpc` | IaaS API (`/v1/projects/{projectId}/networks`) | `1h` |
 | `NetworkResourceScraper` | `network` | Load Balancer API | `1h` |
 | `StorageResourceScraper` | `storage` | Object Storage API (`/v1/projects/{projectId}/buckets`) | `1h` |
@@ -74,7 +74,13 @@ Each scraper implements independent schedules (configurable via `application.pro
   - `launchedAt`
 
 #### VM Disk Scraper Details
-- Maps persistent block storage volumes with size in GB, status (`AVAILABLE`, `ATTACHED`), performance class, source, and attached server IDs.
+- Maps persistent block storage volumes with size in GB, status (`AVAILABLE`, `IN_USE`), availability zone, performance class, source type/ID, and bootable state.
+- **Attachment & Orphan Disk Tracking**:
+  - Identifies attachment state (`attached = true` or `false`) and status (`attachmentStatus = "ATTACHED"` or `"UNATTACHED"`).
+  - Cross-references active compute server entities in the project from the database to map `bootVolumeId` and `attachedVolumes`.
+  - Resolves parent `serverName` and handles edge cases where instances are deallocated or shelved (in which case Cinder may return `volume.getServerId() == null` while the server entity retains its volume reference).
+  - Flags OS boot disks with `bootVolume: true`.
+  - JSON metadata fields (`attached`, `attachmentStatus`, `serverName`, `serverId`, `bootVolume`) are indexed in the PostgreSQL GIN search vector for instant searchability (e.g. searching `"unattached"` returns all idle/orphan disks).
 
 #### Storage Scraper Details (S3 & Object Storage)
 - **Multi-Region Bucket Discovery**: Discovers buckets across configured regions (`eu01`, `eu02`) via `ObjectStorageApi.listBuckets`.

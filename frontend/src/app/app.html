@@ -72,6 +72,14 @@
               <mat-icon class="filter-btn-icon">public</mat-icon>
               <span>Public Buckets</span>
             </button>
+            <button type="button" 
+                    class="filter-chip-btn unattached-filter-btn" 
+                    [class.active-filter]="searchString().trim().toLowerCase() === 'unattached'"
+                    (click)="filterUnattachedDisks()"
+                    title="Filter unattached / idle VM disks">
+              <mat-icon class="filter-btn-icon">link_off</mat-icon>
+              <span>Unattached Disks</span>
+            </button>
           </div>
 
           <!-- Main Columns Layout -->
@@ -198,6 +206,20 @@
                                 UNKNOWN
                               </mat-chip>
                             </ng-template>
+                          </ng-container>
+                          <ng-container *ngIf="res.type === 'vmdisks' || res.type === 'volume' || res.type === 'disk'">
+                            <mat-chip *ngIf="isDiskUnattached(res)" class="unattached-badge" title="Disk is not attached to any VM">
+                              <mat-icon class="chip-warning-icon">link_off</mat-icon>
+                              Unattached
+                            </mat-chip>
+                            <mat-chip *ngIf="isDiskAttached(res)" class="attached-badge" [title]="res.data?.['serverName'] ? 'Attached to ' + res.data?.['serverName'] : 'Attached to server'">
+                              <mat-icon class="chip-safe-icon">link</mat-icon>
+                              Attached{{ res.data?.['serverName'] ? ': ' + res.data?.['serverName'] : '' }}
+                            </mat-chip>
+                            <mat-chip *ngIf="res.data?.['bootVolume']" class="boot-badge" title="Boot volume">
+                              <mat-icon class="chip-boot-icon">power_settings_new</mat-icon>
+                              Boot Disk
+                            </mat-chip>
                           </ng-container>
                           <mat-chip class="type-chip">{{ res.type }}</mat-chip>
                           <mat-chip class="status-chip" [class.active-status]="res.status === 'active' || res.status === 'paid'">{{ res.status }}</mat-chip>

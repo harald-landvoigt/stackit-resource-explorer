@@ -31,13 +31,20 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
 - **1-Click Quick Filters**: Fast toggle filter buttons directly below the search input:
   - **Token Flow (Red)**: Filters service accounts and members utilizing deprecated static API tokens (`"Token Flow"`). Styled with `.tokenflow-filter-btn` and red warning accent (`#ef4444`).
   - **Key Flow (Orange)**: Filters service accounts utilizing modern asymmetric RSA key pairs (`"Key Flow"`). Styled with `.keyflow-filter-btn` and deep orange key accent (`#ff6f00`).
-  - Both quick filter buttons can be toggled; clicking an active filter button clears the filter.
-- **Summary Aggregations Card (Left Column)**: Stacked sections displaying exact backend-computed breakdowns across the full dataset:
-  - **By Resource Type**: Counts for *VMs*, *Buckets*, *Invoices*, *Networks*, *IAM Policies*.
+  - **Public Buckets (Rose)**: Filters publicly accessible S3 storage buckets (`"is-public: true"`). Styled with `.public-filter-btn` and rose accent (`#f43f5e`).
+  - **Unattached Disks (Amber)**: Filters unattached / orphan VM block storage disks (`"unattached"`). Styled with `.unattached-filter-btn` and amber accent (`#f59e0b`).
+  - All quick filter buttons toggle on/off with a single click.
+- **Summary Aggregations Card (Left Column)**: Stacked sections displaying exact backend-computed breakdowns across the full dataset. Features a responsive height constraint (`max-height: 70vh` on desktop, `45vh` on mobile) with a custom orange scrollbar matching the resource explorer:
+  - **By Resource Type**: Counts for *VMs*, *Buckets*, *VM Disks*, *Invoices*, *Networks*, *IAM Policies*.
   - **By Project**: Counts partitioned per STACKIT project (e.g. *resource-explorer*, *sandbox-1*, *sandbox-2*, or *Global / No Project*).
   - **By Region**: Counts by region / availability zone (e.g. *eu01*, *eu01-3*, *global*).
   - **By State**: Counts by status and lifecycle (*ACTIVE*, *RUNNING*, *AVAILABLE*, and *DELETED* with red accent).
 - **Discovered Resources Card (Right Column)**: Scrollable list of resource cards capped at 100 elements for optimal browser performance, showing `"Showing X of Y items"` subtitle when capped:
+  - **Disk Attachment Badges**: VM disks render color-coded attachment chips:
+    - 🟡 **`[Unattached]`** (`.unattached-badge`): Warning badge for orphan/idle disks.
+    - 🟢 **`[Attached: <serverName>]`** (`.attached-badge`): Safe green badge displaying the parent VM name.
+    - 🔵 **`[Boot Disk]`** (`.boot-badge`): Blue badge designating root operating system boot volumes.
+  - **Storage Exposure Badges & Policy Viewer**: Object storage buckets display 🔴 **Public**, 🟢 **Private**, or 🟠 **UNKNOWN** badges, retention compliance badges, and an expandable viewer for bucket policies and ACL grantee tables.
   - **Deprecated Auth Warning Chip**: Prominent red/amber `Token Flow (Deprecated)` chip rendered in the card header for any service account or member relying on legacy static tokens.
   - **Status & Type Chips**: Visual status badges with green accents for active states.
   - **Resource UUID**: Always renders the primary database UUID (`res.id`).
@@ -61,8 +68,8 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
   - Elevated Surfaces: `#101010`, `#121212`, `#1c1c1c`
   - Accent Color: Deep Orange (`#ff6f00` / `#ff851b`)
   - Text: High-contrast white (`#ffffff`) and soft silver (`#e2e8f0` / `#d6d6d6`)
-- **Component Styling**: Angular Material components (`mat-toolbar`, `mat-card`, `mat-chips`, `mat-tab-group`, `mat-form-field`) customized via SCSS custom properties and targeted overrides. Features dedicated `.deprecated-chip` warning badges, `.tokenflow-filter-btn` with red warning styling (`#ef4444` / `#fca5a5`), `.keyflow-filter-btn` with deep orange key styling (`#ff6f00` / `#ff851b`), and `.org-row` high-visibility table row styling.
-- **Performance Budgets**: Configured in `angular.json` with optimized style and initial bundle limits.
+- **Component Styling**: Angular Material components (`mat-toolbar`, `mat-card`, `mat-chips`, `mat-tab-group`, `mat-form-field`) customized via SCSS custom properties and targeted overrides. Features dedicated `.deprecated-chip` warning badges, `.unattached-badge`, `.attached-badge`, `.boot-badge`, `.tokenflow-filter-btn`, `.keyflow-filter-btn`, `.public-filter-btn`, `.unattached-filter-btn`, and `.org-row` high-visibility table row styling.
+- **Performance Budgets**: Strictly meets Angular build budgets (`maximumWarning: 16kB` for component styles) with optimized SCSS structure and global tab navigation theme styles in `styles.scss`.
 
 ---
 
@@ -105,7 +112,7 @@ npm start
 Runs at `http://localhost:4200/`. API calls to `/resources` are proxied to `http://localhost:8080` via `proxy.conf.json`.
 
 ### Run Unit Tests (Vitest)
-Unit tests are powered by **Vitest** and Angular Testing Utilities (32 unit tests):
+Unit tests are powered by **Vitest** and Angular Testing Utilities (43 unit tests):
 ```bash
 npm test -- --watch=false
 ```
