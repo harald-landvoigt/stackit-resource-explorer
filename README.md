@@ -130,6 +130,10 @@ While the Resource Explorer provides robust automated discovery and real-time se
   - 1-click export of discovered resources, security findings, and orphan disks to CSV / JSON / PDF.
   - Native Prometheus `/metrics` endpoint exposing discovery counts, scraper latency, and security finding gauges.
 
+- **Automated Terraform Setup for Scraper Service Account & IAM Roles**:
+  - Currently, administrators must manually provision the service account and assign organization or per-service roles (e.g. `objectstorage.admin`, `project.auditor`, etc.).
+  - *Planned*: Provide ready-to-use Terraform / OpenTofu modules leveraging the official STACKIT Terraform Provider to automatically provision the scraper service account, bind minimal required roles across organization or folder hierarchies, and export credentials.
+
 ---
 
 ## Scraper Service Account Prerequisites & IAM Permissions
