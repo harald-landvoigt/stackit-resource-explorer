@@ -185,3 +185,12 @@ Retrieves a specific resource entity by its database UUID.
 
 ### `GET /resources/billing-summary`
 Returns current-month expenditure aggregated per project and organization in EUR.
+
+---
+
+## Maintainer & Contact
+
+Developed and maintained by **[Landvoigt IT](https://www.landvoigt-it.com)**.
+- **Website**: [https://www.landvoigt-it.com](https://www.landvoigt-it.com)
+- **Email**: [harald@landvoigt-it.com](mailto:harald@landvoigt-it.com)
+

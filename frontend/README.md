@@ -131,3 +131,12 @@ The frontend is packaged as a multi-stage Docker build:
 1. **Build Stage**: Compiles the Angular production bundle using `node:20-alpine`.
 2. **Runtime Stage**: Serves the static assets via `nginx:alpine` and reverse-proxies `/resources` requests to the Quarkus backend on port `8080`.
 Exposed on host port **8081**.
+
+---
+
+## Maintainer & Contact
+
+Developed and maintained by **[Landvoigt IT](https://www.landvoigt-it.com)**.
+- **Website**: [https://www.landvoigt-it.com](https://www.landvoigt-it.com)
+- **Email**: [harald@landvoigt-it.com](mailto:harald@landvoigt-it.com)
+

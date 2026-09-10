@@ -384,3 +384,14 @@ cd frontend
 npm test -- --watch=false    # Run unit tests via Vitest (43 tests)
 ng serve                     # Start development server on port 4200 (proxies backend to 8080)
 ```
+
+---
+
+## Maintainer & Contact
+
+Developed and maintained by **[Landvoigt IT](https://www.landvoigt-it.com)**.
+
+For inquiries, enterprise consulting, feature requests, or custom STACKIT integrations:
+- **Website**: [https://www.landvoigt-it.com](https://www.landvoigt-it.com)
+- **Email**: [harald@landvoigt-it.com](mailto:harald@landvoigt-it.com)
+
