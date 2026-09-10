@@ -167,8 +167,11 @@ public class DomainMappersTest {
         assertEquals("storage_premium_perf1", dto.getPerformanceClass());
         assertEquals("eu01-1", dto.getAvailabilityZone());
         assertTrue(dto.getBootable());
-        assertTrue(dto.getEncrypted());
+        assertTrue(dto.getAttached());
         assertEquals(srvId.toString(), dto.getServerId());
+
+        dto.setServerName("mock-server-1");
+        dto.setBootVolume(true);
 
         final StackitEntity entity = VmDiskResourceMapper.mapToEntity(dto);
         assertNotNull(entity);
@@ -182,6 +185,42 @@ public class DomainMappersTest {
         assertEquals(50L, entity.getData().get("sizeGb"));
         assertEquals("storage_premium_perf1", entity.getData().get("performanceClass"));
         assertEquals(srvId.toString(), entity.getData().get("serverId"));
+        assertEquals("mock-server-1", entity.getData().get("serverName"));
+        assertEquals(Boolean.TRUE, entity.getData().get("attached"));
+        assertEquals("ATTACHED", entity.getData().get("attachmentStatus"));
+        assertEquals(Boolean.TRUE, entity.getData().get("bootVolume"));
+    }
+
+    @Test
+    public final void testVmDiskUnattachedMapping() {
+        final UUID volId = UUID.randomUUID();
+        final Volume volume = new Volume(
+            java.time.OffsetDateTime.now(),
+            false,
+            volId,
+            null,
+            null, // serverId null = unattached
+            "AVAILABLE",
+            java.time.OffsetDateTime.now()
+        );
+        volume.setName("idle-data-disk");
+        volume.setSize(100L);
+        volume.setAvailabilityZone("eu01-1");
+        volume.setBootable(false);
+
+        final VmDiskResourceDto dto = VmDiskResourceMapper.mapToDto(volume);
+        assertNotNull(dto);
+        assertFalse(dto.getAttached());
+        assertNull(dto.getServerId());
+        assertNull(dto.getServerName());
+
+        final StackitEntity entity = VmDiskResourceMapper.mapToEntity(dto);
+        assertNotNull(entity);
+        assertNotNull(entity.getData());
+        assertEquals(Boolean.FALSE, entity.getData().get("attached"));
+        assertEquals("UNATTACHED", entity.getData().get("attachmentStatus"));
+        assertNull(entity.getData().get("serverId"));
+        assertNull(entity.getData().get("serverName"));
     }
 
     @Test

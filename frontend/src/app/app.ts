@@ -11,7 +11,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTabsModule } from '@angular/material/tabs';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ResourceService } from './services/resource.service';
-import { StackitResource, BillingSummary, AggregationItem, StorageResourceData } from './models/resource.model';
+import { StackitResource, BillingSummary, AggregationItem, StorageResourceData, VmDiskResourceData } from './models/resource.model';
 
 @Component({
   selector: 'app-root',
@@ -241,6 +241,29 @@ export class App implements OnInit {
       this.searchString.set('is-public: true');
     }
     this.onSearch();
+  }
+
+  filterUnattachedDisks(): void {
+    if (this.searchString().trim().toLowerCase() === 'unattached') {
+      this.searchString.set('');
+    } else {
+      this.searchString.set('unattached');
+    }
+    this.onSearch();
+  }
+
+  isDiskAttached(res: StackitResource): boolean {
+    if (!res || (res.type !== 'vmdisks' && res.type !== 'volume' && res.type !== 'disk')) return false;
+    return res.data?.['attached'] === true || !!res.data?.['serverId'];
+  }
+
+  isDiskUnattached(res: StackitResource): boolean {
+    if (!res || (res.type !== 'vmdisks' && res.type !== 'volume' && res.type !== 'disk')) return false;
+    return res.data?.['attached'] === false || (!res.data?.['serverId'] && (res.status === 'AVAILABLE' || res.status === 'available'));
+  }
+
+  getVmDiskData(res: StackitResource): VmDiskResourceData | undefined {
+    return res.data as VmDiskResourceData | undefined;
   }
 
   togglePolicyDetails(id: string): void {

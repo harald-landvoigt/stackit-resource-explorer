@@ -59,7 +59,7 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
   - Automatically parses server labels and maps them to resource tags.
 - **Storage Scrapers**:
   - **Object Storage & S3 Security Analysis**: Catalogs buckets and regional endpoints. Uses dynamic Just-In-Time (JIT) S3 access credentials to inspect bucket ACLs, raw bucket policy JSON, and compliance locks (Object Lock & retention periods). Evaluates public exposure risks, applying status badges: 🔴 **Public** (with exposure method), 🟢 **Private**, or 🟠 **UNKNOWN** (when ACL data is unreadable or JIT access is forbidden). Provides an expandable policy and ACL viewer in the UI.
-  - **VM Disks (Block Storage)**: Catalogs persistent block storage volumes (`/v1/projects/{projectId}/volumes`), capturing volume size, status, performance class, source, and attached server IDs.
+  - **VM Disks (Block Storage & Attachment Tracking)**: Catalogs persistent block storage volumes (`/v1/projects/{projectId}/volumes`), capturing volume size, status, performance class, source, and server attachments. Cross-references active compute instances in the project to reliably detect attached servers (including deallocated/shelved servers where Cinder reports `volume.getServerId() == null`) and resolve parent server names. Accurately identifies idle/orphan volumes with `attached: false` and `attachmentStatus: "UNATTACHED"`, indexed in PostgreSQL for instant full-text discovery.
 - **Network Scrapers**:
   - **Virtual Private Clouds (VPC)**: Catalogs network VPC topologies (`/v1/projects/{projectId}/networks`), capturing prefixes, gateway routing, and labels.
   - **Load Balancers**: Catalogs application load balancers, listeners, and target pools via the STACKIT Load Balancer API.
@@ -75,14 +75,17 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
   - Features an on-demand fallback: when the `/resources/billing-summary` endpoint is queried, if no records exist in cache yet, it triggers an immediate scrape.
 - **Interactive UI Dashboard**:
   - **Authentication & Security Quick Filters**:
-    - **Public Buckets (Red)**: 1-click filter for publicly exposed storage buckets (`is-public: true`).
+    - **Public Buckets (Rose)**: 1-click filter for publicly exposed storage buckets (`is-public: true`).
+    - **Unattached Disks (Amber)**: 1-click filter for idle / orphan block storage disks (`"unattached"`), enabling quick identification of wasted storage spend.
     - **Token Flow (Red)**: Filters service accounts and users utilizing deprecated static API tokens (`"Token Flow"`).
     - **Key Flow (Orange)**: Filters service accounts utilizing modern asymmetric RSA key pairs (`"Key Flow"`).
     - Prominent warning chips on resource cards utilizing deprecated static token credentials (searchable anytime via `"Token Flow"`).
   - **Resource Explorer**: Search and filter discovered resources in real time via PostgreSQL Full-Text Search. Returns results capped at 100 elements for ultra-fast rendering while displaying a `"Showing X of Y items"` indicator.
-  - **Resource Details & UUIDs**: Displays the exact **Resource UUID** alongside any distinct human-readable **Resource ID** (such as bucket names or IAM accounts). Cleanly formats complex metadata (arrays of IPs or volumes) and excludes blank fields.
-  - **Multi-Dimensional Summary Aggregations**: Backend-calculated exact counts stacked across four distinct dimensions:
-    - **By Resource Type** (*VMs*, *Buckets*, *Invoices*, *Networks*, *IAM Policies*)
+  - **Resource Details, Badges & UUIDs**:
+    - Displays the exact **Resource UUID** alongside any distinct human-readable **Resource ID** (such as bucket names or IAM accounts). Cleanly formats complex metadata (arrays of IPs or volumes) and excludes blank fields.
+    - **Disk Attachment Badges**: VM disks display clear color-coded badges: 🟡 **`[Unattached]`** (amber warning for idle/orphan volumes), 🟢 **`[Attached: <serverName>]`** (green badge with parent VM name), and 🔵 **`[Boot Disk]`** (blue badge for OS root volumes).
+  - **Multi-Dimensional Summary Aggregations**: Backend-calculated exact counts stacked across four distinct dimensions with a responsive scrollable container (`max-height: 70vh`) and custom orange scrollbar matching the resource explorer:
+    - **By Resource Type** (*VMs*, *Buckets*, *VM Disks*, *Invoices*, *Networks*, *IAM Policies*)
     - **By Project** (e.g. *resource-explorer*, *sandbox-1*, *sandbox-2*, or *Global / No Project* with automatic project ID-to-name resolution)
     - **By Region** (e.g. *eu01*, *eu01-1*, *eu01-3*, *global*)
     - **By State** (e.g. *ACTIVE*, *RUNNING*, *AVAILABLE*, and *DELETED* with warning accents)
@@ -90,6 +93,42 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
 - **Production-Ready Persistence & Flyway Migrations**:
   - Schema lifecycle and GIN full-text index managed via versioned Flyway migrations (`V1.0.0__init_schema_and_fts_gin_index.sql`).
   - Hibernate ORM runs in `validate` mode to safeguard against schema drift.
+
+---
+
+## What's Missing / Planned Roadmap
+
+While the Resource Explorer provides robust automated discovery and real-time search across core STACKIT infrastructure, the following architectural and enterprise capabilities are planned for upcoming releases:
+
+- **Instance Profiles & Workload Identity (Zero Static Secrets)**:
+  - Currently, the backend authenticates using a mounted service account JSON key file (`scraper.json`).
+  - *Planned*: Support for STACKIT VM metadata service / instance profiles and SKE Workload Identity tokens, eliminating the need to generate, rotate, and mount static JSON key files.
+
+- **User Authentication & Role-Based Access Control (OIDC / SSO / RBAC)**:
+  - Currently, the web dashboard and REST APIs operate without authentication, intended for secure internal network deployments.
+  - *Planned*: OpenID Connect (OIDC) / OAuth2 authentication integrating with STACKIT SSO or enterprise identity providers (e.g. Keycloak, Azure AD/Entra ID), with granular RBAC to scope access (e.g. restricting billing summaries or project visibility by user team).
+
+- **Expanded STACKIT Resource Coverage**:
+  - **STACKIT Kubernetes Engine (SKE)**: Clusters, node pools, Kubernetes versions, maintenance schedules, and cluster health states.
+  - **Database as a Service (DaaS)**: Managed PostgreSQL, MariaDB, Redis, RabbitMQ, and OpenSearch service instances.
+  - **DNS Engine**: Forward/reverse DNS zones, record sets, and routing policies.
+  - **Secrets Manager**: Vault instances, active secrets status, and encryption key rotation states.
+  - **Observability (Argus / LogMe)**: Centralized monitoring, alerting, and OpenSearch logging clusters.
+
+- **Near Real-Time Event-Driven Ingestion**:
+  - Currently, cataloging relies on scheduled polling intervals (`1h` default).
+  - *Planned*: Event-driven ingestion using STACKIT audit log streaming or webhooks for near real-time updates upon resource creation, modification, or teardown.
+
+- **Historical Change Auditing & Drift Tracking**:
+  - Currently, resources update their current state snapshot and track soft-deletion (`deletedAt`).
+  - *Planned*: Point-in-time configuration history and change timeline (e.g., detecting when a private S3 bucket became public or when security group rules were modified).
+
+- **Cost Optimization & FinOps Recommendations**:
+  - Expanding on unattached disk detection to provide automated cost-saving recommendations (e.g., calculating monthly savings for purging orphan block storage, identifying unused public IPs, or right-sizing underutilized VMs).
+
+- **Compliance & Inventory Export**:
+  - 1-click export of discovered resources, security findings, and orphan disks to CSV / JSON / PDF.
+  - Native Prometheus `/metrics` endpoint exposing discovery counts, scraper latency, and security finding gauges.
 
 ---
 
@@ -327,13 +366,13 @@ The backend can be configured via `application.properties` or overridden with en
 ### Backend (Quarkus / Java 21)
 ```bash
 cd backend
-./mvnw test                  # Run unit and integration test suite (89 tests)
+./mvnw test                  # Run unit and integration test suite (90 tests)
 ./mvnw quarkus:dev           # Run dev mode with hot reload (Dev UI at http://localhost:8080/q/dev)
 ```
 
 ### Frontend (Angular 21 / Vitest)
 ```bash
 cd frontend
-npm test -- --watch=false    # Run unit tests via Vitest (37 tests)
+npm test -- --watch=false    # Run unit tests via Vitest (43 tests)
 ng serve                     # Start development server on port 4200 (proxies backend to 8080)
 ```

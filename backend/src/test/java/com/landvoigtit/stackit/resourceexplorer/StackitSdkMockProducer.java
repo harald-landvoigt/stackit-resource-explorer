@@ -97,6 +97,8 @@ public class StackitSdkMockProducer {
         }
     }
 
+    public static final UUID MOCK_VOLUME_ID = UUID.fromString("11111111-2222-3333-4444-555555555555");
+
     public static class MockIaasApi extends IaasApi {
         public MockIaasApi() throws IOException {
             super(mockConfig);
@@ -142,7 +144,7 @@ public class StackitSdkMockProducer {
             final Volume v = new Volume(
                 java.time.OffsetDateTime.now(),
                 false,
-                UUID.randomUUID(),
+                MOCK_VOLUME_ID,
                 null,
                 null,
                 "AVAILABLE",

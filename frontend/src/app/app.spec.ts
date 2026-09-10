@@ -186,6 +186,9 @@ describe('App', () => {
     expect(sectionTitles[2].textContent).toContain('By Region');
     expect(sectionTitles[3].textContent).toContain('By State');
 
+    const aggContent = compiled.querySelector('.left-column .agg-content');
+    expect(aggContent).toBeTruthy();
+
     const aggItems = compiled.querySelectorAll('.agg-item');
     expect(aggItems.length).toBe(6);
   });
@@ -538,7 +541,7 @@ describe('App', () => {
       fixture.detectChanges();
       const compiled = fixture.nativeElement as HTMLElement;
       const buttons = compiled.querySelectorAll('.filter-chip-btn');
-      expect(buttons.length).toBe(3);
+      expect(buttons.length).toBe(4);
 
       // First button is Token Flow in red
       expect(buttons[0].classList).toContain('tokenflow-filter-btn');
@@ -551,6 +554,10 @@ describe('App', () => {
       // Third button is Public Buckets in red/alert
       expect(buttons[2].classList).toContain('public-filter-btn');
       expect(buttons[2].textContent).toContain('Public Buckets');
+
+      // Fourth button is Unattached Disks in amber/warning
+      expect(buttons[3].classList).toContain('unattached-filter-btn');
+      expect(buttons[3].textContent).toContain('Unattached Disks');
     });
 
     it('should render deprecated warning chip on resources using Token Flow (Deprecated)', () => {
@@ -848,6 +855,189 @@ describe('App', () => {
       fixture.detectChanges();
       policyDetails = compiled.querySelector('.bucket-policy-details');
       expect(policyDetails).toBeNull();
+    });
+  });
+
+  describe('VM Disks Attachment Badges and Quick Filter', () => {
+    it('should correctly detect unattached and attached disks via isDiskAttached and isDiskUnattached', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+
+      const unattachedDisk: StackitResource = {
+        id: 'vol-1',
+        resourceId: 'vol-1',
+        name: 'orphan-disk',
+        type: 'vmdisks',
+        status: 'AVAILABLE',
+        region: 'eu01',
+        projectId: 'proj-1',
+        data: {
+          attached: false,
+          attachmentStatus: 'UNATTACHED',
+          sizeGb: 50
+        }
+      };
+
+      const attachedDisk: StackitResource = {
+        id: 'vol-2',
+        resourceId: 'vol-2',
+        name: 'boot-disk-vm1',
+        type: 'vmdisks',
+        status: 'IN_USE',
+        region: 'eu01',
+        projectId: 'proj-1',
+        data: {
+          attached: true,
+          attachmentStatus: 'ATTACHED',
+          serverId: 'srv-1',
+          serverName: 'web-server-prod',
+          bootVolume: true,
+          sizeGb: 100
+        }
+      };
+
+      const computeVm: StackitResource = {
+        id: 'vm-1',
+        resourceId: 'vm-1',
+        name: 'web-server-prod',
+        type: 'compute',
+        status: 'ACTIVE',
+        region: 'eu01',
+        projectId: 'proj-1',
+        data: {}
+      };
+
+      expect(app.isDiskUnattached(unattachedDisk)).toBe(true);
+      expect(app.isDiskAttached(unattachedDisk)).toBe(false);
+
+      expect(app.isDiskAttached(attachedDisk)).toBe(true);
+      expect(app.isDiskUnattached(attachedDisk)).toBe(false);
+
+      // Non-disk resource should return false for both
+      expect(app.isDiskAttached(computeVm)).toBe(false);
+      expect(app.isDiskUnattached(computeVm)).toBe(false);
+    });
+
+    it('should toggle search query when filterUnattachedDisks is called', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+
+      expect(app.searchString()).toBe('');
+      app.filterUnattachedDisks();
+      expect(app.searchString()).toBe('unattached');
+      expect(mockResourceService.getResources).toHaveBeenCalledWith('unattached');
+
+      // Toggle off
+      app.filterUnattachedDisks();
+      expect(app.searchString()).toBe('');
+      expect(mockResourceService.getResources).toHaveBeenCalledWith('');
+    });
+
+    it('should render Unattached badge on unattached disk resources in UI', () => {
+      const unattachedDisk: StackitResource = {
+        id: 'vol-idle',
+        resourceId: 'vol-idle',
+        name: 'idle-data-volume',
+        type: 'vmdisks',
+        status: 'AVAILABLE',
+        region: 'eu01',
+        projectId: 'proj-1',
+        data: {
+          attached: false,
+          attachmentStatus: 'UNATTACHED',
+          sizeGb: 200
+        }
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [unattachedDisk],
+        totalCount: 1,
+        typeAggregations: [{ key: 'VM Disks', count: 1 }],
+        regionAggregations: [{ key: 'eu01', count: 1 }],
+        statusAggregations: [{ key: 'AVAILABLE', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const unattachedBadge = compiled.querySelector('.unattached-badge');
+      expect(unattachedBadge).toBeTruthy();
+      expect(unattachedBadge?.textContent).toContain('Unattached');
+      expect(compiled.querySelector('.attached-badge')).toBeNull();
+    });
+
+    it('should render Attached badge with server name on attached disk resources in UI', () => {
+      const attachedDisk: StackitResource = {
+        id: 'vol-attached',
+        resourceId: 'vol-attached',
+        name: 'attached-data-volume',
+        type: 'vmdisks',
+        status: 'IN_USE',
+        region: 'eu01',
+        projectId: 'proj-1',
+        data: {
+          attached: true,
+          attachmentStatus: 'ATTACHED',
+          serverId: 'srv-99',
+          serverName: 'database-server-1',
+          bootVolume: false,
+          sizeGb: 500
+        }
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [attachedDisk],
+        totalCount: 1,
+        typeAggregations: [{ key: 'VM Disks', count: 1 }],
+        regionAggregations: [{ key: 'eu01', count: 1 }],
+        statusAggregations: [{ key: 'IN_USE', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const attachedBadge = compiled.querySelector('.attached-badge');
+      expect(attachedBadge).toBeTruthy();
+      expect(attachedBadge?.textContent).toContain('Attached: database-server-1');
+      expect(compiled.querySelector('.unattached-badge')).toBeNull();
+    });
+
+    it('should render Boot Disk badge when bootVolume is true', () => {
+      const bootDisk: StackitResource = {
+        id: 'vol-boot',
+        resourceId: 'vol-boot',
+        name: 'boot-volume-srv1',
+        type: 'vmdisks',
+        status: 'IN_USE',
+        region: 'eu01',
+        projectId: 'proj-1',
+        data: {
+          attached: true,
+          attachmentStatus: 'ATTACHED',
+          serverId: 'srv-1',
+          serverName: 'app-server',
+          bootVolume: true,
+          sizeGb: 64
+        }
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [bootDisk],
+        totalCount: 1,
+        typeAggregations: [{ key: 'VM Disks', count: 1 }],
+        regionAggregations: [{ key: 'eu01', count: 1 }],
+        statusAggregations: [{ key: 'IN_USE', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const bootBadge = compiled.querySelector('.boot-badge');
+      expect(bootBadge).toBeTruthy();
+      expect(bootBadge?.textContent).toContain('Boot Disk');
     });
   });
 });

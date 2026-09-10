@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -132,7 +133,39 @@ public class MultiRegionScraperTest {
         assertFalse(disks.isEmpty(), "Disks should be scraped");
         for (final StackitEntity disk : disks) {
             assertNull(disk.getDeletedAt(), "Disk should not be soft-deleted");
+            assertNotNull(disk.getData(), "Disk data should not be null");
+            assertEquals(Boolean.FALSE, disk.getData().get("attached"), "Disk without server should be unattached");
+            assertEquals("UNATTACHED", disk.getData().get("attachmentStatus"), "Disk should have UNATTACHED status");
         }
+
+        // Now simulate a server in the project that claims this volume as its boot disk
+        final StackitEntity scrapedDisk = disks.get(0);
+        final String volResourceId = scrapedDisk.getResourceId();
+
+        final StackitEntity server = new StackitEntity();
+        server.setId(UUID.randomUUID());
+        server.setResourceId("server-xyz-123");
+        server.setName("app-server-1");
+        server.setType(StackitConstants.RESOURCE_TYPE_COMPUTE);
+        server.setStatus("ACTIVE");
+        server.setRegion("eu01");
+        server.setProjectId(MOCK_PROJECT_ID);
+        server.setCreatedAt(java.time.Instant.now());
+        server.setUpdatedAt(java.time.Instant.now());
+        server.setData(java.util.Map.of("bootVolumeId", volResourceId));
+        repository.persistOrUpdate(server);
+
+        // Re-scrape to test cross-referencing
+        diskScraper.scrape();
+        repository.getEntityManager().clear();
+
+        final StackitEntity updatedDisk = repository.findById(scrapedDisk.getId());
+        assertNotNull(updatedDisk);
+        assertEquals(Boolean.TRUE, updatedDisk.getData().get("attached"), "Disk claimed by server should be attached");
+        assertEquals("ATTACHED", updatedDisk.getData().get("attachmentStatus"));
+        assertEquals("app-server-1", updatedDisk.getData().get("serverName"));
+        assertEquals("server-xyz-123", updatedDisk.getData().get("serverId"));
+        assertEquals(Boolean.TRUE, updatedDisk.getData().get("bootVolume"));
     }
 
     @Test

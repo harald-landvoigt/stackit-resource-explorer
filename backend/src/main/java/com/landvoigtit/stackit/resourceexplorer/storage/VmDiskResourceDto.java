@@ -23,5 +23,8 @@ public class VmDiskResourceDto {
     private Boolean bootable;
     private Boolean encrypted;
     private String serverId;
+    private String serverName;
+    private Boolean attached;
+    private Boolean bootVolume;
     private java.util.Map<String, String> labels;
 }
