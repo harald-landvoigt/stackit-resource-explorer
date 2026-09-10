@@ -130,6 +130,14 @@ While the Resource Explorer provides robust automated discovery and real-time se
   - 1-click export of discovered resources, security findings, and orphan disks to CSV / JSON / PDF.
   - Native Prometheus `/metrics` endpoint exposing discovery counts, scraper latency, and security finding gauges.
 
+- **Automated Terraform Setup for Scraper Service Account & IAM Roles**:
+  - Currently, administrators must manually provision the service account and assign organization or per-service roles (e.g. `objectstorage.admin`, `project.auditor`, etc.).
+  - *Planned*: Provide ready-to-use Terraform / OpenTofu modules leveraging the official STACKIT Terraform Provider to automatically provision the scraper service account, bind minimal required roles across organization or folder hierarchies, and export credentials.
+
+- **Native Multi-Architecture Container Images (ARM64 / Apple Silicon)**:
+  - Currently, pre-built container images published to GHCR are built for `linux/amd64` only; running them on Apple Silicon Macs relies on Docker Desktop or OrbStack emulation (Rosetta 2 / QEMU) with platform mismatch warnings.
+  - *Planned*: Configure CI/CD (`publish-containers.yml`) to publish multi-platform container manifests (`linux/amd64,linux/arm64`) for both backend (Quarkus Jib) and frontend (Docker Buildx) for seamless, native execution on ARM64 hardware.
+
 ---
 
 ## Scraper Service Account Prerequisites & IAM Permissions
