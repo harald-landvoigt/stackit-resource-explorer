@@ -151,7 +151,12 @@ public class IamResourceScraper {
                 processSingleS3AccessKey(projectIdStr, region, group, key, currentResourceIds);
             }
         } catch (final Exception e) {
-            log.debug("Could not list access keys for group {} in project {} region {}: {}", groupId, projectIdStr, region, e.getMessage());
+            final String msg = e.getMessage() != null ? e.getMessage() : "";
+            if (isPermissionIssue(msg)) {
+                log.warn("Permission denied listing S3 access keys for group {} in project {} region {}: {}", groupId, projectIdStr, region, msg);
+            } else {
+                log.info("Could not list access keys for group {} in project {} region {}: {}", groupId, projectIdStr, region, msg);
+            }
         }
     }
 
@@ -180,11 +185,11 @@ public class IamResourceScraper {
             final String region,
             final Exception e) {
         final String msg = e.getMessage() != null ? e.getMessage() : "";
-        if (msg.contains("404") || msg.contains("not_found")) {
-            log.debug("Object storage not enabled for project {} in region {}: {}", projectIdStr, region, msg);
+        if (isPermissionIssue(msg)) {
+            log.warn("Permission denied accessing S3 credentials groups for project {} in region {}: {}", projectIdStr, region, msg);
             return true;
-        } else if (msg.contains("403") || msg.contains("forbidden")) {
-            log.debug("Object storage credentials groups access not permitted for project {} in region {}: {}", projectIdStr, region, msg);
+        } else if (msg.contains("404") || msg.contains("not_found")) {
+            log.info("Object storage not enabled for project {} in region {}: {}", projectIdStr, region, msg);
             return true;
         } else {
             log.warn("Failed to scrape S3 credentials groups for project {} in region {}: {}", projectIdStr, region, e.getMessage());
@@ -487,7 +492,12 @@ public class IamResourceScraper {
                 }
             }
         } catch (final Exception e) {
-            log.debug("Tokens check failed for SA {}: {}", saId, e.getMessage());
+            final String msg = e.getMessage() != null ? e.getMessage() : "";
+            if (isPermissionIssue(msg)) {
+                log.warn("Permission denied checking tokens for SA {}: {}", saId, msg);
+            } else {
+                log.info("Tokens check skipped or failed for SA {}: {}", saId, msg);
+            }
         }
         return 0;
     }
@@ -514,7 +524,11 @@ public class IamResourceScraper {
 
         try (final Response keysResp = httpClient.newCall(keysReq).execute()) {
             if (!keysResp.isSuccessful() || keysResp.body() == null) {
-                log.debug("Keys check returned HTTP {} for SA {}. Key auditing permission may be needed.", keysResp.code(), saDto.email);
+                if (keysResp.code() == 403 || keysResp.code() == 401) {
+                    log.warn("Permission denied checking keys for SA {} (HTTP {}). Key auditing permission may be needed.", saDto.email, keysResp.code());
+                } else {
+                    log.info("Keys check returned HTTP {} for SA {}.", keysResp.code(), saDto.email);
+                }
                 return new KeyInspectionResult(0, null, null);
             }
 
@@ -525,7 +539,12 @@ public class IamResourceScraper {
                 return new KeyInspectionResult(keysObj.items.size(), firstKey.keyAlgorithm, firstKey.validUntil);
             }
         } catch (final Exception e) {
-            log.debug("Keys check failed for SA {}: {}", saDto.id, e.getMessage());
+            final String msg = e.getMessage() != null ? e.getMessage() : "";
+            if (isPermissionIssue(msg)) {
+                log.warn("Permission denied checking keys for SA {}: {}", saDto.id, msg);
+            } else {
+                log.info("Keys check skipped or failed for SA {}: {}", saDto.id, msg);
+            }
         }
         return new KeyInspectionResult(0, null, null);
     }
@@ -584,6 +603,10 @@ public class IamResourceScraper {
             tags.put("auth-flow", "token-flow-deprecated");
         }
         entity.setTags(tags);
+    }
+
+    private static boolean isPermissionIssue(final String msg) {
+        return StackitConstants.isPermissionIssue(msg);
     }
 
     public static class MembersResponse {

@@ -92,8 +92,10 @@ public class ComputeResourceScraper {
                 }
             } catch (final Exception e) {
                 final String msg = e.getMessage() != null ? e.getMessage() : "";
-                if (msg.contains("404") || msg.contains("403") || msg.contains("not_found")) {
-                    log.debug("Compute not enabled or accessible for project {} in region {}: {}", projectIdStr, region, msg);
+                if (StackitConstants.isPermissionIssue(msg)) {
+                    log.warn("Permission denied accessing Compute resources for project {} in region {}: {}", projectIdStr, region, msg);
+                } else if (msg.contains("404") || msg.contains("not_found")) {
+                    log.info("Compute not enabled for project {} in region {}: {}", projectIdStr, region, msg);
                 } else {
                     log.warn("Failed to scrape Compute resources for project {} in region {}: {}", projectIdStr, region, e.getMessage());
                     allRegionsSucceeded = false;

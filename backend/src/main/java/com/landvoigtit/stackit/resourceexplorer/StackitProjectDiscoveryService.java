@@ -46,10 +46,10 @@ public class StackitProjectDiscoveryService {
                 log.info("Discovered organization ID {} from access token claims.", tokenOrgId);
                 return tokenOrgId;
             }
-            log.debug("No organization ID found in access token claims. Attempting discovery via initial project parent...");
+            log.info("No organization ID found in access token claims. Attempting discovery via initial project parent...");
             final String initialProjectId = resolveInitialProjectId();
             if (initialProjectId != null) {
-                log.debug("Found initial project ID {}; querying project details to determine organization ID...", initialProjectId);
+                log.info("Found initial project ID {}; querying project details to determine organization ID...", initialProjectId);
                 final GetProjectResponse initialProject = resourceManagerApi.getProject(initialProjectId, true);
                 final String orgId = getOrganizationId(initialProject);
                 if (orgId != null && !orgId.isBlank()) {
@@ -59,7 +59,7 @@ public class StackitProjectDiscoveryService {
                     log.warn("Project {} has no organization parent container in hierarchy.", initialProjectId);
                 }
             } else {
-                log.debug("Cannot discover organization ID: No initial project ID could be resolved.");
+                log.info("Cannot discover organization ID: No initial project ID could be resolved.");
             }
         } catch (final Exception e) {
             log.error("Failed to discover organization ID: {}", formatApiException(e), e);
@@ -238,7 +238,7 @@ public class StackitProjectDiscoveryService {
         final String saEmail = sdkConfig.getServiceAccountEmail();
         if (saEmail != null && !saEmail.isBlank()) {
             try {
-                log.debug("Attempting to resolve initial project ID via member query for {}", saEmail);
+                log.info("Attempting to resolve initial project ID via member query for {}", saEmail);
                 final ListProjectsResponse projectsResponse = resourceManagerApi.listProjects(null, null, saEmail, BigDecimal.ZERO, BigDecimal.valueOf(10), null);
                 if (projectsResponse != null && projectsResponse.getItems() != null && !projectsResponse.getItems().isEmpty()) {
                     final Project firstProject = projectsResponse.getItems().get(0);
@@ -246,7 +246,7 @@ public class StackitProjectDiscoveryService {
                     log.info("Discovered initial project ID {} via service account membership query ({})", discoveredMemberProjectId, saEmail);
                     return discoveredMemberProjectId;
                 } else {
-                    log.debug("No projects found for service account member query ({})", saEmail);
+                    log.info("No projects found for service account member query ({})", saEmail);
                 }
             } catch (final Exception e) {
                 log.warn("Failed to query accessible projects for service account {}: {}", saEmail, formatApiException(e));

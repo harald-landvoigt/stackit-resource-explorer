@@ -163,4 +163,44 @@ public final class StackitConstants {
     public static String formatCostsUrl(final String customerAccountId, final String fromDate, final String toDate) {
         return formatCostsUrl(DEFAULT_COST_API_URL, customerAccountId, fromDate, toDate);
     }
+
+    /**
+     * Checks if an error message indicates an authorization, authentication, or permission failure.
+     *
+     * @param msg the error message
+     * @return true if the message indicates a permission issue
+     */
+    public static boolean isPermissionIssue(final String msg) {
+        if (msg == null || msg.isBlank()) {
+            return false;
+        }
+        final String lower = msg.toLowerCase();
+        return lower.contains("403")
+                || lower.contains("forbidden")
+                || lower.contains("permission")
+                || lower.contains("access denied")
+                || lower.contains("accessdenied")
+                || lower.contains("unauthorized")
+                || lower.contains("401");
+    }
+
+    /**
+     * Checks if a Throwable indicates an authorization or permission issue.
+     *
+     * @param t the throwable
+     * @return true if indicates a permission issue
+     */
+    public static boolean isPermissionIssue(final Throwable t) {
+        if (t == null) {
+            return false;
+        }
+        if (isPermissionIssue(t.getMessage())) {
+            return true;
+        }
+        if (t.getCause() != null && t.getCause() != t) {
+            return isPermissionIssue(t.getCause());
+        }
+        return false;
+    }
 }
+

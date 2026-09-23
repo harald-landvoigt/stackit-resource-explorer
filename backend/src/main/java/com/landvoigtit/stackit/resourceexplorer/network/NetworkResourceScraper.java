@@ -96,8 +96,10 @@ public class NetworkResourceScraper {
                 }
             } catch (final Exception e) {
                 final String msg = e.getMessage() != null ? e.getMessage() : "";
-                if (msg.contains("404") || msg.contains("403") || msg.contains("not_found")) {
-                    log.debug("ALB not enabled or accessible for project {} in region {}: {}", projectIdStr, region, msg);
+                if (StackitConstants.isPermissionIssue(msg)) {
+                    log.warn("Permission denied accessing ALB resources for project {} in region {}: {}", projectIdStr, region, msg);
+                } else if (msg.contains("404") || msg.contains("not_found")) {
+                    log.info("ALB not enabled for project {} in region {}: {}", projectIdStr, region, msg);
                 } else {
                     log.warn("Failed to scrape ALB resources for project {} in region {}: {}", projectIdStr, region, e.getMessage());
                     allRegionsSucceeded = false;

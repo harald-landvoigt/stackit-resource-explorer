@@ -230,7 +230,7 @@ public class StackitSdkConfig {
         try {
             final ResilientKeyFlowAuthenticator auth = getOrCreateAuthenticator();
             if (auth == null) {
-                log.debug("Cannot retrieve access token claims: authenticator is not initialized.");
+                log.info("Cannot retrieve access token claims: authenticator is not initialized.");
                 return null;
             }
             final String token = auth.getAccessToken();
@@ -280,12 +280,12 @@ public class StackitSdkConfig {
                     if (node.has("projectId")) {
                         final String pid = node.get("projectId").asText();
                         if (pid != null && !pid.isBlank()) {
-                            log.debug("Discovered initial project ID {} directly from service account keyfile.", pid);
+                            log.info("Discovered initial project ID {} directly from service account keyfile.", pid);
                             return pid;
                         }
                     }
                 } catch (final Exception e) {
-                    log.debug("Could not read projectId from keyfile: {}", e.getMessage());
+                    log.info("Could not read projectId from keyfile: {}", e.getMessage());
                 }
             }
         }
