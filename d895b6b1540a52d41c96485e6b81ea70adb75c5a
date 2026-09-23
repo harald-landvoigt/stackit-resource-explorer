@@ -1,0 +1,4 @@
+Phase Checkpoint: Phase 2: Scraper Instrumentation & REST API Endpoint
+- Automated Tests: ./mvnw test -Dtest=AccessIssue*Test,ScraperAccessIssueTrackingTest,StackitResourceControllerTest
+- Verification Result: Passed 13/13 tests
+- Scope: Scraper instrumentation for all resource types and REST endpoint GET /resources/access-issues
