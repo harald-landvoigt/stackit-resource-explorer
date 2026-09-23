@@ -55,13 +55,22 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
   - **Resource ID**: Rendered when a distinct resource identifier exists that differs from the UUID (e.g., Object Storage bucket names or IAM service account emails).
   - **Region & Project ID**: Location details (including availability zone for VMs).
   - **Highlighted Billing Details**: Highlighted amount and currency for billing items.
-  - **Rich Metadata Grid**: Clean key-value grid excluding empty or null values; complex objects and arrays (such as attached volume IDs or IP lists) are neatly formatted as comma-separated values via `formatMetaValue()`.
+  - **Rich Metadata Grid**: Clean key-value grid excluding empty or null values; complex objects and arrays (such as attached volume IDs or IP lists) are neatly formatted as comma-separated values via `formatMetaValue()`. For S3 access keys, clearly formats expiration details (`expires: "Never"` or formatted timestamp), credentials group URN, and HMAC key ID.
   - **Tags**: Rendered as stylized badge chips for quick visual inspection.
 
 ### 4. Billing Summary Tab
 - **Cost Table**: Displays current calendar month costs (UTC) grouped by project and organization.
 - **Strict Sorting & Highlighting**: The **Organization** summary is pinned to the very first row (styled with `.org-row` and persistent warm orange tint), followed by projects ordered descending by costs.
 - Shows resource name, project ID, classification type (Project vs. Organization), and formatted cost in EUR.
+
+### 5. Access Issues Tab
+- **Access KPI Cards**: Live counters for Total Projects Checked, Affected Projects, and Total Issues.
+- **Access Controls & Filter Bar**: Search input for filtering projects and error messages, a 1-click toggle for "Projects with Issues Only", and an on-demand refresh button.
+- **Project Access Matrix**: Real-time project-by-service permission matrix (`Compute`, `Storage`, `VM Disks`, `Load Balancers`, `VPCs`, `IAM`, `Billing`) with color-coded status badges:
+  - 🟢 **`OK`** (`.status-accessible`): Service accessible and verified.
+  - 🔴 **`DENIED`** (`.status-access-denied`): HTTP 401/403 or permission denied error.
+  - ⚪ **`N/A`** (`.status-not-checked`): Service not yet checked.
+- **Active Access Issues Diagnostic Table**: Granular error log inspector listing project, service type, region, HTTP status code (e.g. 403), and error details. Displays an all-clear green checkmark when zero issues exist.
 
 ---
 
@@ -72,7 +81,7 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
   - Elevated Surfaces: `#101010`, `#121212`, `#1c1c1c`
   - Accent Color: Deep Orange (`#ff6f00` / `#ff851b`)
   - Text: High-contrast white (`#ffffff`) and soft silver (`#e2e8f0` / `#d6d6d6`)
-- **Component Styling**: Angular Material components (`mat-toolbar`, `mat-card`, `mat-chips`, `mat-tab-group`, `mat-form-field`) customized via SCSS custom properties and targeted overrides. Features dedicated `.deprecated-chip` warning badges, `.unattached-badge`, `.attached-badge`, `.boot-badge`, `.tokenflow-filter-btn`, `.keyflow-filter-btn`, `.public-filter-btn`, `.unattached-filter-btn`, and `.org-row` high-visibility table row styling.
+- **Component Styling**: Angular Material components (`mat-toolbar`, `mat-card`, `mat-chips`, `mat-tab-group`, `mat-form-field`) customized via SCSS custom properties and targeted overrides. Features dedicated `.deprecated-chip` warning badges, `.unattached-badge`, `.attached-badge`, `.boot-badge`, `.s3key-badge`, `.expired-badge`, `.tokenflow-filter-btn`, `.keyflow-filter-btn`, `.public-filter-btn`, `.unattached-filter-btn`, `.s3key-filter-btn`, and `.org-row` high-visibility table row styling.
 - **Performance Budgets**: Strictly meets Angular build budgets (`maximumWarning: 16kB` for component styles) with optimized SCSS structure and global tab navigation theme styles in `styles.scss`.
 
 ---
@@ -116,7 +125,7 @@ npm start
 Runs at `http://localhost:4200/`. API calls to `/resources` are proxied to `http://localhost:8080` via `proxy.conf.json`.
 
 ### Run Unit Tests (Vitest)
-Unit tests are powered by **Vitest** and Angular Testing Utilities (47 unit tests):
+Unit tests are powered by **Vitest** and Angular Testing Utilities (59 unit tests):
 ```bash
 npm test -- --watch=false
 ```

@@ -14,7 +14,7 @@ Runs the application with hot-reload enabled and starts testcontainers Dev Servi
 > **_NOTE:_** The Quarkus Dev UI is available at <http://localhost:8080/q/dev/>.
 
 ### Testing
-Executes unit tests and integration tests against containerized PostgreSQL and mocked/live STACKIT APIs (100 tests):
+Executes unit tests and integration tests against containerized PostgreSQL and mocked/live STACKIT APIs (113 tests):
 ```bash
 ./mvnw test
 ```
@@ -126,8 +126,10 @@ Each scraper implements independent schedules (configurable via `application.pro
 #### IAM & Authentication Scraper Details
 - Scrapes project role bindings (`/v2/projects/{projectId}/members`) and project-defined service accounts (`/v2/projects/{projectId}/service-accounts`).
 - Scrapes persistent Object Storage S3 access keys and credentials groups across all configured regions (`eu01`, `eu02`) via `ObjectStorageApi.listCredentialsGroups` and `listAccessKeys`.
-- Filters out transient audit credentials groups (`resource-explorer-audit`) so ephemeral JIT keys from `S3JitKeyManager` are never cataloged.
-- Inspects active static API tokens (`/tokens`) and cryptographic public keys (`/keys`) for each service account.
+- **SDK 0.4.0 & Expiration Handling**: Powered by `cloud.stackit.sdk:objectstorage:0.4.0`, which safely deserializes nullable expiration timestamps. Non-expiring keys ("Never expires") are recorded with `data.put("expires", "Never")` and state `ACTIVE`.
+- **Audit Exclusion**: Filters out transient audit credentials groups (`resource-explorer-audit`) so ephemeral JIT keys from `S3JitKeyManager` are never cataloged.
+- **Granular Permissions**: Auditing S3 access keys requires only read permissions (`object-storage.credentials-group.list` and `object-storage.access-key.list`, satisfied by `objectstorage.auditor` or `objectstorage.viewer`), unlike the full write permissions required for JIT bucket security auditing.
+- Inspects active static API tokens (`/tokens`) and cryptographic public keys (`/keys`) for each service account via OkHttp REST calls.
 - Identifies authentication schemes:
   - **Key Flow**: Modern asymmetric RSA/ECDSA key pairs (e.g., `Key Flow (RSA_2048)`).
   - **OIDC / Enterprise SSO**: Human user identities authenticated via corporate identity providers (captures `idpDomain`).
@@ -136,12 +138,20 @@ Each scraper implements independent schedules (configurable via `application.pro
   - **Token Flow (Deprecated)**: Detects legacy static API secrets (*"The legacy model where a long-lived, static API secret acted directly as a bearer token."*), flagging `deprecated = true`, active static token counts, expiration timestamps, and tagging with `auth-flow: "token-flow-deprecated"`.
 - Correlates project members to service accounts so project-level access entries automatically inherit their service account's authentication scheme.
 - Full-Text Search indexing enables instant querying by `"Token Flow"`, `"Token Flow (Deprecated)"`, `"static API secret"`, `"token-flow-deprecated"`, `"S3 Access Key"`, or `"s3-hmac-key"`.
+- **Maintainability & Low Cognitive Complexity**: Scraper logic is decomposed into dedicated helper methods (`processServiceAccount`, `processMemberRole`, `scrapeProjectAccessKeysInRegion`, `processAccessKey`) to maintain cognitive complexity well within strict linter thresholds (<= 15).
 
 #### Billing / Cost Scraper Details
 - Aggregates current calendar month usage in UTC.
 - Converts amounts from cents to EUR (`charge / 100.0`).
 - Features an on-demand fallback: when `/resources/billing-summary` is called, if the database has no billing records, an immediate scrape is triggered.
 - Summary ordering places the Organization total in the first row, followed by child projects sorted descending by cost.
+
+### 3. Resilient Scraping & Logging Standards
+All scraper jobs adhere to uniform logging and fault-isolation standards:
+- **Operational Progress (`INFO`)**: Scraping phase transitions (start, project discovery, completion) and counts of scraped resources per service and project are logged at `INFO` level.
+- **Permission Denials (`WARN`)**: When encountering HTTP `401` or `403` (Unauthorized, Forbidden) for any target project or region, scrapers log a structured warning including the project ID, region, and error payload. The failure is isolated—the scraper continues processing remaining projects.
+- **Absent / Unactivated Services (`INFO`)**: When a project does not have an optional service enabled (HTTP `404 Not Found`), scrapers log the event as standard `INFO` without triggering warnings.
+- **Payload Validation (`WARN`)**: Parsing anomalies or malformed external structures are logged as warnings and isolated to avoid halting scraper execution.
 
 ---
 
@@ -189,6 +199,9 @@ Retrieves a specific resource entity by its database UUID.
 
 ### `GET /resources/billing-summary`
 Returns current-month expenditure aggregated per project and organization in EUR.
+
+### `GET /resources/access-issues`
+Returns consolidated access issues summary, Project × Resource Type status matrix, and active permission issue records with diagnostic error messages.
 
 ---
 

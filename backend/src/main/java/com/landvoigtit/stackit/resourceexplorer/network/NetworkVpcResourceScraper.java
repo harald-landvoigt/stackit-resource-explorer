@@ -35,6 +35,9 @@ public class NetworkVpcResourceScraper {
     @Inject
     com.landvoigtit.stackit.resourceexplorer.config.StackitSdkConfig sdkConfig;
 
+    @Inject
+    com.landvoigtit.stackit.resourceexplorer.access.AccessIssueRegistry accessIssueRegistry;
+
     @Scheduled(every = "${stackit.network-vpc.schedule:1h}")
     public void scrape() {
         log.info("Starting Network VPC resource scrape...");
@@ -65,8 +68,12 @@ public class NetworkVpcResourceScraper {
 
     private boolean scrapeProjectNetworks(final Project project, final List<String> currentResourceIds) {
         final String projectIdStr = project.getProjectId().toString();
+        final String projectName = project.getName();
         final List<String> regions = sdkConfig != null ? sdkConfig.getRegions() : StackitConstants.DEFAULT_REGIONS;
         boolean allRegionsSucceeded = true;
+        boolean permissionDenied = false;
+        String permissionDeniedMsg = null;
+        String permissionDeniedRegion = null;
 
         for (final String region : regions) {
             try {
@@ -94,6 +101,10 @@ public class NetworkVpcResourceScraper {
                 final String msg = e.getMessage() != null ? e.getMessage() : "";
                 if (StackitConstants.isPermissionIssue(msg)) {
                     log.warn("Permission denied accessing Network VPC resources for project {} in region {}: {}", projectIdStr, region, msg);
+                    permissionDenied = true;
+                    permissionDeniedMsg = msg;
+                    permissionDeniedRegion = region;
+                    allRegionsSucceeded = false;
                 } else if (msg.contains("404") || msg.contains("not_found")) {
                     log.info("Network VPC not enabled for project {} in region {}: {}", projectIdStr, region, msg);
                 } else {
@@ -102,6 +113,15 @@ public class NetworkVpcResourceScraper {
                 }
             }
         }
+
+        if (accessIssueRegistry != null) {
+            if (permissionDenied) {
+                accessIssueRegistry.recordFailure(projectIdStr, projectName, StackitConstants.RESOURCE_TYPE_NETWORK_VPC, permissionDeniedRegion, 403, permissionDeniedMsg);
+            } else if (allRegionsSucceeded) {
+                accessIssueRegistry.recordSuccess(projectIdStr, projectName, StackitConstants.RESOURCE_TYPE_NETWORK_VPC, null);
+            }
+        }
+
         return allRegionsSucceeded;
     }
 }

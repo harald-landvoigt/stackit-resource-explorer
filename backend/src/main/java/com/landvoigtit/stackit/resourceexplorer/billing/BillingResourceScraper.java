@@ -38,6 +38,9 @@ public class BillingResourceScraper {
     @Inject
     Validator validator;
 
+    @Inject
+    com.landvoigtit.stackit.resourceexplorer.access.AccessIssueRegistry accessIssueRegistry;
+
     private static final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule());
 
@@ -61,9 +64,39 @@ public class BillingResourceScraper {
 
             if (success) {
                 log.info("Cost API resource scrape completed successfully. Processed {} cost records.", currentResourceIds.size());
+                recordBillingSuccess();
             }
         } catch (final Exception e) {
             log.error("Failed to scrape Billing/Cost resources", e);
+            recordBillingFailure(e);
+        }
+    }
+
+    private void recordBillingSuccess() {
+        if (accessIssueRegistry == null || projectDiscoveryService == null) {
+            return;
+        }
+        final List<cloud.stackit.sdk.resourcemanager.v0api.model.Project> projects = projectDiscoveryService.discoverProjects();
+        if (projects != null) {
+            for (final var p : projects) {
+                if (p.getProjectId() != null) {
+                    accessIssueRegistry.recordSuccess(p.getProjectId().toString(), p.getName(), StackitConstants.RESOURCE_TYPE_BILLING, null);
+                }
+            }
+        }
+    }
+
+    private void recordBillingFailure(final Exception e) {
+        if (accessIssueRegistry == null || projectDiscoveryService == null || !StackitConstants.isPermissionIssue(e)) {
+            return;
+        }
+        final List<cloud.stackit.sdk.resourcemanager.v0api.model.Project> projects = projectDiscoveryService.discoverProjects();
+        if (projects != null) {
+            for (final var p : projects) {
+                if (p.getProjectId() != null) {
+                    accessIssueRegistry.recordFailure(p.getProjectId().toString(), p.getName(), StackitConstants.RESOURCE_TYPE_BILLING, null, 403, e.getMessage());
+                }
+            }
         }
     }
 

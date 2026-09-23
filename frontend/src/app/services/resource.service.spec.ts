@@ -95,4 +95,45 @@ describe('ResourceService', () => {
     expect(req.request.method).toBe('GET');
     req.flush(mockSearchResult);
   });
+
+  it('should fetch access issues summary from /resources/access-issues endpoint', () => {
+    const mockSummary = {
+      totalIssues: 1,
+      totalProjectsChecked: 2,
+      affectedProjectsCount: 1,
+      matrix: [
+        {
+          projectId: 'p-1',
+          projectName: 'Project Alpha',
+          statuses: { compute: 'ACCESSIBLE', storage: 'ACCESS_DENIED' },
+          hasAccessIssues: true
+        }
+      ],
+      issues: [
+        {
+          projectId: 'p-1',
+          projectName: 'Project Alpha',
+          resourceType: 'storage',
+          region: 'eu01',
+          status: 'ACCESS_DENIED',
+          statusCode: 403,
+          errorMessage: 'Forbidden bucket access',
+          lastChecked: '2026-09-23T12:00:00Z'
+        }
+      ]
+    };
+
+    service.getAccessIssues().subscribe((result) => {
+      expect(result.totalIssues).toBe(1);
+      expect(result.totalProjectsChecked).toBe(2);
+      expect(result.affectedProjectsCount).toBe(1);
+      expect(result.matrix.length).toBe(1);
+      expect(result.issues.length).toBe(1);
+      expect(result).toEqual(mockSummary);
+    });
+
+    const req = httpMock.expectOne('/resources/access-issues');
+    expect(req.request.method).toBe('GET');
+    req.flush(mockSummary);
+  });
 });

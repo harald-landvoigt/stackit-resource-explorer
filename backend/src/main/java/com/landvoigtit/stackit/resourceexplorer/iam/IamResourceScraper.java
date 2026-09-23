@@ -52,6 +52,9 @@ public class IamResourceScraper {
     @Inject
     ObjectStorageApi objectStorageApi;
 
+    @Inject
+    com.landvoigtit.stackit.resourceexplorer.access.AccessIssueRegistry accessIssueRegistry;
+
     @Scheduled(every = "${stackit.iam.schedule:off}")
     public void scrape() {
         log.info("Starting IAM resource scrape...");
@@ -68,7 +71,7 @@ public class IamResourceScraper {
                 }
                 final String projectIdStr = project.getProjectId().toString();
                 final List<String> currentResourceIds = new ArrayList<>();
-                final boolean success = scrapeProjectIam(projectIdStr, currentResourceIds);
+                final boolean success = scrapeProjectIam(project, currentResourceIds);
 
                 if (success) {
                     repository.softDeleteMissing(StackitConstants.RESOURCE_TYPE_IAM, projectIdStr, currentResourceIds);
@@ -80,13 +83,25 @@ public class IamResourceScraper {
         }
     }
 
-    private boolean scrapeProjectIam(final String projectIdStr, final List<String> currentResourceIds) {
+    private boolean scrapeProjectIam(final Project project, final List<String> currentResourceIds) {
+        final String projectIdStr = project.getProjectId().toString();
+        final String projectName = project.getName();
         log.info("Scraping IAM resources for project {}", projectIdStr);
         final Map<String, ServiceAccountAuthInfo> saAuthMap = new HashMap<>();
         final boolean sasSuccess = scrapeProjectServiceAccounts(projectIdStr, currentResourceIds, saAuthMap);
         final boolean membersSuccess = scrapeProjectMembers(projectIdStr, currentResourceIds, saAuthMap);
         final boolean s3KeysSuccess = scrapeProjectS3AccessKeys(projectIdStr, currentResourceIds);
-        return sasSuccess && membersSuccess && s3KeysSuccess;
+        final boolean allSuccess = sasSuccess && membersSuccess && s3KeysSuccess;
+
+        if (accessIssueRegistry != null) {
+            if (allSuccess) {
+                accessIssueRegistry.recordSuccess(projectIdStr, projectName, StackitConstants.RESOURCE_TYPE_IAM, null);
+            } else {
+                accessIssueRegistry.recordFailure(projectIdStr, projectName, StackitConstants.RESOURCE_TYPE_IAM, null, 403, "Permission denied or error accessing project IAM resources");
+            }
+        }
+
+        return allSuccess;
     }
 
     private boolean scrapeProjectS3AccessKeys(final String projectIdStr, final List<String> currentResourceIds) {

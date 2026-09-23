@@ -11,7 +11,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTabsModule } from '@angular/material/tabs';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ResourceService } from './services/resource.service';
-import { StackitResource, BillingSummary, AggregationItem, StorageResourceData, VmDiskResourceData, S3AccessKeyResourceData } from './models/resource.model';
+import { StackitResource, BillingSummary, AggregationItem, StorageResourceData, VmDiskResourceData, S3AccessKeyResourceData, AccessIssuesSummary, AccessIssueRecord, ProjectAccessMatrixRow, AccessStatus } from './models/resource.model';
 
 @Component({
   selector: 'app-root',
@@ -45,7 +45,7 @@ export class App implements OnInit {
 
   // Error message to display in the header banner when an error occurs
   readonly errorMessage = signal<string | null>(null);
-  private lastErrorSource: 'resources' | 'billing' | null = null;
+  private lastErrorSource: 'resources' | 'billing' | 'access' | null = null;
 
   // Selected tab index
   readonly selectedIndex = signal<number>(0);
@@ -73,9 +73,69 @@ export class App implements OnInit {
   // Exact project aggregations calculated by the backend across the full query dataset
   readonly projectAggregations = signal<AggregationItem[]>([]);
 
+  // Access issues summary loaded from backend
+  readonly accessSummary = signal<AccessIssuesSummary | null>(null);
+
+  // Search filter for access issues tab
+  readonly accessSearchString = signal<string>('');
+
+  // Filter mode for matrix: 'ALL' or 'ISSUES_ONLY'
+  readonly accessFilterMode = signal<'ALL' | 'ISSUES_ONLY'>('ALL');
+
+  // Resource types displayed in the matrix columns
+  readonly matrixResourceTypes = [
+    { key: 'compute', label: 'Compute' },
+    { key: 'storage', label: 'Storage' },
+    { key: 'vmdisks', label: 'VM Disks' },
+    { key: 'network', label: 'Load Balancers' },
+    { key: 'network-vpc', label: 'VPCs' },
+    { key: 'iam', label: 'IAM' },
+    { key: 'billing', label: 'Billing' }
+  ];
+
+  // Filtered matrix rows based on search query and issues-only mode
+  readonly filteredMatrixRows = computed(() => {
+    const summary = this.accessSummary();
+    if (!summary || !summary.matrix) return [];
+    const query = this.accessSearchString().trim().toLowerCase();
+    const mode = this.accessFilterMode();
+
+    return summary.matrix.filter((row) => {
+      if (mode === 'ISSUES_ONLY' && !row.hasAccessIssues) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      return (
+        (row.projectName && row.projectName.toLowerCase().includes(query)) ||
+        (row.projectId && row.projectId.toLowerCase().includes(query))
+      );
+    });
+  });
+
+  // Filtered active access issues based on search query
+  readonly filteredAccessIssues = computed(() => {
+    const summary = this.accessSummary();
+    if (!summary || !summary.issues) return [];
+    const query = this.accessSearchString().trim().toLowerCase();
+    if (!query) return summary.issues;
+
+    return summary.issues.filter((issue) => {
+      return (
+        (issue.projectName && issue.projectName.toLowerCase().includes(query)) ||
+        (issue.projectId && issue.projectId.toLowerCase().includes(query)) ||
+        (issue.resourceType && issue.resourceType.toLowerCase().includes(query)) ||
+        (issue.region && issue.region.toLowerCase().includes(query)) ||
+        (issue.errorMessage && issue.errorMessage.toLowerCase().includes(query))
+      );
+    });
+  });
+
   ngOnInit(): void {
     this.loadResources();
     this.loadBillingSummary();
+    this.loadAccessIssues();
   }
 
   loadResources(query?: string): void {
@@ -125,6 +185,23 @@ export class App implements OnInit {
       error: (err) => {
         console.error('Failed to load billing summary', err);
         this.lastErrorSource = 'billing';
+        this.errorMessage.set(this.extractErrorMessage(err));
+      }
+    });
+  }
+
+  loadAccessIssues(): void {
+    this.resourceService.getAccessIssues().subscribe({
+      next: (data) => {
+        this.accessSummary.set(data);
+        if (this.lastErrorSource === 'access') {
+          this.errorMessage.set(null);
+          this.lastErrorSource = null;
+        }
+      },
+      error: (err) => {
+        console.error('Failed to load access issues', err);
+        this.lastErrorSource = 'access';
         this.errorMessage.set(this.extractErrorMessage(err));
       }
     });
@@ -403,5 +480,22 @@ export class App implements OnInit {
       return JSON.stringify(val);
     }
     return String(val);
+  }
+
+  getMatrixStatus(row: ProjectAccessMatrixRow, resourceType: string): AccessStatus {
+    return row.statuses?.[resourceType] || 'NOT_CHECKED';
+  }
+
+  toggleAccessFilterMode(): void {
+    this.accessFilterMode.update((mode) => (mode === 'ALL' ? 'ISSUES_ONLY' : 'ALL'));
+  }
+
+  formatAccessResourceType(type: string): string {
+    const match = this.matrixResourceTypes.find((r) => r.key === type);
+    return match ? match.label : type;
+  }
+
+  onAccessSearchChange(value: string): void {
+    this.accessSearchString.set(value);
   }
 }

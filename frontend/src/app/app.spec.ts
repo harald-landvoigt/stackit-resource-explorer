@@ -63,7 +63,21 @@ describe('App', () => {
       getBillingSummary: vi.fn().mockReturnValue(of([
         { id: 'proj-abc', name: 'proj-abc-name', type: 'Project', amount: 200.0, currency: 'EUR' },
         { id: 'org-123', name: 'Organization', type: 'Organization', amount: 1000.0, currency: 'EUR' }
-      ]))
+      ])),
+      getAccessIssues: vi.fn().mockReturnValue(of({
+        totalIssues: 0,
+        totalProjectsChecked: 1,
+        affectedProjectsCount: 0,
+        matrix: [
+          {
+            projectId: 'proj-1',
+            projectName: 'Production Project',
+            statuses: { compute: 'ACCESSIBLE', storage: 'ACCESSIBLE' },
+            hasAccessIssues: false
+          }
+        ],
+        issues: []
+      }))
     };
 
     await TestBed.configureTestingModule({
@@ -236,7 +250,7 @@ describe('App', () => {
     expect(mockResourceService.getResources).toHaveBeenCalledWith(undefined);
   });
 
-  it('should render mat-tab-group with two tabs', () => {
+  it('should render mat-tab-group with three tabs', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
@@ -244,9 +258,10 @@ describe('App', () => {
     expect(tabGroup).toBeTruthy();
 
     const tabs = compiled.querySelectorAll('.mdc-tab');
-    expect(tabs.length).toBe(2);
+    expect(tabs.length).toBe(3);
     expect(tabs[0].textContent).toContain('Resource Explorer');
     expect(tabs[1].textContent).toContain('Billing Summary');
+    expect(tabs[2].textContent).toContain('Access Issues');
   });
 
   it('should render the billing summary table with aggregated data', () => {
@@ -1193,4 +1208,287 @@ describe('App', () => {
       expect(expiredBadge?.textContent).toContain('EXPIRED');
     });
   });
+
+  describe('Access Issues View and Status Matrix', () => {
+    const mockAccessSummary = {
+      totalIssues: 2,
+      totalProjectsChecked: 3,
+      affectedProjectsCount: 1,
+      matrix: [
+        {
+          projectId: 'proj-1',
+          projectName: 'Production Alpha',
+          statuses: {
+            compute: 'ACCESSIBLE',
+            storage: 'ACCESS_DENIED',
+            vmdisks: 'ACCESSIBLE',
+            network: 'ACCESSIBLE',
+            'network-vpc': 'ACCESSIBLE',
+            iam: 'ACCESS_DENIED',
+            billing: 'NOT_CHECKED'
+          },
+          hasAccessIssues: true
+        },
+        {
+          projectId: 'proj-2',
+          projectName: 'Staging Beta',
+          statuses: {
+            compute: 'ACCESSIBLE',
+            storage: 'ACCESSIBLE',
+            vmdisks: 'ACCESSIBLE',
+            network: 'ACCESSIBLE',
+            'network-vpc': 'ACCESSIBLE',
+            iam: 'ACCESSIBLE',
+            billing: 'ACCESSIBLE'
+          },
+          hasAccessIssues: false
+        }
+      ],
+      issues: [
+        {
+          projectId: 'proj-1',
+          projectName: 'Production Alpha',
+          resourceType: 'storage',
+          region: 'eu01',
+          status: 'ACCESS_DENIED' as const,
+          statusCode: 403,
+          errorMessage: 'Forbidden bucket list access',
+          lastChecked: '2026-09-23T12:00:00Z'
+        },
+        {
+          projectId: 'proj-1',
+          projectName: 'Production Alpha',
+          resourceType: 'iam',
+          region: 'eu02',
+          status: 'ACCESS_DENIED' as const,
+          statusCode: 401,
+          errorMessage: 'Unauthorized IAM credentials inspection',
+          lastChecked: '2026-09-23T12:05:00Z'
+        }
+      ]
+    };
+
+    beforeEach(() => {
+      mockResourceService.getAccessIssues.mockReturnValue(of(mockAccessSummary));
+    });
+
+    it('should load access issues from service on init', () => {
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const app = fixture.componentInstance;
+
+      expect(mockResourceService.getAccessIssues).toHaveBeenCalled();
+      expect(app.accessSummary()).toEqual(mockAccessSummary);
+    });
+
+    it('should render live counter badge on Access Issues tab when totalIssues > 0', () => {
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const compiled = fixture.nativeElement as HTMLElement;
+
+      const tabs = compiled.querySelectorAll('.mdc-tab');
+      expect(tabs.length).toBe(3);
+      const accessTab = tabs[2];
+      expect(accessTab.textContent).toContain('Access Issues');
+
+      const badge = accessTab.querySelector('.access-badge-warn');
+      expect(badge).toBeTruthy();
+      expect(badge?.textContent?.trim()).toBe('2');
+    });
+
+    it('should not render live counter badge on Access Issues tab when totalIssues is 0', () => {
+      mockResourceService.getAccessIssues.mockReturnValue(of({
+        totalIssues: 0,
+        totalProjectsChecked: 2,
+        affectedProjectsCount: 0,
+        matrix: [],
+        issues: []
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const compiled = fixture.nativeElement as HTMLElement;
+
+      const tabs = compiled.querySelectorAll('.mdc-tab');
+      const accessTab = tabs[2];
+      const badge = accessTab.querySelector('.access-badge-warn');
+      expect(badge).toBeNull();
+    });
+
+    it('should render access KPI summary stats cards', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+      app.selectedIndex.set(2);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const statValues = compiled.querySelectorAll('.access-stats-grid .stat-value');
+      expect(statValues.length).toBe(3);
+      expect(statValues[0].textContent?.trim()).toBe('3'); // Total Projects Checked
+      expect(statValues[1].textContent?.trim()).toBe('1'); // Affected Projects
+      expect(statValues[2].textContent?.trim()).toBe('2'); // Total Access Issues
+    });
+
+    it('should render Project Access Matrix with ACCESSIBLE, DENIED, and NOT_CHECKED badges', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+      app.selectedIndex.set(2);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const matrixTable = compiled.querySelector('.access-matrix-table');
+      expect(matrixTable).toBeTruthy();
+
+      const rows = compiled.querySelectorAll('.matrix-row');
+      expect(rows.length).toBe(2);
+
+      // Verify row 1 has access denied styling
+      expect(rows[0].classList.contains('matrix-row-denied')).toBe(true);
+      expect(rows[0].textContent).toContain('Production Alpha');
+
+      // Verify row 2 is clean
+      expect(rows[1].classList.contains('matrix-row-denied')).toBe(false);
+      expect(rows[1].textContent).toContain('Staging Beta');
+
+      // Badges
+      const deniedBadges = rows[0].querySelectorAll('.status-access-denied');
+      expect(deniedBadges.length).toBe(2); // storage and iam
+      expect(deniedBadges[0].textContent?.trim()).toBe('DENIED');
+
+      const accessibleBadges = rows[0].querySelectorAll('.status-accessible');
+      expect(accessibleBadges.length).toBe(4); // compute, vmdisks, network, network-vpc
+      expect(accessibleBadges[0].textContent?.trim()).toBe('OK');
+
+      const notCheckedBadges = rows[0].querySelectorAll('.status-not-checked');
+      expect(notCheckedBadges.length).toBe(1); // billing
+      expect(notCheckedBadges[0].textContent?.trim()).toBe('N/A');
+    });
+
+    it('should toggle matrix filter to show only projects with access issues', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+      app.selectedIndex.set(2);
+      fixture.detectChanges();
+
+      expect(app.filteredMatrixRows().length).toBe(2);
+
+      app.toggleAccessFilterMode();
+      fixture.detectChanges();
+
+      expect(app.accessFilterMode()).toBe('ISSUES_ONLY');
+      expect(app.filteredMatrixRows().length).toBe(1);
+      expect(app.filteredMatrixRows()[0].projectName).toBe('Production Alpha');
+
+      // Toggle back to ALL
+      app.toggleAccessFilterMode();
+      fixture.detectChanges();
+
+      expect(app.accessFilterMode()).toBe('ALL');
+      expect(app.filteredMatrixRows().length).toBe(2);
+    });
+
+    it('should filter matrix rows and active issues by search query', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+      app.selectedIndex.set(2);
+      fixture.detectChanges();
+
+      app.onAccessSearchChange('Staging');
+      fixture.detectChanges();
+
+      expect(app.filteredMatrixRows().length).toBe(1);
+      expect(app.filteredMatrixRows()[0].projectName).toBe('Staging Beta');
+      expect(app.filteredAccessIssues().length).toBe(0); // Staging Beta has no issues
+
+      app.onAccessSearchChange('Production');
+      fixture.detectChanges();
+
+      expect(app.filteredMatrixRows().length).toBe(1);
+      expect(app.filteredMatrixRows()[0].projectName).toBe('Production Alpha');
+      expect(app.filteredAccessIssues().length).toBe(2);
+
+      // Search by error message substring
+      app.onAccessSearchChange('bucket');
+      fixture.detectChanges();
+
+      expect(app.filteredAccessIssues().length).toBe(1);
+      expect(app.filteredAccessIssues()[0].resourceType).toBe('storage');
+    });
+
+    it('should render active access issues table rows with details', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+      app.selectedIndex.set(2);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const issueRows = compiled.querySelectorAll('.access-issues-table .issue-row');
+      expect(issueRows.length).toBe(2);
+
+      expect(issueRows[0].textContent).toContain('Production Alpha');
+      expect(issueRows[0].textContent).toContain('Storage');
+      expect(issueRows[0].textContent).toContain('eu01');
+      expect(issueRows[0].textContent).toContain('403');
+      expect(issueRows[0].textContent).toContain('Forbidden bucket list access');
+
+      expect(issueRows[1].textContent).toContain('IAM');
+      expect(issueRows[1].textContent).toContain('eu02');
+      expect(issueRows[1].textContent).toContain('401');
+      expect(issueRows[1].textContent).toContain('Unauthorized IAM credentials inspection');
+    });
+
+    it('should render all-clear message when there are no access issues', () => {
+      mockResourceService.getAccessIssues.mockReturnValue(of({
+        totalIssues: 0,
+        totalProjectsChecked: 2,
+        affectedProjectsCount: 0,
+        matrix: [
+          {
+            projectId: 'proj-1',
+            projectName: 'Clean Project',
+            statuses: { compute: 'ACCESSIBLE' },
+            hasAccessIssues: false
+          }
+        ],
+        issues: []
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+      app.selectedIndex.set(2);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const allClearBox = compiled.querySelector('.all-clear-box');
+      expect(allClearBox).toBeTruthy();
+      expect(allClearBox?.textContent).toContain('No active access issues found');
+    });
+
+    it('should display error banner when loadAccessIssues fails', () => {
+      mockResourceService.getAccessIssues.mockReturnValue(
+        throwError(() => new HttpErrorResponse({
+          status: 503,
+          statusText: 'Service Unavailable',
+          error: { message: 'Access registry service unreachable' }
+        }))
+      );
+
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+      app.loadAccessIssues();
+      fixture.detectChanges();
+
+      expect(app.errorMessage()).toContain('Access registry service unreachable');
+    });
+
+    it('should reload access issues when refresh is called', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+      mockResourceService.getAccessIssues.mockClear();
+
+      app.loadAccessIssues();
+      expect(mockResourceService.getAccessIssues).toHaveBeenCalled();
+    });
+  });
 });
+
