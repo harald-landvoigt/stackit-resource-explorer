@@ -14,7 +14,7 @@ Runs the application with hot-reload enabled and starts testcontainers Dev Servi
 > **_NOTE:_** The Quarkus Dev UI is available at <http://localhost:8080/q/dev/>.
 
 ### Testing
-Executes unit tests and integration tests against containerized PostgreSQL and mocked/live STACKIT APIs (90 tests):
+Executes unit tests and integration tests against containerized PostgreSQL and mocked/live STACKIT APIs (100 tests):
 ```bash
 ./mvnw test
 ```
@@ -125,14 +125,17 @@ Each scraper implements independent schedules (configurable via `application.pro
 
 #### IAM & Authentication Scraper Details
 - Scrapes project role bindings (`/v2/projects/{projectId}/members`) and project-defined service accounts (`/v2/projects/{projectId}/service-accounts`).
+- Scrapes persistent Object Storage S3 access keys and credentials groups across all configured regions (`eu01`, `eu02`) via `ObjectStorageApi.listCredentialsGroups` and `listAccessKeys`.
+- Filters out transient audit credentials groups (`resource-explorer-audit`) so ephemeral JIT keys from `S3JitKeyManager` are never cataloged.
 - Inspects active static API tokens (`/tokens`) and cryptographic public keys (`/keys`) for each service account.
 - Identifies authentication schemes:
   - **Key Flow**: Modern asymmetric RSA/ECDSA key pairs (e.g., `Key Flow (RSA_2048)`).
   - **OIDC / Enterprise SSO**: Human user identities authenticated via corporate identity providers (captures `idpDomain`).
   - **Platform Managed**: Internal platform-managed identities.
+  - **S3 HMAC Key**: Persistent S3 data-plane credentials with credentials group binding and expiration tracking (`ACTIVE` vs. `EXPIRED`).
   - **Token Flow (Deprecated)**: Detects legacy static API secrets (*"The legacy model where a long-lived, static API secret acted directly as a bearer token."*), flagging `deprecated = true`, active static token counts, expiration timestamps, and tagging with `auth-flow: "token-flow-deprecated"`.
 - Correlates project members to service accounts so project-level access entries automatically inherit their service account's authentication scheme.
-- Full-Text Search indexing enables instant querying by `"Token Flow"`, `"Token Flow (Deprecated)"`, `"static API secret"`, or `"token-flow-deprecated"`.
+- Full-Text Search indexing enables instant querying by `"Token Flow"`, `"Token Flow (Deprecated)"`, `"static API secret"`, `"token-flow-deprecated"`, `"S3 Access Key"`, or `"s3-hmac-key"`.
 
 #### Billing / Cost Scraper Details
 - Aggregates current calendar month usage in UTC.

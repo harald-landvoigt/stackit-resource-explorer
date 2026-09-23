@@ -66,8 +66,9 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
 - **IAM & Authentication Scraper**: Recursively catalogs identities, permissions, and authentication flows across all discovered projects:
   - **Members (Access Control)**: Project-level role bindings for users, groups, and service accounts via the STACKIT Authorization API (`/v2/project/{projectId}/members`). Correlates project members to service accounts to inherit authentication scheme metadata.
   - **Service Accounts (Defined Identities)**: Service accounts defined within each project via the STACKIT Service Account API (`/v2/projects/{projectId}/service-accounts`).
+  - **S3 Access Keys & Credentials Groups**: Catalogs persistent Object Storage S3 access keys and credentials groups across all configured regions (`eu01`, `eu02`), tracking key expiration (`ACTIVE` vs. `EXPIRED`), credentials groups, and HMAC key IDs while excluding transient audit keys (`resource-explorer-audit`).
   - **Authentication Scheme & Deprecation Detection**:
-    - Distinguishes modern asymmetric RSA/ECDSA key pairs (`Key Flow (RSA_2048)`), human SSO (`OIDC / Enterprise SSO`), and platform-managed identities.
+    - Distinguishes modern asymmetric RSA/ECDSA key pairs (`Key Flow (RSA_2048)`), human SSO (`OIDC / Enterprise SSO`), persistent S3 credentials (`S3 HMAC Key`), and platform-managed identities.
     - Detects and tags legacy static API secrets (`Token Flow (Deprecated)` - *"The legacy model where a long-lived, static API secret acted directly as a bearer token."*), exposing active token counts and expiration dates.
 - **Cost & Consumption Scraper**: Periodically queries the **STACKIT Cost API v3** (`https://cost.api.stackit.cloud/v3/costs/{customerAccountId}`) for the current calendar month in UTC:
   - Catalogs expenses for each project (`billing`) and computes the aggregate organization total (`billing-org`).
@@ -79,11 +80,13 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
     - **Unattached Disks (Amber)**: 1-click filter for idle / orphan block storage disks (`"unattached"`), enabling quick identification of wasted storage spend.
     - **Token Flow (Red)**: Filters service accounts and users utilizing deprecated static API tokens (`"Token Flow"`).
     - **Key Flow (Orange)**: Filters service accounts utilizing modern asymmetric RSA key pairs (`"Key Flow"`).
+    - **S3 Keys (Sky Blue)**: 1-click filter for Object Storage S3 access keys (`"S3 Access Key"`).
     - Prominent warning chips on resource cards utilizing deprecated static token credentials (searchable anytime via `"Token Flow"`).
   - **Resource Explorer**: Search and filter discovered resources in real time via PostgreSQL Full-Text Search. Returns results capped at 100 elements for ultra-fast rendering while displaying a `"Showing X of Y items"` indicator.
   - **Resource Details, Badges & UUIDs**:
     - Displays the exact **Resource UUID** alongside any distinct human-readable **Resource ID** (such as bucket names or IAM accounts). Cleanly formats complex metadata (arrays of IPs or volumes) and excludes blank fields.
     - **Disk Attachment Badges**: VM disks display clear color-coded badges: 🟡 **`[Unattached]`** (amber warning for idle/orphan volumes), 🟢 **`[Attached: <serverName>]`** (green badge with parent VM name), and 🔵 **`[Boot Disk]`** (blue badge for OS root volumes).
+    - **S3 Access Key Badges**: Persistent S3 access keys display color-coded identity chips: 🔷 **`[S3 Key: <groupName>]`** (sky-blue badge with credentials group name) and 🔴 **`[EXPIRED]`** (red warning for expired keys).
   - **Multi-Dimensional Summary Aggregations**: Backend-calculated exact counts stacked across four distinct dimensions with a responsive scrollable container (`max-height: 70vh`) and custom orange scrollbar matching the resource explorer:
     - **By Resource Type** (*VMs*, *Buckets*, *VM Disks*, *Invoices*, *Networks*, *IAM Policies*)
     - **By Project** (e.g. *resource-explorer*, *sandbox-1*, *sandbox-2*, or *Global / No Project* with automatic project ID-to-name resolution)
@@ -376,14 +379,14 @@ The backend can be configured via `application.properties` or overridden with en
 ### Backend (Quarkus / Java 21)
 ```bash
 cd backend
-./mvnw test                  # Run unit and integration test suite (90 tests)
+./mvnw test                  # Run unit and integration test suite (100 tests)
 ./mvnw quarkus:dev           # Run dev mode with hot reload (Dev UI at http://localhost:8080/q/dev)
 ```
 
 ### Frontend (Angular 21 / Vitest)
 ```bash
 cd frontend
-npm test -- --watch=false    # Run unit tests via Vitest (43 tests)
+npm test -- --watch=false    # Run unit tests via Vitest (47 tests)
 ng serve                     # Start development server on port 4200 (proxies backend to 8080)
 ```
 

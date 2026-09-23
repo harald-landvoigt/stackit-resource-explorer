@@ -1,5 +1,10 @@
 package com.landvoigtit.stackit.resourceexplorer.iam;
 
+import cloud.stackit.sdk.objectstorage.v2api.api.ObjectStorageApi;
+import cloud.stackit.sdk.objectstorage.v2api.model.AccessKey;
+import cloud.stackit.sdk.objectstorage.v2api.model.CredentialsGroup;
+import cloud.stackit.sdk.objectstorage.v2api.model.ListAccessKeysResponse;
+import cloud.stackit.sdk.objectstorage.v2api.model.ListCredentialsGroupsResponse;
 import cloud.stackit.sdk.resourcemanager.v0api.model.Member;
 import cloud.stackit.sdk.resourcemanager.v0api.model.Project;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -43,6 +48,9 @@ public class IamResourceScraper {
     @Inject
     StackitSdkConfig sdkConfig;
 
+    @Inject
+    ObjectStorageApi objectStorageApi;
+
     @Scheduled(every = "${stackit.iam.schedule:off}")
     public void scrape() {
         log.info("Starting IAM resource scrape...");
@@ -75,7 +83,68 @@ public class IamResourceScraper {
         final Map<String, ServiceAccountAuthInfo> saAuthMap = new HashMap<>();
         final boolean sasSuccess = scrapeProjectServiceAccounts(projectIdStr, currentResourceIds, saAuthMap);
         final boolean membersSuccess = scrapeProjectMembers(projectIdStr, currentResourceIds, saAuthMap);
-        return sasSuccess && membersSuccess;
+        final boolean s3KeysSuccess = scrapeProjectS3AccessKeys(projectIdStr, currentResourceIds);
+        return sasSuccess && membersSuccess && s3KeysSuccess;
+    }
+
+    private boolean scrapeProjectS3AccessKeys(final String projectIdStr, final List<String> currentResourceIds) {
+        if (objectStorageApi == null) {
+            return true;
+        }
+        final List<String> regions = sdkConfig != null && sdkConfig.getRegions() != null && !sdkConfig.getRegions().isEmpty()
+                ? sdkConfig.getRegions()
+                : StackitConstants.DEFAULT_REGIONS;
+
+        boolean allSucceeded = true;
+        for (final String region : regions) {
+            try {
+                final ListCredentialsGroupsResponse groupsResp = objectStorageApi.listCredentialsGroups(projectIdStr, region);
+                if (groupsResp == null || groupsResp.getCredentialsGroups() == null || groupsResp.getCredentialsGroups().isEmpty()) {
+                    continue;
+                }
+                for (final CredentialsGroup group : groupsResp.getCredentialsGroups()) {
+                    final String groupName = group.getDisplayName() != null ? group.getDisplayName() : "";
+                    if (groupName.equalsIgnoreCase("resource-explorer-audit") || groupName.contains("resource-explorer-audit")) {
+                        continue;
+                    }
+                    final String groupId = group.getCredentialsGroupId();
+                    if (groupId == null || groupId.isBlank()) {
+                        continue;
+                    }
+
+                    try {
+                        final ListAccessKeysResponse keysResp = objectStorageApi.listAccessKeys(projectIdStr, region, groupId);
+                        if (keysResp == null || keysResp.getAccessKeys() == null || keysResp.getAccessKeys().isEmpty()) {
+                            continue;
+                        }
+
+                        for (final AccessKey key : keysResp.getAccessKeys()) {
+                            if (key.getKeyId() == null || key.getKeyId().isBlank()) {
+                                continue;
+                            }
+                            final StackitEntity entity = IamResourceMapper.mapS3KeyToEntity(projectIdStr, region, group, key);
+                            if (entity != null) {
+                                repository.persistOrUpdate(entity);
+                                currentResourceIds.add(entity.getResourceId());
+                            }
+                        }
+                    } catch (final Exception e) {
+                        log.debug("Could not list access keys for group {} in project {} region {}: {}", groupId, projectIdStr, region, e.getMessage());
+                    }
+                }
+            } catch (final Exception e) {
+                final String msg = e.getMessage() != null ? e.getMessage() : "";
+                if (msg.contains("404") || msg.contains("not_found")) {
+                    log.debug("Object storage not enabled for project {} in region {}: {}", projectIdStr, region, msg);
+                } else if (msg.contains("403") || msg.contains("forbidden")) {
+                    log.debug("Object storage credentials groups access not permitted for project {} in region {}: {}", projectIdStr, region, msg);
+                } else {
+                    log.warn("Failed to scrape S3 credentials groups for project {} in region {}: {}", projectIdStr, region, e.getMessage());
+                    allSucceeded = false;
+                }
+            }
+        }
+        return allSucceeded;
     }
 
     private boolean scrapeProjectMembers(

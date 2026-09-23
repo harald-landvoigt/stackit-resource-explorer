@@ -80,6 +80,14 @@
               <mat-icon class="filter-btn-icon">link_off</mat-icon>
               <span>Unattached Disks</span>
             </button>
+            <button type="button" 
+                    class="filter-chip-btn s3key-filter-btn" 
+                    [class.active-filter]="searchString() === 'S3 Access Key'"
+                    (click)="filterS3Keys()"
+                    title="Filter S3 Object Storage access keys">
+              <mat-icon class="filter-btn-icon">vpn_key</mat-icon>
+              <span>S3 Keys</span>
+            </button>
           </div>
 
           <!-- Main Columns Layout -->
@@ -221,8 +229,18 @@
                               Boot Disk
                             </mat-chip>
                           </ng-container>
+                          <ng-container *ngIf="isS3AccessKey(res)">
+                            <mat-chip class="s3key-badge" [title]="'S3 Access Key' + (res.data?.['credentialsGroupName'] ? ' for group ' + res.data?.['credentialsGroupName'] : '')">
+                              <mat-icon class="chip-s3key-icon">vpn_key</mat-icon>
+                              S3 Key{{ res.data?.['credentialsGroupName'] ? ': ' + res.data?.['credentialsGroupName'] : '' }}
+                            </mat-chip>
+                            <mat-chip *ngIf="isS3AccessKeyExpired(res)" class="expired-badge" title="S3 Access Key has expired">
+                              <mat-icon class="chip-warning-icon">timer_off</mat-icon>
+                              EXPIRED
+                            </mat-chip>
+                          </ng-container>
                           <mat-chip class="type-chip">{{ res.type }}</mat-chip>
-                          <mat-chip class="status-chip" [class.active-status]="res.status === 'active' || res.status === 'paid'">{{ res.status }}</mat-chip>
+                          <mat-chip class="status-chip" [class.active-status]="res.status === 'active' || res.status === 'paid' || res.status === 'ACTIVE'">{{ res.status }}</mat-chip>
                         </mat-chip-set>
                       </div>
                       
