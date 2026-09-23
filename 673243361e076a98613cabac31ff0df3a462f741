@@ -1,0 +1,4 @@
+Task: Create Access Issue Data Models and DTOs
+- Defined AccessStatus enum with values ACCESSIBLE, ACCESS_DENIED, NOT_CHECKED
+- Created AccessIssueRecordDto, ProjectAccessMatrixRowDto, and AccessIssuesSummaryDto
+- Added unit tests in AccessIssueDtoTest verifying records and summary calculations
