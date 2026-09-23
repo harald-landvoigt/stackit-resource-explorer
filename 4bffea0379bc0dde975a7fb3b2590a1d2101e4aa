@@ -1,0 +1,4 @@
+Task: Implement Frontend Models and Service Client
+- Added TypeScript types and interfaces: AccessStatus, AccessIssueRecord, ProjectAccessMatrixRow, AccessIssuesSummary
+- Implemented getAccessIssues() in ResourceService fetching from /resources/access-issues
+- Added unit tests in ResourceServiceSpec verifying HTTP call and model mapping
