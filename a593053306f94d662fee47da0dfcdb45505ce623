@@ -1,0 +1,6 @@
+Task: Build Access Issues Tab and Matrix UI in Angular
+- Added 3rd tab 'Access Issues' with live counter badge and security icon
+- Implemented Project x Resource Type access matrix table with ACCESSIBLE/DENIED/NOT_CHECKED badges
+- Added KPI stat cards (Total Checked, Affected Projects, Total Issues)
+- Added filterable active access issues table and search bar with issues-only toggle
+- Styled matrix, status chips, and detail tables in high-contrast black/orange theme
