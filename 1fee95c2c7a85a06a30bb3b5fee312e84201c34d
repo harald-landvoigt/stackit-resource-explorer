@@ -1,0 +1,4 @@
+Task: Expose Access Issues REST API Endpoint
+- Added getAccessIssues() method to StackitResourceService calling AccessIssueRegistry.getAccessIssuesSummary()
+- Added GET /resources/access-issues endpoint in StackitResourceController
+- Added unit tests in StackitResourceControllerTest verifying 200 OK and JSON structure
