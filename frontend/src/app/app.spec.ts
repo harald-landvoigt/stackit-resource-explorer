@@ -63,7 +63,21 @@ describe('App', () => {
       getBillingSummary: vi.fn().mockReturnValue(of([
         { id: 'proj-abc', name: 'proj-abc-name', type: 'Project', amount: 200.0, currency: 'EUR' },
         { id: 'org-123', name: 'Organization', type: 'Organization', amount: 1000.0, currency: 'EUR' }
-      ]))
+      ])),
+      getAccessIssues: vi.fn().mockReturnValue(of({
+        totalIssues: 0,
+        totalProjectsChecked: 1,
+        affectedProjectsCount: 0,
+        matrix: [
+          {
+            projectId: 'proj-1',
+            projectName: 'Production Project',
+            statuses: { compute: 'ACCESSIBLE', storage: 'ACCESSIBLE' },
+            hasAccessIssues: false
+          }
+        ],
+        issues: []
+      }))
     };
 
     await TestBed.configureTestingModule({
@@ -236,7 +250,7 @@ describe('App', () => {
     expect(mockResourceService.getResources).toHaveBeenCalledWith(undefined);
   });
 
-  it('should render mat-tab-group with two tabs', () => {
+  it('should render mat-tab-group with three tabs', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
@@ -244,9 +258,10 @@ describe('App', () => {
     expect(tabGroup).toBeTruthy();
 
     const tabs = compiled.querySelectorAll('.mdc-tab');
-    expect(tabs.length).toBe(2);
+    expect(tabs.length).toBe(3);
     expect(tabs[0].textContent).toContain('Resource Explorer');
     expect(tabs[1].textContent).toContain('Billing Summary');
+    expect(tabs[2].textContent).toContain('Access Issues');
   });
 
   it('should render the billing summary table with aggregated data', () => {

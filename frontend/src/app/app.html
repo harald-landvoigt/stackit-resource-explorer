@@ -414,6 +414,156 @@
           </mat-card>
         </div>
       </mat-tab>
+
+      <mat-tab label="Access Issues">
+        <ng-template mat-tab-label>
+          <div class="tab-label-content">
+            <mat-icon class="tab-icon">security</mat-icon>
+            <span class="tab-label-text">Access Issues</span>
+            <span class="tab-badge access-badge-warn" *ngIf="(accessSummary()?.totalIssues ?? 0) > 0">
+              {{ accessSummary()?.totalIssues }}
+            </span>
+          </div>
+        </ng-template>
+        <div class="tab-content">
+          <!-- Access KPI Cards -->
+          <div class="access-stats-grid">
+            <mat-card class="stat-card border-orange">
+              <mat-card-header>
+                <mat-card-subtitle class="stat-label">Total Projects Checked</mat-card-subtitle>
+                <mat-card-title class="stat-value text-orange">{{ accessSummary()?.totalProjectsChecked ?? 0 }}</mat-card-title>
+              </mat-card-header>
+            </mat-card>
+            <mat-card class="stat-card border-orange">
+              <mat-card-header>
+                <mat-card-subtitle class="stat-label">Affected Projects</mat-card-subtitle>
+                <mat-card-title class="stat-value" [class.text-denied]="(accessSummary()?.affectedProjectsCount ?? 0) > 0" [class.text-orange]="(accessSummary()?.affectedProjectsCount ?? 0) === 0">
+                  {{ accessSummary()?.affectedProjectsCount ?? 0 }}
+                </mat-card-title>
+              </mat-card-header>
+            </mat-card>
+            <mat-card class="stat-card border-orange">
+              <mat-card-header>
+                <mat-card-subtitle class="stat-label">Total Access Issues</mat-card-subtitle>
+                <mat-card-title class="stat-value" [class.text-denied]="(accessSummary()?.totalIssues ?? 0) > 0" [class.text-orange]="(accessSummary()?.totalIssues ?? 0) === 0">
+                  {{ accessSummary()?.totalIssues ?? 0 }}
+                </mat-card-title>
+              </mat-card-header>
+            </mat-card>
+          </div>
+
+          <!-- Filter & Search Controls -->
+          <div class="access-controls-bar">
+            <mat-form-field appearance="outline" class="access-search-field" subscriptSizing="dynamic">
+              <mat-label>Filter projects or resource types...</mat-label>
+              <input matInput
+                     placeholder="Filter by project name, ID, or resource type..."
+                     [ngModel]="accessSearchString()"
+                     (ngModelChange)="onAccessSearchChange($event)"
+                     class="search-input">
+              <mat-icon matPrefix class="text-orange">search</mat-icon>
+            </mat-form-field>
+            <button type="button"
+                    class="filter-chip-btn issues-filter-btn"
+                    [class.active-filter]="accessFilterMode() === 'ISSUES_ONLY'"
+                    (click)="toggleAccessFilterMode()"
+                    title="Toggle showing only projects with access issues">
+              <mat-icon class="filter-btn-icon">filter_list</mat-icon>
+              <span>{{ accessFilterMode() === 'ISSUES_ONLY' ? 'Show All Projects' : 'Projects with Issues Only' }}</span>
+            </button>
+            <button mat-flat-button color="primary" (click)="loadAccessIssues()" class="refresh-access-button border-orange">
+              <mat-icon>refresh</mat-icon>
+              <span>Refresh</span>
+            </button>
+          </div>
+
+          <!-- Project Access Matrix Card -->
+          <mat-card class="dashboard-card border-orange matrix-card">
+            <mat-card-header>
+              <mat-card-title class="text-orange">Project Access Matrix</mat-card-title>
+              <mat-card-subtitle>Access status across StackIT resource types and services</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content class="list-content">
+              <div *ngIf="filteredMatrixRows().length === 0" class="no-data">
+                No projects match the selected filter criteria.
+              </div>
+              <div class="table-container matrix-table-container" *ngIf="filteredMatrixRows().length > 0">
+                <table class="access-matrix-table">
+                  <thead>
+                    <tr>
+                      <th class="matrix-project-header">Project Name / ID</th>
+                      <th *ngFor="let rt of matrixResourceTypes" class="matrix-type-header">{{ rt.label }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let row of filteredMatrixRows()" class="matrix-row" [class.matrix-row-denied]="row.hasAccessIssues">
+                      <td class="matrix-project-cell">
+                        <div class="project-name font-bold">{{ row.projectName }}</div>
+                        <div class="project-id text-orange font-medium">{{ row.projectId }}</div>
+                      </td>
+                      <td *ngFor="let rt of matrixResourceTypes" class="matrix-status-cell">
+                        <span class="status-badge"
+                              [ngClass]="'status-' + getMatrixStatus(row, rt.key).toLowerCase().replace('_', '-')"
+                              [title]="row.projectName + ' ' + rt.label + ': ' + getMatrixStatus(row, rt.key)">
+                          <span class="status-indicator"></span>
+                          <span class="status-text">{{ getMatrixStatus(row, rt.key) === 'ACCESS_DENIED' ? 'DENIED' : (getMatrixStatus(row, rt.key) === 'ACCESSIBLE' ? 'OK' : 'N/A') }}</span>
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <!-- Active Access Issues Detail Card -->
+          <mat-card class="dashboard-card border-orange issues-card">
+            <mat-card-header>
+              <mat-card-title class="text-orange">Active Access Issues</mat-card-title>
+              <mat-card-subtitle>Scraper permission error logs and diagnostic details</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content class="list-content">
+              <div *ngIf="filteredAccessIssues().length === 0" class="no-data all-clear-box">
+                <mat-icon class="all-clear-icon text-accessible">check_circle</mat-icon>
+                <span>No active access issues found for the current selection.</span>
+              </div>
+              <div class="table-container issues-table-container" *ngIf="filteredAccessIssues().length > 0">
+                <table class="access-issues-table">
+                  <thead>
+                    <tr>
+                      <th>Project</th>
+                      <th>Resource Type</th>
+                      <th>Region</th>
+                      <th>HTTP Status</th>
+                      <th>Error Message</th>
+                      <th>Last Checked</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let issue of filteredAccessIssues()" class="issue-row">
+                      <td class="issue-project-cell">
+                        <div class="project-name font-bold">{{ issue.projectName }}</div>
+                        <div class="project-id text-orange font-medium">{{ issue.projectId }}</div>
+                      </td>
+                      <td class="issue-type-cell">
+                        <span class="type-badge">{{ formatAccessResourceType(issue.resourceType) }}</span>
+                      </td>
+                      <td class="issue-region-cell">{{ issue.region || 'global' }}</td>
+                      <td class="issue-status-cell">
+                        <span class="http-status-badge font-bold">{{ issue.statusCode || 403 }}</span>
+                      </td>
+                      <td class="issue-msg-cell">
+                        <div class="error-msg-text font-medium">{{ issue.errorMessage }}</div>
+                      </td>
+                      <td class="issue-time-cell">{{ issue.lastChecked ? (issue.lastChecked | date:'short') : '-' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </mat-tab>
     </mat-tab-group>
   </div>
 </div>
