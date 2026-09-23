@@ -37,6 +37,9 @@ public class VmDiskResourceScraper {
     @Inject
     com.landvoigtit.stackit.resourceexplorer.config.StackitSdkConfig sdkConfig;
 
+    @Inject
+    com.landvoigtit.stackit.resourceexplorer.access.AccessIssueRegistry accessIssueRegistry;
+
     @Scheduled(every = "${stackit.vmdisks.schedule:1h}")
     public void scrape() {
         log.info("Starting VM Disks resource scrape...");
@@ -69,8 +72,12 @@ public class VmDiskResourceScraper {
 
     private boolean scrapeProjectVolumes(final Project project, final List<String> currentResourceIds) {
         final String projectIdStr = project.getProjectId().toString();
+        final String projectName = project.getName();
         final List<String> regions = sdkConfig != null ? sdkConfig.getRegions() : StackitConstants.DEFAULT_REGIONS;
         boolean allRegionsSucceeded = true;
+        boolean permissionDenied = false;
+        String permissionDeniedMsg = null;
+        String permissionDeniedRegion = null;
 
         // Build server attachment lookup from active compute instances in this project
         final Map<String, String> serverNameMap = new HashMap<>();
@@ -169,6 +176,10 @@ public class VmDiskResourceScraper {
                 final String msg = e.getMessage() != null ? e.getMessage() : "";
                 if (StackitConstants.isPermissionIssue(msg)) {
                     log.warn("Permission denied accessing VM Disks for project {} in region {}: {}", projectIdStr, region, msg);
+                    permissionDenied = true;
+                    permissionDeniedMsg = msg;
+                    permissionDeniedRegion = region;
+                    allRegionsSucceeded = false;
                 } else if (msg.contains("404") || msg.contains("not_found")) {
                     log.info("VM Disks not enabled for project {} in region {}: {}", projectIdStr, region, msg);
                 } else {
@@ -177,6 +188,15 @@ public class VmDiskResourceScraper {
                 }
             }
         }
+
+        if (accessIssueRegistry != null) {
+            if (permissionDenied) {
+                accessIssueRegistry.recordFailure(projectIdStr, projectName, StackitConstants.RESOURCE_TYPE_VMDISKS, permissionDeniedRegion, 403, permissionDeniedMsg);
+            } else if (allRegionsSucceeded) {
+                accessIssueRegistry.recordSuccess(projectIdStr, projectName, StackitConstants.RESOURCE_TYPE_VMDISKS, null);
+            }
+        }
+
         return allRegionsSucceeded;
     }
 }

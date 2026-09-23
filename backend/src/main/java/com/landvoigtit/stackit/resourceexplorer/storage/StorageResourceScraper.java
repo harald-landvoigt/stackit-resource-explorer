@@ -52,6 +52,9 @@ public class StorageResourceScraper {
     @Inject
     S3JitKeyManager s3JitKeyManager;
 
+    @Inject
+    com.landvoigtit.stackit.resourceexplorer.access.AccessIssueRegistry accessIssueRegistry;
+
     @Scheduled(every = "${stackit.storage.schedule:off}")
     public void scrape() {
         log.info("Starting Storage resource scrape...");
@@ -68,7 +71,7 @@ public class StorageResourceScraper {
                 }
                 final String projectIdStr = project.getProjectId().toString();
                 final List<String> currentResourceIds = new ArrayList<>();
-                final boolean success = scrapeProjectStorage(projectIdStr, currentResourceIds);
+                final boolean success = scrapeProjectStorage(project, currentResourceIds);
 
                 if (success) {
                     repository.softDeleteMissing(StackitConstants.RESOURCE_TYPE_STORAGE, projectIdStr, currentResourceIds);
@@ -80,9 +83,14 @@ public class StorageResourceScraper {
         }
     }
 
-    private boolean scrapeProjectStorage(final String projectIdStr, final List<String> currentResourceIds) {
+    private boolean scrapeProjectStorage(final Project project, final List<String> currentResourceIds) {
+        final String projectIdStr = project.getProjectId().toString();
+        final String projectName = project.getName();
         final List<String> regions = sdkConfig != null ? sdkConfig.getRegions() : StackitConstants.DEFAULT_REGIONS;
         boolean allRegionsSucceeded = true;
+        boolean permissionDenied = false;
+        String permissionDeniedMsg = null;
+        String permissionDeniedRegion = null;
 
         for (final String region : regions) {
             try {
@@ -143,6 +151,10 @@ public class StorageResourceScraper {
                 final String msg = e.getMessage() != null ? e.getMessage() : "";
                 if (StackitConstants.isPermissionIssue(msg)) {
                     log.warn("Permission denied accessing Storage resources for project {} in region {}: {}", projectIdStr, region, msg);
+                    permissionDenied = true;
+                    permissionDeniedMsg = msg;
+                    permissionDeniedRegion = region;
+                    allRegionsSucceeded = false;
                 } else if (msg.contains("404") || msg.contains("not_found")) {
                     log.info("Storage not enabled for project {} in region {}: {}", projectIdStr, region, msg);
                 } else {
@@ -151,6 +163,15 @@ public class StorageResourceScraper {
                 }
             }
         }
+
+        if (accessIssueRegistry != null) {
+            if (permissionDenied) {
+                accessIssueRegistry.recordFailure(projectIdStr, projectName, StackitConstants.RESOURCE_TYPE_STORAGE, permissionDeniedRegion, 403, permissionDeniedMsg);
+            } else if (allRegionsSucceeded) {
+                accessIssueRegistry.recordSuccess(projectIdStr, projectName, StackitConstants.RESOURCE_TYPE_STORAGE, null);
+            }
+        }
+
         return allRegionsSucceeded;
     }
 
