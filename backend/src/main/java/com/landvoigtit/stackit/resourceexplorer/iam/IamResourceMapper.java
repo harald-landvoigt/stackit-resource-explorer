@@ -100,6 +100,8 @@ public class IamResourceMapper {
         data.put("region", region != null ? region : StackitConstants.GLOBAL_REGION);
         if (key.getExpires() != null && !key.getExpires().isBlank()) {
             data.put("expires", key.getExpires());
+        } else {
+            data.put("expires", "Never");
         }
         data.put("expired", isExpired);
         entity.setData(data);

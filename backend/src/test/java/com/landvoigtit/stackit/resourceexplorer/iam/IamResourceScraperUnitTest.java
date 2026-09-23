@@ -187,4 +187,45 @@ public class IamResourceScraperUnitTest {
 
         assertTrue(result);
     }
+
+    @Test
+    public void testScrapeProjectS3AccessKeys_NeverExpiringKey() throws Exception {
+        final CredentialsGroup group = new CredentialsGroup();
+        group.setCredentialsGroupId("cg-never-123");
+        group.setDisplayName("credgroup-sbx1");
+        group.setUrn("urn:sgws:identity::69681824739019031164:group/credentials-group-1fd028");
+
+        final ListCredentialsGroupsResponse groupsResp = new ListCredentialsGroupsResponse();
+        groupsResp.setCredentialsGroups(List.of(group));
+        when(objectStorageApi.listCredentialsGroups(PROJECT_ID, REGION)).thenReturn(groupsResp);
+
+        final AccessKey neverKey = new AccessKey();
+        neverKey.setKeyId("POPF");
+        neverKey.setDisplayName("active-key-never-expires");
+        neverKey.setExpires(null);
+
+        final ListAccessKeysResponse keysResp = new ListAccessKeysResponse();
+        keysResp.setAccessKeys(List.of(neverKey));
+        when(objectStorageApi.listAccessKeys(PROJECT_ID, REGION, "cg-never-123")).thenReturn(keysResp);
+
+        final List<String> currentResourceIds = new ArrayList<>();
+        final Method method = IamResourceScraper.class.getDeclaredMethod("scrapeProjectS3AccessKeys", String.class, List.class);
+        method.setAccessible(true);
+        final boolean result = (boolean) method.invoke(scraper, PROJECT_ID, currentResourceIds);
+
+        assertTrue(result);
+        assertEquals(1, currentResourceIds.size());
+        assertTrue(currentResourceIds.contains("POPF"));
+
+        final ArgumentCaptor<StackitEntity> captor = ArgumentCaptor.forClass(StackitEntity.class);
+        verify(repository, times(1)).persistOrUpdate(captor.capture());
+
+        final StackitEntity entity = captor.getValue();
+        assertEquals("active-key-never-expires", entity.getName());
+        assertEquals("ACTIVE", entity.getStatus());
+        assertEquals("Never", entity.getData().get("expires"));
+        assertEquals(false, entity.getData().get("expired"));
+        assertEquals("credgroup-sbx1", entity.getData().get("credentialsGroupName"));
+        assertEquals("urn:sgws:identity::69681824739019031164:group/credentials-group-1fd028", entity.getData().get("credentialsGroupUrn"));
+    }
 }

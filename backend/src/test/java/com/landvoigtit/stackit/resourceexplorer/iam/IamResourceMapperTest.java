@@ -125,4 +125,33 @@ public class IamResourceMapperTest {
         final AccessKey keyWithoutId = new AccessKey();
         assertNull(IamResourceMapper.mapS3KeyToEntity("proj", "eu01", null, keyWithoutId));
     }
+
+    @Test
+    public void testMapS3KeyToEntity_NeverExpires() {
+        final CredentialsGroup group = new CredentialsGroup();
+        group.setCredentialsGroupId("group-uuid-never");
+        group.setDisplayName("credgroup-sbx1");
+
+        final AccessKey key = new AccessKey();
+        key.setKeyId("POPF");
+        key.setDisplayName("my-never-expiring-key");
+        key.setExpires(null);
+
+        final StackitEntity entity = IamResourceMapper.mapS3KeyToEntity("test-project-id", "eu01", group, key);
+        assertNotNull(entity);
+        assertEquals("ACTIVE", entity.getStatus());
+        assertEquals("Never", entity.getData().get("expires"));
+        assertEquals(false, entity.getData().get("expired"));
+        assertNull(entity.getTags().get("expired"));
+    }
+
+    @Test
+    public void testDeserializeAccessKey_WithNullExpires() throws Exception {
+        final String json = "{\"keyId\":\"POPF\",\"displayName\":\"my-key\",\"expires\":null}";
+        final AccessKey key = AccessKey.fromJson(json);
+        assertNotNull(key);
+        assertEquals("POPF", key.getKeyId());
+        assertEquals("my-key", key.getDisplayName());
+        assertNull(key.getExpires());
+    }
 }
