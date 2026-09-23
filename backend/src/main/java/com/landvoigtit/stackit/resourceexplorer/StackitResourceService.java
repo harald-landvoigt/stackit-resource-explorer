@@ -23,17 +23,28 @@ public class StackitResourceService {
     private final Validator validator;
     private final StackitProjectDiscoveryService projectDiscoveryService;
     private final com.landvoigtit.stackit.resourceexplorer.billing.BillingResourceScraper billingScraper;
+    private final com.landvoigtit.stackit.resourceexplorer.access.AccessIssueRegistry accessIssueRegistry;
+
+    public StackitResourceService(
+            final StackitResourceRepository repository,
+            final Validator validator,
+            final StackitProjectDiscoveryService projectDiscoveryService,
+            final com.landvoigtit.stackit.resourceexplorer.billing.BillingResourceScraper billingScraper) {
+        this(repository, validator, projectDiscoveryService, billingScraper, null);
+    }
 
     @Inject
     public StackitResourceService(
             final StackitResourceRepository repository,
             final Validator validator,
             final StackitProjectDiscoveryService projectDiscoveryService,
-            final com.landvoigtit.stackit.resourceexplorer.billing.BillingResourceScraper billingScraper) {
+            final com.landvoigtit.stackit.resourceexplorer.billing.BillingResourceScraper billingScraper,
+            final com.landvoigtit.stackit.resourceexplorer.access.AccessIssueRegistry accessIssueRegistry) {
         this.repository = repository;
         this.validator = validator;
         this.projectDiscoveryService = projectDiscoveryService;
         this.billingScraper = billingScraper;
+        this.accessIssueRegistry = accessIssueRegistry;
     }
 
     public final StackitEntity mapToEntity(final StackitResourceDto dto) {
@@ -326,5 +337,27 @@ public class StackitResourceService {
         });
 
         return result;
+    }
+
+    public final com.landvoigtit.stackit.resourceexplorer.access.AccessIssuesSummaryDto getAccessIssues() {
+        if (accessIssueRegistry == null) {
+            return com.landvoigtit.stackit.resourceexplorer.access.AccessIssuesSummaryDto.builder()
+                    .matrix(java.util.Collections.emptyList())
+                    .issues(java.util.Collections.emptyList())
+                    .build();
+        }
+        final com.landvoigtit.stackit.resourceexplorer.access.AccessIssuesSummaryDto summary = accessIssueRegistry.getSummary();
+        if (summary.getTotalProjectsChecked() == 0 && projectDiscoveryService != null) {
+            final List<cloud.stackit.sdk.resourcemanager.v0api.model.Project> projects = projectDiscoveryService.discoverProjects();
+            if (projects != null) {
+                for (final cloud.stackit.sdk.resourcemanager.v0api.model.Project p : projects) {
+                    if (p.getProjectId() != null) {
+                        accessIssueRegistry.registerProject(p.getProjectId().toString(), p.getName());
+                    }
+                }
+                return accessIssueRegistry.getSummary();
+            }
+        }
+        return summary;
     }
 }

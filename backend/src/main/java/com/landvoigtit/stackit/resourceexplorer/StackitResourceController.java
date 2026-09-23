@@ -44,4 +44,10 @@ public class StackitResourceController {
     public final List<BillingSummaryDto> getBillingSummary() {
         return service.getBillingSummary();
     }
+
+    @GET
+    @Path("/access-issues")
+    public final com.landvoigtit.stackit.resourceexplorer.access.AccessIssuesSummaryDto getAccessIssues() {
+        return service.getAccessIssues();
+    }
 }

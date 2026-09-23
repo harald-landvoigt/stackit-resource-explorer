@@ -125,4 +125,18 @@ public class StackitResourceControllerTest {
             .body("statusAggregations.size()", org.hamcrest.Matchers.greaterThanOrEqualTo(1))
             .body("projectAggregations.size()", org.hamcrest.Matchers.greaterThanOrEqualTo(1));
     }
+
+    @Test
+    public final void testGetAccessIssuesEndpoint() {
+        given()
+            .when()
+            .get("/resources/access-issues")
+            .then()
+            .statusCode(200)
+            .body("totalIssues", notNullValue())
+            .body("totalProjectsChecked", notNullValue())
+            .body("affectedProjectsCount", notNullValue())
+            .body("matrix", notNullValue())
+            .body("issues", notNullValue());
+    }
 }
