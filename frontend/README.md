@@ -63,6 +63,15 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
 - **Strict Sorting & Highlighting**: The **Organization** summary is pinned to the very first row (styled with `.org-row` and persistent warm orange tint), followed by projects ordered descending by costs.
 - Shows resource name, project ID, classification type (Project vs. Organization), and formatted cost in EUR.
 
+### 5. Access Issues Tab
+- **Access KPI Cards**: Live counters for Total Projects Checked, Affected Projects, and Total Issues.
+- **Access Controls & Filter Bar**: Search input for filtering projects and error messages, a 1-click toggle for "Projects with Issues Only", and an on-demand refresh button.
+- **Project Access Matrix**: Real-time project-by-service permission matrix (`Compute`, `Storage`, `VM Disks`, `Load Balancers`, `VPCs`, `IAM`, `Billing`) with color-coded status badges:
+  - 🟢 **`OK`** (`.status-accessible`): Service accessible and verified.
+  - 🔴 **`DENIED`** (`.status-access-denied`): HTTP 401/403 or permission denied error.
+  - ⚪ **`N/A`** (`.status-not-checked`): Service not yet checked.
+- **Active Access Issues Diagnostic Table**: Granular error log inspector listing project, service type, region, HTTP status code (e.g. 403), and error details. Displays an all-clear green checkmark when zero issues exist.
+
 ---
 
 ## Design System & Styling
@@ -116,7 +125,7 @@ npm start
 Runs at `http://localhost:4200/`. API calls to `/resources` are proxied to `http://localhost:8080` via `proxy.conf.json`.
 
 ### Run Unit Tests (Vitest)
-Unit tests are powered by **Vitest** and Angular Testing Utilities (47 unit tests):
+Unit tests are powered by **Vitest** and Angular Testing Utilities (59 unit tests):
 ```bash
 npm test -- --watch=false
 ```

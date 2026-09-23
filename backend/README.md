@@ -14,7 +14,7 @@ Runs the application with hot-reload enabled and starts testcontainers Dev Servi
 > **_NOTE:_** The Quarkus Dev UI is available at <http://localhost:8080/q/dev/>.
 
 ### Testing
-Executes unit tests and integration tests against containerized PostgreSQL and mocked/live STACKIT APIs (103 tests):
+Executes unit tests and integration tests against containerized PostgreSQL and mocked/live STACKIT APIs (113 tests):
 ```bash
 ./mvnw test
 ```
@@ -199,6 +199,9 @@ Retrieves a specific resource entity by its database UUID.
 
 ### `GET /resources/billing-summary`
 Returns current-month expenditure aggregated per project and organization in EUR.
+
+### `GET /resources/access-issues`
+Returns consolidated access issues summary, Project × Resource Type status matrix, and active permission issue records with diagnostic error messages.
 
 ---
 

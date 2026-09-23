@@ -93,6 +93,10 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
     - **By Region** (e.g. *eu01*, *eu01-1*, *eu01-3*, *global*)
     - **By State** (e.g. *ACTIVE*, *RUNNING*, *AVAILABLE*, and *DELETED* with warning accents)
   - **Billing Summary**: Aggregated project and organization consumption for the current calendar month in UTC with currency conversions. The Organization total is pinned to the first row, followed by projects ordered descending by costs.
+  - **Access Issues View & Project Status Matrix**:
+    - Automatically monitors and records scraper permission results (`ACCESSIBLE`, `ACCESS_DENIED`, `NOT_CHECKED`) across all discovered projects and services (`compute`, `storage`, `network`, `network-vpc`, `vmdisks`, `iam`, `billing`) in a thread-safe registry.
+    - Exposes `GET /resources/access-issues` providing a consolidated summary, project-by-service matrix, and active issues detail list.
+    - Dedicated **"Access Issues"** tab with live counter badge, KPI summary cards (Total Projects Checked, Affected Projects, Total Issues), Project × Resource Type status matrix with visual status chips (🟢 `OK`, 🔴 `DENIED`, ⚪ `N/A`), and an active issues diagnostic table with error logs, HTTP status codes, and search filters.
 - **Production-Ready Persistence & Flyway Migrations**:
   - Schema lifecycle and GIN full-text index managed via versioned Flyway migrations (`V1.0.0__init_schema_and_fts_gin_index.sql`, `V1.1.0__cleanup_duplicate_storage_resources.sql`).
   - Hibernate ORM runs in `validate` mode to safeguard against schema drift.
@@ -379,6 +383,7 @@ The backend can be configured via `application.properties` or overridden with en
   ```
 - `GET /resources/{id}`: Retrieves details for a specific resource by UUID.
 - `GET /resources/billing-summary`: Returns aggregated current-month expenses grouped by project and organization in EUR. Automatically triggers an on-demand scrape if the database cache is empty.
+- `GET /resources/access-issues`: Returns consolidated access issues summary, Project × Resource Type status matrix, and active permission issue records with diagnostic error messages.
 
 ---
 
@@ -387,14 +392,14 @@ The backend can be configured via `application.properties` or overridden with en
 ### Backend (Quarkus / Java 21)
 ```bash
 cd backend
-./mvnw test                  # Run unit and integration test suite (103 tests)
+./mvnw test                  # Run unit and integration test suite (113 tests)
 ./mvnw quarkus:dev           # Run dev mode with hot reload (Dev UI at http://localhost:8080/q/dev)
 ```
 
 ### Frontend (Angular 21 / Vitest)
 ```bash
 cd frontend
-npm test -- --watch=false    # Run unit tests via Vitest (47 tests)
+npm test -- --watch=false    # Run unit tests via Vitest (59 tests)
 ng serve                     # Start development server on port 4200 (proxies backend to 8080)
 ```
 
