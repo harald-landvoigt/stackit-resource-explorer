@@ -87,3 +87,18 @@ export interface VmDiskResourceData {
   [key: string]: any;
 }
 
+export interface S3AccessKeyResourceData {
+  identityType?: string;
+  authScheme?: string;
+  authFlow?: string;
+  keyId?: string;
+  displayName?: string;
+  credentialsGroupId?: string;
+  credentialsGroupName?: string;
+  credentialsGroupUrn?: string;
+  region?: string;
+  expires?: string;
+  expired?: boolean;
+  [key: string]: any;
+}
+

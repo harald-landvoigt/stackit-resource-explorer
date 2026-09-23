@@ -33,6 +33,7 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
   - **Key Flow (Orange)**: Filters service accounts utilizing modern asymmetric RSA key pairs (`"Key Flow"`). Styled with `.keyflow-filter-btn` and deep orange key accent (`#ff6f00`).
   - **Public Buckets (Rose)**: Filters publicly accessible S3 storage buckets (`"is-public: true"`). Styled with `.public-filter-btn` and rose accent (`#f43f5e`).
   - **Unattached Disks (Amber)**: Filters unattached / orphan VM block storage disks (`"unattached"`). Styled with `.unattached-filter-btn` and amber accent (`#f59e0b`).
+  - **S3 Keys (Sky Blue)**: Filters persistent S3 Object Storage access keys (`"S3 Access Key"`). Styled with `.s3key-filter-btn` and sky-blue accent (`#38bdf8`).
   - All quick filter buttons toggle on/off with a single click.
 - **Summary Aggregations Card (Left Column)**: Stacked sections displaying exact backend-computed breakdowns across the full dataset. Features a responsive height constraint (`max-height: 70vh` on desktop, `45vh` on mobile) with a custom orange scrollbar matching the resource explorer:
   - **By Resource Type**: Counts for *VMs*, *Buckets*, *VM Disks*, *Invoices*, *Networks*, *IAM Policies*.
@@ -44,6 +45,9 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
     - 🟡 **`[Unattached]`** (`.unattached-badge`): Warning badge for orphan/idle disks.
     - 🟢 **`[Attached: <serverName>]`** (`.attached-badge`): Safe green badge displaying the parent VM name.
     - 🔵 **`[Boot Disk]`** (`.boot-badge`): Blue badge designating root operating system boot volumes.
+  - **S3 Access Key Badges**: Persistent S3 access keys render color-coded identity chips:
+    - 🔷 **`[S3 Key: <groupName>]`** (`.s3key-badge`): Sky-blue badge showing the parent credentials group.
+    - 🔴 **`[EXPIRED]`** (`.expired-badge`): Warning badge for expired access keys.
   - **Storage Exposure Badges & Policy Viewer**: Object storage buckets display 🔴 **Public**, 🟢 **Private**, or 🟠 **UNKNOWN** badges, retention compliance badges, and an expandable viewer for bucket policies and ACL grantee tables.
   - **Deprecated Auth Warning Chip**: Prominent red/amber `Token Flow (Deprecated)` chip rendered in the card header for any service account or member relying on legacy static tokens.
   - **Status & Type Chips**: Visual status badges with green accents for active states.
@@ -112,7 +116,7 @@ npm start
 Runs at `http://localhost:4200/`. API calls to `/resources` are proxied to `http://localhost:8080` via `proxy.conf.json`.
 
 ### Run Unit Tests (Vitest)
-Unit tests are powered by **Vitest** and Angular Testing Utilities (43 unit tests):
+Unit tests are powered by **Vitest** and Angular Testing Utilities (47 unit tests):
 ```bash
 npm test -- --watch=false
 ```

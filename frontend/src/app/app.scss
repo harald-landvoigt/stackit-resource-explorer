@@ -199,6 +199,16 @@
     &:hover { background-color: rgba(245, 158, 11, 0.25); border-color: #fbbf24; }
     &.active-filter { background-color: #f59e0b; color: #000000; border-color: #f59e0b; .filter-btn-icon { color: #000000; } }
   }
+
+  &.s3key-filter-btn {
+    border: 1px solid #38bdf8;
+    background-color: rgba(56, 189, 248, 0.12);
+    color: #7dd3fc;
+
+    .filter-btn-icon { color: #38bdf8; }
+    &:hover { background-color: rgba(56, 189, 248, 0.25); border-color: #38bdf8; }
+    &.active-filter { background-color: #38bdf8; color: #000000; border-color: #38bdf8; .filter-btn-icon { color: #000000; } }
+  }
 }
 
 .columns-container {
@@ -350,7 +360,9 @@
 .unknown-badge,
 .retention-badge,
 .unattached-badge,
-.boot-badge {
+.boot-badge,
+.s3key-badge,
+.expired-badge {
   font-weight: 600 !important;
 }
 
@@ -413,6 +425,26 @@
 
   .chip-boot-icon {
     color: #3b82f6;
+  }
+}
+
+.s3key-badge {
+  --mdc-chip-label-text-color: #38bdf8 !important;
+  background-color: rgba(56, 189, 248, 0.15) !important;
+  border: 1px solid #38bdf8 !important;
+
+  .chip-s3key-icon {
+    color: #38bdf8;
+  }
+}
+
+.expired-badge {
+  --mdc-chip-label-text-color: #f87171 !important;
+  background-color: rgba(239, 68, 68, 0.18) !important;
+  border: 1px solid #ef4444 !important;
+
+  .chip-warning-icon {
+    color: #ef4444;
   }
 }
 

@@ -92,8 +92,10 @@ public class NetworkVpcResourceScraper {
                 }
             } catch (final Exception e) {
                 final String msg = e.getMessage() != null ? e.getMessage() : "";
-                if (msg.contains("404") || msg.contains("403") || msg.contains("not_found")) {
-                    log.debug("Network VPC not enabled or accessible for project {} in region {}: {}", projectIdStr, region, msg);
+                if (StackitConstants.isPermissionIssue(msg)) {
+                    log.warn("Permission denied accessing Network VPC resources for project {} in region {}: {}", projectIdStr, region, msg);
+                } else if (msg.contains("404") || msg.contains("not_found")) {
+                    log.info("Network VPC not enabled for project {} in region {}: {}", projectIdStr, region, msg);
                 } else {
                     log.warn("Failed to scrape Network VPC resources for project {} in region {}: {}", projectIdStr, region, e.getMessage());
                     allRegionsSucceeded = false;

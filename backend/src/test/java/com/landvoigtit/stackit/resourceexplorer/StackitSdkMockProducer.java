@@ -18,6 +18,7 @@ import cloud.stackit.sdk.alb.v2api.api.AlbApi;
 import cloud.stackit.sdk.alb.v2api.model.LoadBalancer;
 import cloud.stackit.sdk.alb.v2api.model.ListLoadBalancersResponse;
 import cloud.stackit.sdk.objectstorage.v2api.api.ObjectStorageApi;
+import cloud.stackit.sdk.objectstorage.v2api.model.AccessKey;
 import cloud.stackit.sdk.objectstorage.v2api.model.Bucket;
 import cloud.stackit.sdk.objectstorage.v2api.model.ComplianceLockResponse;
 import cloud.stackit.sdk.objectstorage.v2api.model.CreateAccessKeyPayload;
@@ -27,6 +28,7 @@ import cloud.stackit.sdk.objectstorage.v2api.model.CreateCredentialsGroupRespons
 import cloud.stackit.sdk.objectstorage.v2api.model.CredentialsGroup;
 import cloud.stackit.sdk.objectstorage.v2api.model.DefaultRetentionResponse;
 import cloud.stackit.sdk.objectstorage.v2api.model.DeleteAccessKeyResponse;
+import cloud.stackit.sdk.objectstorage.v2api.model.ListAccessKeysResponse;
 import cloud.stackit.sdk.objectstorage.v2api.model.ListBucketsResponse;
 import cloud.stackit.sdk.objectstorage.v2api.model.ListCredentialsGroupsResponse;
 import cloud.stackit.sdk.resourcemanager.v0api.api.ResourceManagerApi;
@@ -178,6 +180,13 @@ public class StackitSdkMockProducer {
         public ListCredentialsGroupsResponse listCredentialsGroups(final String projectId, final String region) {
             final ListCredentialsGroupsResponse resp = new ListCredentialsGroupsResponse();
             resp.setCredentialsGroups(List.of());
+            return resp;
+        }
+
+        @Override
+        public ListAccessKeysResponse listAccessKeys(final String projectId, final String region, final String credentialsGroupId) {
+            final ListAccessKeysResponse resp = new ListAccessKeysResponse();
+            resp.setAccessKeys(List.of());
             return resp;
         }
 

@@ -141,8 +141,10 @@ public class StorageResourceScraper {
                 }
             } catch (final Exception e) {
                 final String msg = e.getMessage() != null ? e.getMessage() : "";
-                if (msg.contains("404") || msg.contains("403") || msg.contains("not_found")) {
-                    log.debug("Storage not enabled or accessible for project {} in region {}: {}", projectIdStr, region, msg);
+                if (StackitConstants.isPermissionIssue(msg)) {
+                    log.warn("Permission denied accessing Storage resources for project {} in region {}: {}", projectIdStr, region, msg);
+                } else if (msg.contains("404") || msg.contains("not_found")) {
+                    log.info("Storage not enabled for project {} in region {}: {}", projectIdStr, region, msg);
                 } else {
                     log.warn("Failed to scrape Storage resources for project {} in region {}: {}", projectIdStr, region, e.getMessage());
                     allRegionsSucceeded = false;
@@ -216,12 +218,19 @@ public class StorageResourceScraper {
             }
         } catch (final S3Exception e) {
             if (e.statusCode() == 404 || (e.awsErrorDetails() != null && "NoSuchBucketPolicy".equals(e.awsErrorDetails().errorCode()))) {
-                log.debug("No bucket policy found for bucket {}", bucketName);
+                log.info("No bucket policy found for bucket {}", bucketName);
+            } else if (e.statusCode() == 403 || StackitConstants.isPermissionIssue(e.getMessage())) {
+                log.warn("Permission denied fetching policy for bucket {}: {}", bucketName, e.getMessage());
             } else {
-                log.debug("Could not fetch policy for bucket {}: {}", bucketName, e.getMessage());
+                log.info("Could not fetch policy for bucket {}: {}", bucketName, e.getMessage());
             }
         } catch (final Exception e) {
-            log.debug("Could not fetch policy for bucket {}: {}", bucketName, e.getMessage());
+            final String msg = e.getMessage() != null ? e.getMessage() : "";
+            if (StackitConstants.isPermissionIssue(msg)) {
+                log.warn("Permission denied fetching policy for bucket {}: {}", bucketName, msg);
+            } else {
+                log.info("Could not fetch policy for bucket {}: {}", bucketName, msg);
+            }
         }
 
         // 3. Public Access Block
@@ -236,7 +245,12 @@ public class StorageResourceScraper {
                         || Boolean.TRUE.equals(pab.restrictPublicBuckets());
             }
         } catch (final Exception e) {
-            log.debug("PublicAccessBlock not supported or not found for bucket {}: {}", bucketName, e.getMessage());
+            final String msg = e.getMessage() != null ? e.getMessage() : "";
+            if (StackitConstants.isPermissionIssue(msg)) {
+                log.warn("Permission denied fetching PublicAccessBlock for bucket {}: {}", bucketName, msg);
+            } else {
+                log.info("PublicAccessBlock not supported or not found for bucket {}: {}", bucketName, msg);
+            }
         }
 
         // 4. Security Risk Evaluation

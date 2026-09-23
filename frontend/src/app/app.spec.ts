@@ -541,7 +541,7 @@ describe('App', () => {
       fixture.detectChanges();
       const compiled = fixture.nativeElement as HTMLElement;
       const buttons = compiled.querySelectorAll('.filter-chip-btn');
-      expect(buttons.length).toBe(4);
+      expect(buttons.length).toBe(5);
 
       // First button is Token Flow in red
       expect(buttons[0].classList).toContain('tokenflow-filter-btn');
@@ -558,6 +558,10 @@ describe('App', () => {
       // Fourth button is Unattached Disks in amber/warning
       expect(buttons[3].classList).toContain('unattached-filter-btn');
       expect(buttons[3].textContent).toContain('Unattached Disks');
+
+      // Fifth button is S3 Keys in sky blue
+      expect(buttons[4].classList).toContain('s3key-filter-btn');
+      expect(buttons[4].textContent).toContain('S3 Keys');
     });
 
     it('should render deprecated warning chip on resources using Token Flow (Deprecated)', () => {
@@ -615,6 +619,21 @@ describe('App', () => {
       const keyFlowBtn = compiled.querySelector('.keyflow-filter-btn');
       expect(keyFlowBtn).toBeTruthy();
       expect(keyFlowBtn?.textContent).toContain('Key Flow');
+    });
+
+    it('should toggle search query when filterS3Keys is called', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+
+      expect(app.searchString()).toBe('');
+      app.filterS3Keys();
+      expect(app.searchString()).toBe('S3 Access Key');
+      expect(mockResourceService.getResources).toHaveBeenCalledWith('S3 Access Key');
+
+      // Toggle off
+      app.filterS3Keys();
+      expect(app.searchString()).toBe('');
+      expect(mockResourceService.getResources).toHaveBeenCalledWith('');
     });
   });
 
@@ -1038,6 +1057,140 @@ describe('App', () => {
       const bootBadge = compiled.querySelector('.boot-badge');
       expect(bootBadge).toBeTruthy();
       expect(bootBadge?.textContent).toContain('Boot Disk');
+    });
+  });
+
+  describe('S3 Access Key Badges and Expiration', () => {
+    it('should correctly identify active and expired S3 access key resources', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+
+      const activeKey: StackitResource = {
+        id: 's3-key-1',
+        resourceId: 'SGKH123',
+        name: 'backup-agent-s3-key',
+        type: 'iam',
+        status: 'ACTIVE',
+        region: 'eu01',
+        projectId: 'proj-1',
+        data: {
+          identityType: 'S3 Access Key',
+          authScheme: 'S3 HMAC Key',
+          credentialsGroupName: 'backup-credentials',
+          expired: false
+        }
+      };
+
+      const expiredKey: StackitResource = {
+        id: 's3-key-2',
+        resourceId: 'SGKH456',
+        name: 'legacy-backup-key',
+        type: 'iam',
+        status: 'EXPIRED',
+        region: 'eu01',
+        projectId: 'proj-1',
+        data: {
+          identityType: 'S3 Access Key',
+          authScheme: 'S3 HMAC Key',
+          credentialsGroupName: 'legacy-credentials',
+          expired: true
+        }
+      };
+
+      const regularIam: StackitResource = {
+        id: 'user-1',
+        resourceId: 'user-1',
+        name: 'alice@landvoigt-it.com',
+        type: 'iam',
+        status: 'ACTIVE',
+        region: 'global',
+        projectId: 'proj-1',
+        data: {
+          identityType: 'User'
+        }
+      };
+
+      expect(app.isS3AccessKey(activeKey)).toBe(true);
+      expect(app.isS3AccessKeyExpired(activeKey)).toBe(false);
+
+      expect(app.isS3AccessKey(expiredKey)).toBe(true);
+      expect(app.isS3AccessKeyExpired(expiredKey)).toBe(true);
+
+      expect(app.isS3AccessKey(regularIam)).toBe(false);
+      expect(app.isS3AccessKeyExpired(regularIam)).toBe(false);
+    });
+
+    it('should render S3 Key badge with credentials group name on active S3 key card', () => {
+      const activeKey: StackitResource = {
+        id: 's3-key-1',
+        resourceId: 'SGKH123',
+        name: 'backup-pipeline-s3',
+        type: 'iam',
+        status: 'ACTIVE',
+        region: 'eu01',
+        projectId: 'proj-1',
+        data: {
+          identityType: 'S3 Access Key',
+          authScheme: 'S3 HMAC Key',
+          credentialsGroupName: 'backup-credentials',
+          expired: false
+        }
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [activeKey],
+        totalCount: 1,
+        typeAggregations: [{ key: 'IAM Policies', count: 1 }],
+        regionAggregations: [{ key: 'eu01', count: 1 }],
+        statusAggregations: [{ key: 'ACTIVE', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const s3Badge = compiled.querySelector('.s3key-badge');
+      expect(s3Badge).toBeTruthy();
+      expect(s3Badge?.textContent).toContain('S3 Key: backup-credentials');
+      expect(compiled.querySelector('.expired-badge')).toBeNull();
+    });
+
+    it('should render both S3 Key badge and EXPIRED badge on expired S3 key card', () => {
+      const expiredKey: StackitResource = {
+        id: 's3-key-2',
+        resourceId: 'SGKH456',
+        name: 'old-backup-s3',
+        type: 'iam',
+        status: 'EXPIRED',
+        region: 'eu01',
+        projectId: 'proj-1',
+        data: {
+          identityType: 'S3 Access Key',
+          authScheme: 'S3 HMAC Key',
+          credentialsGroupName: 'archived-group',
+          expired: true
+        }
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [expiredKey],
+        totalCount: 1,
+        typeAggregations: [{ key: 'IAM Policies', count: 1 }],
+        regionAggregations: [{ key: 'eu01', count: 1 }],
+        statusAggregations: [{ key: 'EXPIRED', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const s3Badge = compiled.querySelector('.s3key-badge');
+      expect(s3Badge).toBeTruthy();
+      expect(s3Badge?.textContent).toContain('S3 Key: archived-group');
+
+      const expiredBadge = compiled.querySelector('.expired-badge');
+      expect(expiredBadge).toBeTruthy();
+      expect(expiredBadge?.textContent).toContain('EXPIRED');
     });
   });
 });

@@ -11,7 +11,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTabsModule } from '@angular/material/tabs';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ResourceService } from './services/resource.service';
-import { StackitResource, BillingSummary, AggregationItem, StorageResourceData, VmDiskResourceData } from './models/resource.model';
+import { StackitResource, BillingSummary, AggregationItem, StorageResourceData, VmDiskResourceData, S3AccessKeyResourceData } from './models/resource.model';
 
 @Component({
   selector: 'app-root',
@@ -250,6 +250,38 @@ export class App implements OnInit {
       this.searchString.set('unattached');
     }
     this.onSearch();
+  }
+
+  filterS3Keys(): void {
+    if (this.searchString() === 'S3 Access Key') {
+      this.searchString.set('');
+    } else {
+      this.searchString.set('S3 Access Key');
+    }
+    this.onSearch();
+  }
+
+  isS3AccessKey(res: StackitResource): boolean {
+    if (!res) return false;
+    return (
+      (res.type === 'iam' && res.data?.['identityType'] === 'S3 Access Key') ||
+      res.data?.['authScheme'] === 'S3 HMAC Key' ||
+      res.tags?.['identity-type'] === 's3-access-key'
+    );
+  }
+
+  isS3AccessKeyExpired(res: StackitResource): boolean {
+    if (!this.isS3AccessKey(res)) return false;
+    return (
+      res.status === 'EXPIRED' ||
+      res.status === 'expired' ||
+      res.data?.['expired'] === true ||
+      res.tags?.['expired'] === 'true'
+    );
+  }
+
+  getS3AccessKeyData(res: StackitResource): S3AccessKeyResourceData | undefined {
+    return res.data as S3AccessKeyResourceData | undefined;
   }
 
   isDiskAttached(res: StackitResource): boolean {

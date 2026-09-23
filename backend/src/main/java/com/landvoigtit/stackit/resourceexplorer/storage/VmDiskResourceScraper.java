@@ -167,8 +167,10 @@ public class VmDiskResourceScraper {
                 }
             } catch (final Exception e) {
                 final String msg = e.getMessage() != null ? e.getMessage() : "";
-                if (msg.contains("404") || msg.contains("403") || msg.contains("not_found")) {
-                    log.debug("VM Disks not enabled or accessible for project {} in region {}: {}", projectIdStr, region, msg);
+                if (StackitConstants.isPermissionIssue(msg)) {
+                    log.warn("Permission denied accessing VM Disks for project {} in region {}: {}", projectIdStr, region, msg);
+                } else if (msg.contains("404") || msg.contains("not_found")) {
+                    log.info("VM Disks not enabled for project {} in region {}: {}", projectIdStr, region, msg);
                 } else {
                     log.warn("Failed to scrape VM Disks for project {} in region {}: {}", projectIdStr, region, e.getMessage());
                     allRegionsSucceeded = false;
