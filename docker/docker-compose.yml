@@ -30,6 +30,7 @@ services:
       - QUARKUS_DATASOURCE_JDBC_URL=jdbc:postgresql://database:5432/resource_explorer
       - QUARKUS_HIBERNATE_ORM_SCHEMA_MANAGEMENT_STRATEGY=validate
       - STACKIT_SERVICE_ACCOUNT_KEY_PATH=/app/keys/scraper.json
+      - STACKIT_REGIONS=${STACKIT_REGIONS:-eu01,eu02}
       - STACKIT_COMPUTE_SCHEDULE=1h
       - STACKIT_STORAGE_SCHEDULE=1h
       - STACKIT_S3_ENDPOINT_TEMPLATE=https://object.storage.%s.onstackit.cloud

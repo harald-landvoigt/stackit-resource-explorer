@@ -14,7 +14,7 @@ Runs the application with hot-reload enabled and starts testcontainers Dev Servi
 > **_NOTE:_** The Quarkus Dev UI is available at <http://localhost:8080/q/dev/>.
 
 ### Testing
-Executes unit tests and integration tests against containerized PostgreSQL and mocked/live STACKIT APIs:
+Executes unit tests and integration tests against containerized PostgreSQL and mocked/live STACKIT APIs (90 tests):
 ```bash
 ./mvnw test
 ```
@@ -147,6 +147,7 @@ Each scraper implements independent schedules (configurable via `application.pro
 | Property | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `stackit.sdk.service-account-key-path` | `STACKIT_SERVICE_ACCOUNT_KEY_PATH` | `/app/keys/scraper.json` | Path to service account JSON key file |
+| `stackit.regions` | `STACKIT_REGIONS` | `eu01,eu02` | Comma-separated list of STACKIT regions to scrape for regional services |
 | `stackit.storage.s3.endpoint-template` | `STACKIT_S3_ENDPOINT_TEMPLATE` | `https://object.storage.%s.onstackit.cloud` | S3 data-plane endpoint template (`%s` replaced by region) |
 | `stackit.compute.schedule` | `STACKIT_COMPUTE_SCHEDULE` | `1h` | Interval or cron for Compute VM Scraper |
 | `stackit.storage.schedule` | `STACKIT_STORAGE_SCHEDULE` | `1h` | Interval or cron for Object Storage Scraper |
@@ -162,7 +163,7 @@ Schedules accept standard Quarkus interval strings (`1h`, `30m`), standard cron 
 
 ## Database & Flyway Migrations
 
-- **Flyway Versioning**: Schema lifecycle and indexing are handled via Flyway scripts in `src/main/resources/db/migration/`.
+- **Flyway Versioning**: Schema lifecycle and indexing are handled via Flyway scripts in `src/main/resources/db/migration/` (`V1.0.0` for base schema & GIN FTS index, `V1.1.0` for storage resource deduplication).
 - **Validation**: `quarkus.hibernate-orm.schema-management.strategy=validate` ensures Hibernate entities strictly adhere to Flyway-created schemas.
 - **Full-Text Search**: Uses a stored generated `tsvector` column (`search_vector`) indexed with PostgreSQL GIN (`USING gin (search_vector)`).
 - **Ranking**: Matches are ranked using `ts_rank` evaluated against `websearch_to_tsquery('simple', query)`.

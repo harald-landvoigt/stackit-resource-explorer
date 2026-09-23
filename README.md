@@ -91,7 +91,7 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
     - **By State** (e.g. *ACTIVE*, *RUNNING*, *AVAILABLE*, and *DELETED* with warning accents)
   - **Billing Summary**: Aggregated project and organization consumption for the current calendar month in UTC with currency conversions. The Organization total is pinned to the first row, followed by projects ordered descending by costs.
 - **Production-Ready Persistence & Flyway Migrations**:
-  - Schema lifecycle and GIN full-text index managed via versioned Flyway migrations (`V1.0.0__init_schema_and_fts_gin_index.sql`).
+  - Schema lifecycle and GIN full-text index managed via versioned Flyway migrations (`V1.0.0__init_schema_and_fts_gin_index.sql`, `V1.1.0__cleanup_duplicate_storage_resources.sql`).
   - Hibernate ORM runs in `validate` mode to safeguard against schema drift.
 
 ---
@@ -290,6 +290,7 @@ These variables can be set in a `.env` file (see `docker/.env.example`) or passe
 | Variable | Default (Standalone) | Default (Local Repo) | Description |
 | :--- | :--- | :--- | :--- |
 | `STACKIT_KEY_FILE` | `./scraper.json` | `../../.keys/scraper.json` | Host path to your STACKIT service account JSON key (supports absolute or relative paths) |
+| `STACKIT_REGIONS` | `eu01,eu02` | `eu01,eu02` | Comma-separated list of STACKIT regions to scrape |
 | `IMAGE_TAG` | `latest` | `latest` | Container image tag pulled from GHCR (`backend` & `frontend`) |
 | `DB_PASSWORD` | `stackit` | `stackit` | PostgreSQL database password |
 
@@ -300,6 +301,7 @@ The backend can be configured via `application.properties` or overridden with en
 | Property | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `stackit.sdk.service-account-key-path` | `STACKIT_SERVICE_ACCOUNT_KEY_PATH` | `/app/keys/scraper.json` | Internal container path where the service account key is mounted |
+| `stackit.regions` | `STACKIT_REGIONS` | `eu01,eu02` | Comma-separated list of STACKIT regions to scrape for regional services |
 | `stackit.storage.s3.endpoint-template` | `STACKIT_S3_ENDPOINT_TEMPLATE` | `https://object.storage.%s.onstackit.cloud` | Regional S3 data-plane endpoint template (`%s` is replaced by region, e.g. `eu01`) |
 | `stackit.compute.schedule` | `STACKIT_COMPUTE_SCHEDULE` | `1h` | Schedule for Compute VM Scraper (`1h`, cron, or `off`) |
 | `stackit.storage.schedule` | `STACKIT_STORAGE_SCHEDULE` | `1h` | Schedule for Object Storage Scraper |
