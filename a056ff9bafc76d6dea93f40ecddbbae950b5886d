@@ -1,0 +1,5 @@
+Task: Instrument Scrapers to Report Access Status
+- Injected AccessIssueRegistry into Compute, Storage, VmDisk, Network, NetworkVpc, Iam, and Billing scrapers
+- Recorded ACCESSIBLE on successful project scraping
+- Recorded ACCESS_DENIED on 401/403/Forbidden/PermissionDenied errors with region, status code, and message
+- Added integration test ScraperAccessIssueTrackingTest validating status updates across scrapers
