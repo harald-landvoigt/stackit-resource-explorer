@@ -1,0 +1,6 @@
+Task: Frontend Component Testing
+- Added unit tests in app.spec.ts covering Access Issues tab and counter badge
+- Verified Project x Resource Type matrix status badge rendering (ACCESSIBLE/DENIED/NOT_CHECKED)
+- Verified filter mode toggling (ALL vs ISSUES_ONLY) and search query filtering
+- Verified active access issues table rendering and all-clear state
+- Verified error handling banner when loadAccessIssues fails
