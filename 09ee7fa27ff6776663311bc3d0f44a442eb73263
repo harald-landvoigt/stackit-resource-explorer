@@ -1,0 +1,5 @@
+Task: Documentation & Conductor Registry Updates
+- Updated README.md, backend/README.md, and frontend/README.md with Access Issues capabilities
+- Documented GET /resources/access-issues endpoint and Project x Resource Type matrix
+- Updated backend test count to 113 and frontend test count to 59
+- Updated conductor product.md and tracks.md registry
