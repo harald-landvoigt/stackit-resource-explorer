@@ -66,7 +66,7 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
 - **IAM & Authentication Scraper**: Recursively catalogs identities, permissions, and authentication flows across all discovered projects:
   - **Members (Access Control)**: Project-level role bindings for users, groups, and service accounts via the STACKIT Authorization API (`/v2/project/{projectId}/members`). Correlates project members to service accounts to inherit authentication scheme metadata.
   - **Service Accounts (Defined Identities)**: Service accounts defined within each project via the STACKIT Service Account API (`/v2/projects/{projectId}/service-accounts`).
-  - **S3 Access Keys & Credentials Groups**: Catalogs persistent Object Storage S3 access keys and credentials groups across all configured regions (`eu01`, `eu02`), tracking key expiration (`ACTIVE` vs. `EXPIRED`), credentials groups, and HMAC key IDs while excluding transient audit keys (`resource-explorer-audit`).
+  - **S3 Access Keys & Credentials Groups**: Catalogs persistent Object Storage S3 access keys and credentials groups across all configured regions (`eu01`, `eu02`), tracking key expiration (`ACTIVE` vs. `EXPIRED`), credentials groups, and HMAC key IDs while excluding transient audit keys (`resource-explorer-audit`). Fully supports non-expiring keys ("Never expires") mapped to `expires: "Never"` and status `ACTIVE`.
   - **Authentication Scheme & Deprecation Detection**:
     - Distinguishes modern asymmetric RSA/ECDSA key pairs (`Key Flow (RSA_2048)`), human SSO (`OIDC / Enterprise SSO`), persistent S3 credentials (`S3 HMAC Key`), and platform-managed identities.
     - Detects and tags legacy static API secrets (`Token Flow (Deprecated)` - *"The legacy model where a long-lived, static API secret acted directly as a bearer token."*), exposing active token counts and expiration dates.
@@ -161,6 +161,7 @@ To crawl projects, services, and billing across an organization or project hiera
 | **Load Balancers** | `loadbalancer.auditor` or `loadbalancer.viewer` | `loadbalancer.loadbalancer.read` |
 | **Object Storage (Basic Discovery)** | `objectstorage.auditor` or `objectstorage.viewer` | `object-storage.bucket.list`, `object-storage.service.list` (lists buckets; public exposure status will be UNKNOWN) |
 | **Object Storage (S3 Security Audit)** | `objectstorage.admin` or custom role | Full 10 scraper permissions (see details below) for JIT S3 key minting, compliance lock inspection, and ACL/policy scraping |
+| **S3 Access Keys (IAM)** | `objectstorage.auditor` or `objectstorage.viewer` | `object-storage.credentials-group.list`, `object-storage.access-key.list` (read-only inventory of credentials groups and S3 access keys across regions) |
 | **IAM Members** | `authorization.auditor` | `authorization.member.read` |
 | **Service Accounts & Credentials** | `service-account.viewer` or `service-account.auditor` | `serviceaccount.serviceaccount.read`, `serviceaccount.token.read`, `serviceaccount.key.read` |
 | **Billing / Cost** | `cost.viewer` or `billing.viewer` | Read access to STACKIT Cost API v3 |
@@ -203,8 +204,15 @@ object-storage.service.list
 > 
 > - **With `objectstorage.admin` or custom scraper role**: The scraper evaluates bucket exposure as **Public** (🔴) or **Private** (🟢), and records granular ACL grants and bucket policy statements.
 > - **Without these permissions** (e.g., if only `objectstorage.viewer` or `objectstorage.auditor` is assigned): The scraper can list bucket names via the control-plane API, but JIT key generation will fail with `403 Forbidden`. The scraper gracefully degrades by recording the `ACL_NOT_ACCESSIBLE` security finding, tagging the bucket with `is-public: unknown`, and rendering an **orange badge for UNKNOWN** (🟠).
+> - **Read-Only S3 Access Key Discovery**: In contrast to the S3 Security Audit, cataloging existing S3 access keys and credentials groups under IAM only requires read permissions (`object-storage.credentials-group.list` and `object-storage.access-key.list`), available in `objectstorage.auditor` or `objectstorage.viewer`.
 
-> **Note**: If a service is not enabled for a project or the service account lacks access to a specific project, the scrapers log a non-fatal warning (`403 Forbidden` / `404 Not Found`) and continue processing remaining projects.
+### Resilient Scraping & Logging Standards
+
+All scrapers follow structured, non-blocking operational and logging standards:
+- **Operational Progress (`INFO`)**: Scraper run start and completion, project hierarchy traversal, and discovered resource counts are logged at `INFO` level.
+- **Permission Denials (`WARN`)**: When a service account lacks access to a specific service or project (HTTP 401/403, Unauthorized, Forbidden), a concise `WARN` log is issued detailing the project, region, and HTTP error body. The scraper does not fail or abort; it logs the warning and proceeds with the remaining projects and regions.
+- **Unactivated / Absent Services (`INFO`)**: When an optional service is not enabled for a project (HTTP 404 Not Found), it is logged as benign `INFO` without raising alerts.
+- **Data Validation & Resiliency (`WARN`)**: Any schema anomalies or unexpected API responses are caught and logged as `WARN` without disrupting cataloging of valid resources.
 
 ---
 
@@ -379,7 +387,7 @@ The backend can be configured via `application.properties` or overridden with en
 ### Backend (Quarkus / Java 21)
 ```bash
 cd backend
-./mvnw test                  # Run unit and integration test suite (100 tests)
+./mvnw test                  # Run unit and integration test suite (103 tests)
 ./mvnw quarkus:dev           # Run dev mode with hot reload (Dev UI at http://localhost:8080/q/dev)
 ```
 

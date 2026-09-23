@@ -55,7 +55,7 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
   - **Resource ID**: Rendered when a distinct resource identifier exists that differs from the UUID (e.g., Object Storage bucket names or IAM service account emails).
   - **Region & Project ID**: Location details (including availability zone for VMs).
   - **Highlighted Billing Details**: Highlighted amount and currency for billing items.
-  - **Rich Metadata Grid**: Clean key-value grid excluding empty or null values; complex objects and arrays (such as attached volume IDs or IP lists) are neatly formatted as comma-separated values via `formatMetaValue()`.
+  - **Rich Metadata Grid**: Clean key-value grid excluding empty or null values; complex objects and arrays (such as attached volume IDs or IP lists) are neatly formatted as comma-separated values via `formatMetaValue()`. For S3 access keys, clearly formats expiration details (`expires: "Never"` or formatted timestamp), credentials group URN, and HMAC key ID.
   - **Tags**: Rendered as stylized badge chips for quick visual inspection.
 
 ### 4. Billing Summary Tab
@@ -72,7 +72,7 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
   - Elevated Surfaces: `#101010`, `#121212`, `#1c1c1c`
   - Accent Color: Deep Orange (`#ff6f00` / `#ff851b`)
   - Text: High-contrast white (`#ffffff`) and soft silver (`#e2e8f0` / `#d6d6d6`)
-- **Component Styling**: Angular Material components (`mat-toolbar`, `mat-card`, `mat-chips`, `mat-tab-group`, `mat-form-field`) customized via SCSS custom properties and targeted overrides. Features dedicated `.deprecated-chip` warning badges, `.unattached-badge`, `.attached-badge`, `.boot-badge`, `.tokenflow-filter-btn`, `.keyflow-filter-btn`, `.public-filter-btn`, `.unattached-filter-btn`, and `.org-row` high-visibility table row styling.
+- **Component Styling**: Angular Material components (`mat-toolbar`, `mat-card`, `mat-chips`, `mat-tab-group`, `mat-form-field`) customized via SCSS custom properties and targeted overrides. Features dedicated `.deprecated-chip` warning badges, `.unattached-badge`, `.attached-badge`, `.boot-badge`, `.s3key-badge`, `.expired-badge`, `.tokenflow-filter-btn`, `.keyflow-filter-btn`, `.public-filter-btn`, `.unattached-filter-btn`, `.s3key-filter-btn`, and `.org-row` high-visibility table row styling.
 - **Performance Budgets**: Strictly meets Angular build budgets (`maximumWarning: 16kB` for component styles) with optimized SCSS structure and global tab navigation theme styles in `styles.scss`.
 
 ---
