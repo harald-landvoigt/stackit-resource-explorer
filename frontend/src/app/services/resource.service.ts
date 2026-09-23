@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { StackitResource, BillingSummary, ResourceSearchResult } from '../models/resource.model';
+import { StackitResource, BillingSummary, ResourceSearchResult, AccessIssuesSummary } from '../models/resource.model';
 
 @Injectable({
   providedIn: 'root',
@@ -20,4 +20,9 @@ export class ResourceService {
   getBillingSummary(): Observable<BillingSummary[]> {
     return this.http.get<BillingSummary[]>('/resources/billing-summary');
   }
+
+  getAccessIssues(): Observable<AccessIssuesSummary> {
+    return this.http.get<AccessIssuesSummary>('/resources/access-issues');
+  }
 }
+

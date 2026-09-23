@@ -102,3 +102,31 @@ export interface S3AccessKeyResourceData {
   [key: string]: any;
 }
 
+export type AccessStatus = 'ACCESSIBLE' | 'ACCESS_DENIED' | 'NOT_CHECKED';
+
+export interface AccessIssueRecord {
+  projectId: string;
+  projectName: string;
+  resourceType: string;
+  region: string;
+  status: AccessStatus;
+  statusCode?: number;
+  errorMessage?: string;
+  lastChecked?: string;
+}
+
+export interface ProjectAccessMatrixRow {
+  projectId: string;
+  projectName: string;
+  statuses: Record<string, AccessStatus>;
+  hasAccessIssues: boolean;
+}
+
+export interface AccessIssuesSummary {
+  totalIssues: number;
+  totalProjectsChecked: number;
+  affectedProjectsCount: number;
+  matrix: ProjectAccessMatrixRow[];
+  issues: AccessIssueRecord[];
+}
+
