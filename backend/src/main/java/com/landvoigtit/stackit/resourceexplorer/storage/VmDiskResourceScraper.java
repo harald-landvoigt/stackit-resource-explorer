@@ -181,7 +181,7 @@ public class VmDiskResourceScraper {
                     permissionDeniedRegion = region;
                     allRegionsSucceeded = false;
                 } else if (msg.contains("404") || msg.contains("not_found")) {
-                    log.info("VM Disks not enabled for project {} in region {}: {}", projectIdStr, region, msg);
+                    log.warn("VM Disks not enabled for project {} in region {}: {}", projectIdStr, region, msg);
                 } else {
                     log.warn("Failed to scrape VM Disks for project {} in region {}: {}", projectIdStr, region, e.getMessage());
                     allRegionsSucceeded = false;

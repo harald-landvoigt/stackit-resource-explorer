@@ -63,20 +63,40 @@ public class S3JitKeyManager {
         final String secretKey = keyResponse.getSecretAccessKey();
         final String keyId = keyResponse.getKeyId() != null ? keyResponse.getKeyId() : accessKey;
 
-        // 3. Build regional S3Client
-        final String endpointUrl = String.format(endpointTemplate, effectiveRegion);
-        final S3Client s3Client = S3Client.builder()
-                .endpointOverride(URI.create(endpointUrl))
-                .region(Region.of(effectiveRegion))
-                .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
-                .serviceConfiguration(S3Configuration.builder()
-                        .pathStyleAccessEnabled(true)
-                        .build())
-                .httpClientBuilder(UrlConnectionHttpClient.builder())
-                .build();
+        // 3. Build regional S3Client with guaranteed cleanup if setup fails partway
+        S3Client s3Client = null;
+        try {
+            final String endpointUrl = String.format(endpointTemplate, effectiveRegion);
+            s3Client = S3Client.builder()
+                    .endpointOverride(URI.create(endpointUrl))
+                    .region(Region.of(effectiveRegion))
+                    .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
+                    .serviceConfiguration(S3Configuration.builder()
+                            .pathStyleAccessEnabled(true)
+                            .build())
+                    .httpClientBuilder(UrlConnectionHttpClient.builder())
+                    .build();
 
-        log.info("Ephemeral S3Client initialized for endpoint {}", endpointUrl);
-        return new EphemeralS3Session(s3Client, projectId, effectiveRegion, groupId, keyId, objectStorageApi);
+            log.info("Ephemeral S3Client initialized for endpoint {}", endpointUrl);
+            return new EphemeralS3Session(s3Client, projectId, effectiveRegion, groupId, keyId, objectStorageApi);
+        } catch (final Exception ex) {
+            log.warn("Failed to initialize ephemeral S3Client for project {} in region {}: {}. Deleting minted key {}.",
+                    projectId, effectiveRegion, ex.getMessage(), keyId);
+            if (s3Client != null) {
+                try {
+                    s3Client.close();
+                } catch (final Exception closeEx) {
+                    log.warn("Error closing partially initialized S3Client: {}", closeEx.getMessage());
+                }
+            }
+            try {
+                objectStorageApi.deleteAccessKey(projectId, effectiveRegion, keyId, groupId);
+                log.warn("Successfully cleaned up ephemeral S3 key {} after session setup failure", keyId);
+            } catch (final Exception deleteEx) {
+                log.warn("Failed to delete ephemeral S3 access key {} after setup failure: {}", keyId, deleteEx.getMessage());
+            }
+            throw ex;
+        }
     }
 
     public <T> T withEphemeralClient(final String projectId, final String region, final S3ClientFunction<T> function) throws Exception {

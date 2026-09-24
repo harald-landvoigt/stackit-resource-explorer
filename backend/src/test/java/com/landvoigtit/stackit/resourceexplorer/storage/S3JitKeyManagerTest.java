@@ -118,4 +118,19 @@ public class S3JitKeyManagerTest {
         // Verify key was deleted from the existing group
         verify(objectStorageApi, times(1)).deleteAccessKey(PROJECT_ID, REGION, "key-999", "existing-cg-789");
     }
+
+    @Test
+    public void testMintedKeyCleanedUpWhenSessionSetupFailsPartway() throws Exception {
+        // Manager with an invalid URI template to trigger failure during S3Client build
+        final S3JitKeyManager brokenManager = new S3JitKeyManager(objectStorageApi, "http://invalid uri with spaces/%s");
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            brokenManager.createEphemeralSession(PROJECT_ID, REGION);
+        });
+
+        // Verify key was minted
+        verify(objectStorageApi, times(1)).createAccessKey(eq(PROJECT_ID), eq(REGION), any(CreateAccessKeyPayload.class), eq(GROUP_ID));
+        // Verify key was deleted in cleanup
+        verify(objectStorageApi, times(1)).deleteAccessKey(PROJECT_ID, REGION, KEY_ID, GROUP_ID);
+    }
 }

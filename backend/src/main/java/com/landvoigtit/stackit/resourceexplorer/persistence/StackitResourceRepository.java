@@ -64,7 +64,7 @@ public class StackitResourceRepository implements PanacheRepositoryBase<StackitE
     public List<StackitEntity> search(final String query, final int limit) {
         final int maxResults = limit > 0 ? limit : 100;
         if (query == null || query.isBlank()) {
-            return find("deletedAt is null order by createdAt desc")
+            return find("order by createdAt desc")
                     .page(0, maxResults)
                     .list();
         }
@@ -76,14 +76,12 @@ public class StackitResourceRepository implements PanacheRepositoryBase<StackitE
             sql = "SELECT * FROM stackit_resources " +
                     "WHERE (search_vector @@ websearch_to_tsquery('english', :query) " +
                     "   OR search_vector @@ to_tsquery('english', :prefixQuery)) " +
-                    "AND deleted_at IS NULL " +
                     "ORDER BY (ts_rank(search_vector, websearch_to_tsquery('english', :query)) * 2.0 + " +
                     "         ts_rank(search_vector, to_tsquery('english', :prefixQuery))) DESC " +
                     "LIMIT :limit";
         } else {
             sql = "SELECT * FROM stackit_resources " +
                     "WHERE search_vector @@ websearch_to_tsquery('english', :query) " +
-                    "AND deleted_at IS NULL " +
                     "ORDER BY ts_rank(search_vector, websearch_to_tsquery('english', :query)) DESC " +
                     "LIMIT :limit";
         }
@@ -103,11 +101,11 @@ public class StackitResourceRepository implements PanacheRepositoryBase<StackitE
     }
 
     public List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> aggregateByType(final String query) {
-        return executeAggregation("type", query, true);
+        return executeAggregation("type", query, false);
     }
 
     public List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> aggregateByRegion(final String query) {
-        return executeAggregation("coalesce(region, 'global')", query, true);
+        return executeAggregation("coalesce(region, 'global')", query, false);
     }
 
     public List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> aggregateByStatus(final String query) {
@@ -117,7 +115,7 @@ public class StackitResourceRepository implements PanacheRepositoryBase<StackitE
 
     public List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> aggregateByProject(final String query) {
         final String columnExpr = "CASE WHEN project_id IS NULL OR project_id = '' OR LOWER(project_id) = 'unknown' THEN 'Global / No Project' ELSE project_id END";
-        return executeAggregation(columnExpr, query, true);
+        return executeAggregation(columnExpr, query, false);
     }
 
     private List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> executeAggregation(

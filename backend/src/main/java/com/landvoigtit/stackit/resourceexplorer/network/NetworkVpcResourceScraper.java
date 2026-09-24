@@ -106,7 +106,7 @@ public class NetworkVpcResourceScraper {
                     permissionDeniedRegion = region;
                     allRegionsSucceeded = false;
                 } else if (msg.contains("404") || msg.contains("not_found")) {
-                    log.info("Network VPC not enabled for project {} in region {}: {}", projectIdStr, region, msg);
+                    log.warn("Network VPC not enabled for project {} in region {}: {}", projectIdStr, region, msg);
                 } else {
                     log.warn("Failed to scrape Network VPC resources for project {} in region {}: {}", projectIdStr, region, e.getMessage());
                     allRegionsSucceeded = false;

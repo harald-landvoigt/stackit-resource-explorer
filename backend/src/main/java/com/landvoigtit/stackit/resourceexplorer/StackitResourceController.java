@@ -18,11 +18,6 @@ public class StackitResourceController {
         this.service = service;
     }
 
-    @POST
-    public final Response create(final StackitResourceDto dto) {
-        final StackitResourceDto created = service.save(dto);
-        return Response.status(Response.Status.CREATED).entity(created).build();
-    }
 
     @GET
     @Path("/{id}")

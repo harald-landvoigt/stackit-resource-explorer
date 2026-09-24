@@ -181,7 +181,7 @@
                       No resources match your search query.
                     </div>
                     
-                    <div *ngFor="let res of filteredResources()" class="resource-card border-orange">
+                    <div *ngFor="let res of filteredResources()" class="resource-card border-orange" [class.deleted-card]="!!res.deletedAt">
                       <div class="resource-header">
                         <span class="resource-name font-bold">{{ res.name }}</span>
                         <mat-chip-set>
@@ -240,7 +240,12 @@
                             </mat-chip>
                           </ng-container>
                           <mat-chip class="type-chip">{{ res.type }}</mat-chip>
-                          <mat-chip class="status-chip" [class.active-status]="res.status === 'active' || res.status === 'paid' || res.status === 'ACTIVE'">{{ res.status }}</mat-chip>
+                          <mat-chip class="status-chip"
+                                    [class.deleted-status]="!!res.deletedAt"
+                                    [class.active-status]="!res.deletedAt && (res.status === 'active' || res.status === 'paid' || res.status === 'ACTIVE')">
+                            <mat-icon *ngIf="res.deletedAt" class="chip-warning-icon">delete_outline</mat-icon>
+                            {{ res.deletedAt ? 'DELETED' : res.status }}
+                          </mat-chip>
                         </mat-chip-set>
                       </div>
                       
@@ -260,6 +265,10 @@
                         <div class="detail-row" *ngIf="res.resourceId && (!res.id || res.resourceId !== res.id)">
                           <span class="detail-label text-orange">Resource ID:</span>
                           <span class="detail-value">{{ res.resourceId }}</span>
+                        </div>
+                        <div class="detail-row" *ngIf="res.deletedAt">
+                          <span class="detail-label text-orange">Deleted At:</span>
+                          <span class="detail-value text-red">{{ res.deletedAt }}</span>
                         </div>
                         
                         <!-- Special Billing/Invoice Fields -->

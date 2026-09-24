@@ -170,7 +170,7 @@ public class IamResourceScraper {
             if (isPermissionIssue(msg)) {
                 log.warn("Permission denied listing S3 access keys for group {} in project {} region {}: {}", groupId, projectIdStr, region, msg);
             } else {
-                log.info("Could not list access keys for group {} in project {} region {}: {}", groupId, projectIdStr, region, msg);
+                log.warn("Could not list access keys for group {} in project {} region {}: {}", groupId, projectIdStr, region, msg);
             }
         }
     }
@@ -511,7 +511,7 @@ public class IamResourceScraper {
             if (isPermissionIssue(msg)) {
                 log.warn("Permission denied checking tokens for SA {}: {}", saId, msg);
             } else {
-                log.info("Tokens check skipped or failed for SA {}: {}", saId, msg);
+                log.warn("Tokens check skipped or failed for SA {}: {}", saId, msg);
             }
         }
         return 0;
@@ -558,7 +558,7 @@ public class IamResourceScraper {
             if (isPermissionIssue(msg)) {
                 log.warn("Permission denied checking keys for SA {}: {}", saDto.id, msg);
             } else {
-                log.info("Keys check skipped or failed for SA {}: {}", saDto.id, msg);
+                log.warn("Keys check skipped or failed for SA {}: {}", saDto.id, msg);
             }
         }
         return new KeyInspectionResult(0, null, null);

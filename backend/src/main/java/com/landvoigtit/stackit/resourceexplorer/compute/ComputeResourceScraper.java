@@ -106,7 +106,7 @@ public class ComputeResourceScraper {
                     permissionDeniedRegion = region;
                     allRegionsSucceeded = false;
                 } else if (msg.contains("404") || msg.contains("not_found")) {
-                    log.info("Compute not enabled for project {} in region {}: {}", projectIdStr, region, msg);
+                    log.warn("Compute not enabled for project {} in region {}: {}", projectIdStr, region, msg);
                 } else {
                     log.warn("Failed to scrape Compute resources for project {} in region {}: {}", projectIdStr, region, e.getMessage());
                     allRegionsSucceeded = false;

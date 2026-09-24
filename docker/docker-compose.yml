@@ -7,8 +7,6 @@ services:
       POSTGRES_DB: resource_explorer
       POSTGRES_USER: resource-explorer
       POSTGRES_PASSWORD: stackit
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -21,8 +19,6 @@ services:
     image: ghcr.io/harald-landvoigt/stackit-resource-explorer/backend:${IMAGE_TAG:-latest}
     container_name: stackit-backend
     restart: unless-stopped 
-    ports:
-      - "8080:8080"
     environment:
       - QUARKUS_DATASOURCE_DB_KIND=postgresql
       - QUARKUS_DATASOURCE_USERNAME=resource-explorer

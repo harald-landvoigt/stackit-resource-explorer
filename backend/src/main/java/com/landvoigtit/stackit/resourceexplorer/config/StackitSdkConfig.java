@@ -285,7 +285,7 @@ public class StackitSdkConfig {
                         }
                     }
                 } catch (final Exception e) {
-                    log.info("Could not read projectId from keyfile: {}", e.getMessage());
+                    log.warn("Could not read projectId from keyfile: {}", e.getMessage());
                 }
             }
         }
