@@ -50,10 +50,11 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
     - 🔴 **`[EXPIRED]`** (`.expired-badge`): Warning badge for expired access keys.
   - **Storage Exposure Badges & Policy Viewer**: Object storage buckets display 🔴 **Public**, 🟢 **Private**, or 🟠 **UNKNOWN** badges, retention compliance badges, and an expandable viewer for bucket policies and ACL grantee tables.
   - **Deprecated Auth Warning Chip**: Prominent red/amber `Token Flow (Deprecated)` chip rendered in the card header for any service account or member relying on legacy static tokens.
-  - **Status & Type Chips**: Visual status badges with green accents for active states.
+  - **Status & Type Chips**: Visual status badges with green accents for active states. Soft-deleted resources render a prominent `DELETED` badge (`.deleted-status`) with a `delete_outline` icon, accompanied by a red card accent (`.deleted-card`).
   - **Resource UUID**: Always renders the primary database UUID (`res.id`).
   - **Resource ID**: Rendered when a distinct resource identifier exists that differs from the UUID (e.g., Object Storage bucket names or IAM service account emails).
   - **Region & Project ID**: Location details (including availability zone for VMs).
+  - **Deleted At Timestamp**: Rendered in the detail grid whenever a resource has been soft-deleted (`res.deletedAt`).
   - **Highlighted Billing Details**: Highlighted amount and currency for billing items.
   - **Rich Metadata Grid**: Clean key-value grid excluding empty or null values; complex objects and arrays (such as attached volume IDs or IP lists) are neatly formatted as comma-separated values via `formatMetaValue()`. For S3 access keys, clearly formats expiration details (`expires: "Never"` or formatted timestamp), credentials group URN, and HMAC key ID.
   - **Tags**: Rendered as stylized badge chips for quick visual inspection.
@@ -125,7 +126,7 @@ npm start
 Runs at `http://localhost:4200/`. API calls to `/resources` are proxied to `http://localhost:8080` via `proxy.conf.json`.
 
 ### Run Unit Tests (Vitest)
-Unit tests are powered by **Vitest** and Angular Testing Utilities (59 unit tests):
+Unit tests are powered by **Vitest** and Angular Testing Utilities (60 unit tests):
 ```bash
 npm test -- --watch=false
 ```

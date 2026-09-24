@@ -14,7 +14,7 @@ Runs the application with hot-reload enabled and starts testcontainers Dev Servi
 > **_NOTE:_** The Quarkus Dev UI is available at <http://localhost:8080/q/dev/>.
 
 ### Testing
-Executes unit tests and integration tests against containerized PostgreSQL and mocked/live STACKIT APIs (113 tests):
+Executes unit tests and integration tests against containerized PostgreSQL and mocked/live STACKIT APIs (115 tests):
 ```bash
 ./mvnw test
 ```
@@ -88,7 +88,7 @@ Each scraper implements independent schedules (configurable via `application.pro
 - **Dynamic JIT S3 Credential Minting (`S3JitKeyManager`)**:
   - Dynamically creates an ephemeral audit credentials group (`resource-explorer-audit`) and a temporary S3 access key (`expires = now + 15m`).
   - Uses regional AWS SDK v2 `S3Client` configured with STACKIT path-style endpoints to inspect bucket ACLs (`getBucketAcl`), raw bucket policies (`getBucketPolicy`), and public access blocks (`getPublicAccessBlock`).
-  - **Guaranteed Cleanup**: Automatically deletes the access key and credentials group in a `finally` block immediately after inspection.
+  - **Guaranteed Cleanup & Leak Prevention**: Automatically deletes the access key and credentials group in a `finally` block immediately after inspection. Furthermore, wraps `S3Client` instantiation in a dedicated error-handling block so that if endpoint formatting or region parsing throws, the minted key is deleted immediately before failing out.
 - **Security Risk Evaluation (`StorageSecurityEvaluator`)**:
   - Analyzes ACL grants (`AllUsers`, `AuthenticatedUsers`) and bucket policy statements (wildcard principals, TLS enforcement).
   - Categorizes public exposure into `PUBLIC_READ`, `PUBLIC_WRITE`, `PUBLIC_READ_WRITE`, `NOT_PUBLIC`, or `UNKNOWN`.
@@ -151,7 +151,7 @@ All scraper jobs adhere to uniform logging and fault-isolation standards:
 - **Operational Progress (`INFO`)**: Scraping phase transitions (start, project discovery, completion) and counts of scraped resources per service and project are logged at `INFO` level.
 - **Permission Denials (`WARN`)**: When encountering HTTP `401` or `403` (Unauthorized, Forbidden) for any target project or region, scrapers log a structured warning including the project ID, region, and error payload. The failure is isolated—the scraper continues processing remaining projects.
 - **Absent / Unactivated Services (`INFO`)**: When a project does not have an optional service enabled (HTTP `404 Not Found`), scrapers log the event as standard `INFO` without triggering warnings.
-- **Payload Validation (`WARN`)**: Parsing anomalies or malformed external structures are logged as warnings and isolated to avoid halting scraper execution.
+- **Exception Catch Blocks (`WARN` / `ERROR`)**: All catch blocks across scrapers and SDK initialization strictly log at `WARN` or `ERROR` level (never `INFO`) to guarantee visibility of caught exceptions and fallback execution paths.
 
 ---
 
@@ -177,8 +177,9 @@ Schedules accept standard Quarkus interval strings (`1h`, `30m`), standard cron 
 ## Database & Flyway Migrations
 
 - **Flyway Versioning**: Schema lifecycle and indexing are handled via Flyway scripts in `src/main/resources/db/migration/` (`V1.0.0` for base schema & GIN FTS index, `V1.1.0` for storage resource deduplication).
+- **Strict Baseline Policy**: `quarkus.flyway.baseline-on-migrate=false` ensures that baseline migrations are never silently bypassed on non-empty databases.
 - **Validation**: `quarkus.hibernate-orm.schema-management.strategy=validate` ensures Hibernate entities strictly adhere to Flyway-created schemas.
-- **Full-Text Search**: Uses a stored generated `tsvector` column (`search_vector`) indexed with PostgreSQL GIN (`USING gin (search_vector)`).
+- **Full-Text Search & Lifecycle**: Uses a stored generated `tsvector` column (`search_vector`) indexed with PostgreSQL GIN (`USING gin (search_vector)`). Includes soft-deleted items (`deletedAt != null`) in both full-text search and aggregations to provide an uncompromised resource audit trail.
 - **Ranking**: Matches are ranked using `ts_rank` evaluated against `websearch_to_tsquery('simple', query)`.
 
 ---
@@ -188,11 +189,15 @@ Schedules accept standard Quarkus interval strings (`1h`, `30m`), standard cron 
 ### `GET /resources?q={query}`
 Searches discovered resources using Full-Text Search.
 - Capped at 100 resources (`LIMIT 100`) for low-latency response times.
-- Returns exact total count and multi-dimensional aggregations:
+- Returns active and soft-deleted resources (marked with `deletedAt`), allowing full lifecycle visibility without requiring specialized filter syntax.
+- Returns exact total count and multi-dimensional aggregations (including soft-deleted items):
   - `typeAggregations`: Categorized counts (*VMs*, *Buckets*, *Invoices*, *Networks*, *IAM Policies*).
   - `projectAggregations`: Counts by STACKIT project (*resource-explorer*, *sandbox-1*, *sandbox-2*, *Global / No Project*) with project IDs resolved to human-readable names via `StackitProjectDiscoveryService`.
   - `regionAggregations`: Counts by cloud region / AZ (*eu01*, *eu01-3*, *global*).
   - `statusAggregations`: Counts by resource lifecycle state (*ACTIVE*, *RUNNING*, *AVAILABLE*, *DELETED*).
+
+> [!NOTE]
+> **Read-Only API**: Mutation endpoints (e.g. `POST /resources`) are not exposed. Data ingestion is handled exclusively through authenticated internal scrapers.
 
 ### `GET /resources/{id}`
 Retrieves a specific resource entity by its database UUID.
