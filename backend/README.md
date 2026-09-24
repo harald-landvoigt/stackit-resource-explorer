@@ -69,6 +69,8 @@ Each scraper implements independent schedules (configurable via `application.pro
   - `bootVolumeId` and `bootVolumeDeleteOnTermination`
   - `attachedVolumes` (list of volume UUIDs)
   - `ipAddresses` (aggregates IPv4 and public IPs across all server NICs)
+  - `publicIps` (list of currently active public IPs)
+  - `publicIpHistory` (accumulated history with `ip`, `firstSeen`, `lastSeen`, and `active` status)
   - `securityGroups`
   - `keypairName`
   - `launchedAt`

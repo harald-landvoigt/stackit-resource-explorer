@@ -102,6 +102,30 @@ export interface S3AccessKeyResourceData {
   [key: string]: any;
 }
 
+export interface PublicIpHistoryRecord {
+  ip: string;
+  firstSeen: string;
+  lastSeen: string;
+  active: boolean;
+}
+
+export interface ComputeResourceData {
+  machineType?: string;
+  powerStatus?: string;
+  availabilityZone?: string;
+  bootVolumeId?: string;
+  bootVolumeDeleteOnTermination?: boolean;
+  attachedVolumes?: string[];
+  imageId?: string;
+  keypairName?: string;
+  securityGroups?: string[];
+  ipAddresses?: string[];
+  publicIps?: string[];
+  publicIpHistory?: PublicIpHistoryRecord[];
+  launchedAt?: string;
+  [key: string]: any;
+}
+
 export type AccessStatus = 'ACCESSIBLE' | 'ACCESS_DENIED' | 'NOT_CHECKED';
 
 export interface AccessIssueRecord {

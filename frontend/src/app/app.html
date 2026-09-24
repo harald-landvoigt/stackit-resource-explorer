@@ -284,11 +284,30 @@
                           <span class="section-title text-orange font-medium">Metadata:</span>
                           <div class="metadata-grid">
                             <ng-container *ngFor="let key of getObjectKeys(res.data)">
-                              <div *ngIf="key !== 'amount' && key !== 'currency' && key !== 'bucketPolicy' && key !== 'acl' && key !== 'securityFindings' && key !== 'retention' && res.data[key] !== '' && res.data[key] !== null" class="meta-item">
+                              <div *ngIf="key !== 'amount' && key !== 'currency' && key !== 'bucketPolicy' && key !== 'acl' && key !== 'securityFindings' && key !== 'retention' && key !== 'publicIpHistory' && key !== 'publicIps' && res.data[key] !== '' && res.data[key] !== null" class="meta-item">
                                 <span class="meta-key">{{ key }}:</span>
                                 <span class="meta-val">{{ formatMetaValue(res.data[key]) }}</span>
                               </div>
                             </ng-container>
+                          </div>
+                        </div>
+
+                        <!-- VM Public IP History -->
+                        <div *ngIf="hasPublicIpHistory(res)" class="ip-history-section">
+                          <span class="section-title text-orange font-medium">
+                            <mat-icon class="ip-history-icon">public</mat-icon>
+                            Public IP History:
+                          </span>
+                          <div class="ip-history-list">
+                            <div *ngFor="let ipRecord of getPublicIpHistory(res)" class="ip-history-row" [class.ip-active]="ipRecord.active" [class.ip-inactive]="!ipRecord.active">
+                              <span class="ip-address font-bold">{{ ipRecord.ip }}</span>
+                              <span *ngIf="ipRecord.active" class="ip-status-badge active-ip-badge" title="Currently assigned public IP">
+                                Active (since {{ formatIpDate(ipRecord.firstSeen) }})
+                              </span>
+                              <span *ngIf="!ipRecord.active" class="ip-status-badge inactive-ip-badge" title="Historical public IP assignment">
+                                Historical ({{ formatIpDate(ipRecord.firstSeen) }} – {{ formatIpDate(ipRecord.lastSeen) }})
+                              </span>
+                            </div>
                           </div>
                         </div>
 

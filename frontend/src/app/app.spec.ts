@@ -1526,5 +1526,110 @@ describe('App', () => {
       expect(mockResourceService.getAccessIssues).toHaveBeenCalled();
     });
   });
+
+  describe('VM Public IP History Display', () => {
+    it('should render public IP history section with active and historical badges and exclude from generic metadata grid', () => {
+      const vmWithIpHistory: StackitResource = {
+        id: '33333333-3333-3333-3333-333333333333',
+        resourceId: 'vm-history-1',
+        name: 'vm-with-ip-history',
+        type: 'compute',
+        status: 'RUNNING',
+        region: 'eu01-1',
+        projectId: 'p-1',
+        data: {
+          machineType: 'g1a.2',
+          ipAddresses: ['192.168.1.10', '193.148.160.5'],
+          publicIps: ['193.148.160.5'],
+          publicIpHistory: [
+            {
+              ip: '193.148.160.5',
+              firstSeen: '2026-03-01T10:00:00Z',
+              lastSeen: '2026-09-24T12:00:00Z',
+              active: true
+            },
+            {
+              ip: '193.148.160.12',
+              firstSeen: '2026-01-10T08:00:00Z',
+              lastSeen: '2026-03-01T09:59:59Z',
+              active: false
+            }
+          ]
+        }
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [vmWithIpHistory],
+        totalCount: 1,
+        typeAggregations: [{ key: 'VMs', count: 1 }],
+        regionAggregations: [{ key: 'eu01-1', count: 1 }],
+        statusAggregations: [{ key: 'RUNNING', count: 1 }],
+        projectAggregations: [{ key: 'p-1', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const historySection = compiled.querySelector('.ip-history-section');
+      expect(historySection).toBeTruthy();
+
+      const rows = historySection?.querySelectorAll('.ip-history-row');
+      expect(rows?.length).toBe(2);
+
+      const activeBadge = historySection?.querySelector('.active-ip-badge');
+      expect(activeBadge).toBeTruthy();
+      expect(activeBadge?.textContent).toContain('Active (since');
+
+      const inactiveBadge = historySection?.querySelector('.inactive-ip-badge');
+      expect(inactiveBadge).toBeTruthy();
+      expect(inactiveBadge?.textContent).toContain('Historical (');
+
+      // Verify that publicIpHistory and publicIps are NOT rendered inside .metadata-grid
+      const metaKeys = Array.from(compiled.querySelectorAll('.metadata-grid .meta-key')).map(el => el.textContent?.trim());
+      expect(metaKeys).not.toContain('publicIpHistory:');
+      expect(metaKeys).not.toContain('publicIps:');
+      expect(metaKeys).toContain('machineType:');
+    });
+
+    it('should not render public IP history section when resource has no public IP history', () => {
+      const vmWithoutHistory: StackitResource = {
+        id: '44444444-4444-4444-4444-444444444444',
+        resourceId: 'vm-no-history',
+        name: 'vm-no-history',
+        type: 'compute',
+        status: 'RUNNING',
+        region: 'eu01-1',
+        projectId: 'p-1',
+        data: {
+          machineType: 'g1a.2'
+        }
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [vmWithoutHistory],
+        totalCount: 1,
+        typeAggregations: [{ key: 'VMs', count: 1 }],
+        regionAggregations: [{ key: 'eu01-1', count: 1 }],
+        statusAggregations: [{ key: 'RUNNING', count: 1 }],
+        projectAggregations: [{ key: 'p-1', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('.ip-history-section')).toBeNull();
+    });
+
+    it('should format IP dates correctly', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+
+      expect(app.formatIpDate(null)).toBe('');
+      expect(app.formatIpDate('2026-03-01T10:00:00Z')).toBe('2026-03-01 10:00 UTC');
+      expect(app.formatIpDate('invalid-date')).toBe('invalid-date');
+    });
+  });
 });
 

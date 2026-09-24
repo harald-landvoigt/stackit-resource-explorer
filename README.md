@@ -53,9 +53,10 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
 ## Core Capabilities
 
 - **Automatic Multi-Project Discovery**: Automatically discovers the parent organization and recursively traverses the entire folder hierarchy to crawl all nested projects using the STACKIT Resource Manager API.
-- **Compute Scraper (Virtual Machines)**:
+- **Compute Scraper (Virtual Machines & Public IP Auditing)**:
   - Scrapes VM instances across all discovered projects via the STACKIT IaaS API (`/v1/projects/{projectId}/servers`).
   - Captures rich metadata: Availability Zone (mapped into region), power status (`RUNNING`, `SHUTOFF`), machine type/size, boot volume ID & termination policy, attached volume IDs, security groups, SSH keypair names, and IPv4/public IP addresses.
+  - **Public IP History & Auditing**: Maintains an append-only timeline of all public IP addresses that have ever been assigned to each VM (`publicIpHistory`), preserving exact first-seen and last-seen timestamps and active/historical status badges (`[Active (since <date>)]` vs. `[Historical (<firstSeen> – <lastSeen>)]`). All historical IPs remain indexed in PostgreSQL full-text search and survive VM IP rotations and soft-deletion.
   - Automatically parses server labels and maps them to resource tags.
 - **Storage Scrapers**:
   - **Object Storage & S3 Security Analysis**: Catalogs buckets and regional endpoints. Uses dynamic Just-In-Time (JIT) S3 access credentials to inspect bucket ACLs, raw bucket policy JSON, and compliance locks (Object Lock & retention periods). Evaluates public exposure risks, applying status badges: 🔴 **Public** (with exposure method), 🟢 **Private**, or 🟠 **UNKNOWN** (when ACL data is unreadable or JIT access is forbidden). Provides an expandable policy and ACL viewer in the UI.

@@ -11,7 +11,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTabsModule } from '@angular/material/tabs';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ResourceService } from './services/resource.service';
-import { StackitResource, BillingSummary, AggregationItem, StorageResourceData, VmDiskResourceData, S3AccessKeyResourceData, AccessIssuesSummary, AccessIssueRecord, ProjectAccessMatrixRow, AccessStatus } from './models/resource.model';
+import { StackitResource, BillingSummary, AggregationItem, StorageResourceData, VmDiskResourceData, S3AccessKeyResourceData, PublicIpHistoryRecord, ComputeResourceData, AccessIssuesSummary, AccessIssueRecord, ProjectAccessMatrixRow, AccessStatus } from './models/resource.model';
 
 @Component({
   selector: 'app-root',
@@ -373,6 +373,33 @@ export class App implements OnInit {
 
   getVmDiskData(res: StackitResource): VmDiskResourceData | undefined {
     return res.data as VmDiskResourceData | undefined;
+  }
+
+  hasPublicIpHistory(res: StackitResource): boolean {
+    if (!res || !res.data) return false;
+    const history = res.data['publicIpHistory'];
+    return Array.isArray(history) && history.length > 0;
+  }
+
+  getPublicIpHistory(res: StackitResource): PublicIpHistoryRecord[] {
+    if (!this.hasPublicIpHistory(res)) return [];
+    const list = (res.data!['publicIpHistory'] as PublicIpHistoryRecord[]).slice();
+    return list.sort((a, b) => {
+      if (a.active && !b.active) return -1;
+      if (!a.active && b.active) return 1;
+      return (b.lastSeen || '').localeCompare(a.lastSeen || '');
+    });
+  }
+
+  formatIpDate(dateStr: string | null | undefined): string {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toISOString().replace('T', ' ').substring(0, 16) + ' UTC';
+    } catch {
+      return String(dateStr);
+    }
   }
 
   togglePolicyDetails(id: string): void {

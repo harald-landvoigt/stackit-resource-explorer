@@ -48,16 +48,23 @@ public final class ComputeResourceMapper {
 
         if (server.getNics() != null) {
             final List<String> ips = new ArrayList<>();
+            final List<String> publicIps = new ArrayList<>();
             for (final ServerNetwork nic : server.getNics()) {
                 if (nic.getIpv4() != null && !nic.getIpv4().isBlank()) {
                     ips.add(nic.getIpv4());
                 }
                 if (nic.getPublicIp() != null && !nic.getPublicIp().isBlank()) {
                     ips.add(nic.getPublicIp());
+                    if (!publicIps.contains(nic.getPublicIp())) {
+                        publicIps.add(nic.getPublicIp());
+                    }
                 }
             }
             if (!ips.isEmpty()) {
                 dto.setIpAddresses(ips);
+            }
+            if (!publicIps.isEmpty()) {
+                dto.setPublicIps(publicIps);
             }
         }
 
@@ -138,6 +145,25 @@ public final class ComputeResourceMapper {
         }
         if (dto.getIpAddresses() != null && !dto.getIpAddresses().isEmpty()) {
             data.put("ipAddresses", dto.getIpAddresses());
+        }
+        if (dto.getPublicIps() != null && !dto.getPublicIps().isEmpty()) {
+            data.put("publicIps", dto.getPublicIps());
+        }
+        if (dto.getPublicIpHistory() != null && !dto.getPublicIpHistory().isEmpty()) {
+            data.put("publicIpHistory", dto.getPublicIpHistory());
+        } else if (dto.getPublicIps() != null && !dto.getPublicIps().isEmpty()) {
+            final List<Map<String, Object>> initialHistory = new ArrayList<>();
+            final String timestamp = (dto.getLaunchedAt() != null) ? dto.getLaunchedAt().toString()
+                    : (dto.getCreatedAt() != null ? dto.getCreatedAt().toString() : Instant.now().toString());
+            for (final String ip : dto.getPublicIps()) {
+                final Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("ip", ip);
+                entry.put("firstSeen", timestamp);
+                entry.put("lastSeen", timestamp);
+                entry.put("active", true);
+                initialHistory.add(entry);
+            }
+            data.put("publicIpHistory", initialHistory);
         }
         if (dto.getLaunchedAt() != null) {
             data.put("launchedAt", dto.getLaunchedAt().toString());
