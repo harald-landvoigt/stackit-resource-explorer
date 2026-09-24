@@ -186,7 +186,7 @@ public class StackitResourceRepositoryTest {
 
     @Test
     @Transactional
-    public void testSearchExcludesSoftDeleted() {
+    public void testSearchIncludesSoftDeleted() {
         final StackitEntity deletedEntity = new StackitEntity();
         deletedEntity.setId(UUID.randomUUID());
         deletedEntity.setResourceId("vm-deleted-1");
@@ -201,7 +201,10 @@ public class StackitResourceRepositoryTest {
         repository.persistAndFlush(deletedEntity);
 
         final List<StackitEntity> results = repository.search("decommissioned");
-        assertTrue(results.stream().noneMatch(e -> e.getId().equals(deletedEntity.getId())));
+        assertTrue(results.stream().anyMatch(e -> e.getId().equals(deletedEntity.getId())));
+
+        final List<StackitEntity> blankResults = repository.search("");
+        assertTrue(blankResults.stream().anyMatch(e -> e.getId().equals(deletedEntity.getId())));
     }
 
     @Test
@@ -359,7 +362,7 @@ public class StackitResourceRepositoryTest {
         blankEntity.setUpdatedAt(Instant.now());
         repository.persist(blankEntity);
 
-        // 1 deleted entity in project-alpha (should NOT be included)
+        // 1 deleted entity in project-alpha (now included in aggregateByProject)
         final StackitEntity deletedEntity = new StackitEntity();
         deletedEntity.setId(UUID.randomUUID());
         deletedEntity.setResourceId("proj-res-del-" + uniqueSuffix);
@@ -382,10 +385,10 @@ public class StackitResourceRepositoryTest {
         assertNotNull(aggs);
         assertEquals(3, aggs.size());
 
-        // project-alpha should have count 3
+        // project-alpha should have count 4 (3 active + 1 deleted)
         final var alphaAgg = aggs.stream().filter(a -> ("project-alpha-" + uniqueSuffix).equals(a.getKey())).findFirst();
         assertTrue(alphaAgg.isPresent());
-        assertEquals(3L, alphaAgg.get().getCount());
+        assertEquals(4L, alphaAgg.get().getCount());
 
         // project-beta should have count 2
         final var betaAgg = aggs.stream().filter(a -> ("project-beta-" + uniqueSuffix).equals(a.getKey())).findFirst();

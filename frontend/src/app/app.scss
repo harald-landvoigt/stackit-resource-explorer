@@ -325,6 +325,11 @@
   border-left: 4px solid #ff6f00 !important;
   border-radius: 4px;
   padding: 16px;
+
+  &.deleted-card {
+    border-left-color: #ef4444 !important;
+    opacity: 0.85;
+  }
 }
 
 .resource-header {
@@ -461,6 +466,20 @@
     --mdc-chip-label-text-color: #000000 !important;
     background-color: #ff6f00 !important;
     font-weight: bold;
+  }
+  &.deleted-status {
+    --mdc-chip-label-text-color: #f87171 !important;
+    background-color: rgba(239, 68, 68, 0.18) !important;
+    border: 1px solid #ef4444 !important;
+    font-weight: bold;
+
+    .chip-warning-icon {
+      color: #ef4444;
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      margin-right: 4px;
+    }
   }
 }
 

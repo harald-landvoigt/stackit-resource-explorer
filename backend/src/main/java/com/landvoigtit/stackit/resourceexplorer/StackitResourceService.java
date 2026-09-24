@@ -5,7 +5,6 @@ import com.landvoigtit.stackit.resourceexplorer.persistence.StackitEntity;
 import com.landvoigtit.stackit.resourceexplorer.persistence.StackitResourceRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.transaction.Transactional;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import java.time.Instant;
@@ -114,18 +113,6 @@ public class StackitResourceService {
                     .collect(Collectors.joining(", "));
             throw new IllegalArgumentException(message);
         }
-    }
-
-    @Transactional
-    public final StackitResourceDto save(final StackitResourceDto dto) {
-        validate(dto);
-        final StackitEntity entity = mapToEntity(dto);
-        if (entity.getCreatedAt() == null) {
-            entity.setCreatedAt(Instant.now());
-        }
-        entity.setUpdatedAt(Instant.now());
-        repository.persist(entity);
-        return mapToDto(entity);
     }
 
     public final StackitResourceDto findById(final String id) {

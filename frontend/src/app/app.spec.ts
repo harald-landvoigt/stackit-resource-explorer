@@ -1481,6 +1481,42 @@ describe('App', () => {
       expect(app.errorMessage()).toContain('Access registry service unreachable');
     });
 
+    it('should display DELETED status badge and timestamp for soft-deleted resources', () => {
+      const deletedResource: StackitResource = {
+        id: 'del-uuid-1',
+        resourceId: 'del-res-1',
+        name: 'decommissioned-vm',
+        type: 'compute',
+        status: 'STOPPED',
+        region: 'eu01',
+        projectId: 'p-1',
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-02T00:00:00Z',
+        deletedAt: '2026-01-03T12:00:00Z'
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [deletedResource],
+        totalCount: 1,
+        typeAggregations: [{ key: 'VMs', count: 1 }],
+        regionAggregations: [{ key: 'eu01', count: 1 }],
+        statusAggregations: [{ key: 'DELETED', count: 1 }],
+        projectAggregations: [{ key: 'p-1', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const card = compiled.querySelector('.resource-card');
+      expect(card?.classList.contains('deleted-card')).toBe(true);
+
+      const statusChip = card?.querySelector('.status-chip');
+      expect(statusChip?.textContent).toContain('DELETED');
+      expect(statusChip?.classList.contains('deleted-status')).toBe(true);
+      expect(card?.textContent).toContain('Deleted At:');
+    });
+
     it('should reload access issues when refresh is called', () => {
       const fixture = TestBed.createComponent(App);
       const app = fixture.componentInstance;

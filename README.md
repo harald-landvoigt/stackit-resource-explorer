@@ -291,8 +291,8 @@ If you have cloned the repository and wish to build containers locally from sour
 | Service | Port | Description |
 | :--- | :--- | :--- |
 | **Frontend** | `8081` | Angular Web Dashboard & Nginx reverse proxy |
-| **Backend** | `8080` | Quarkus REST API & Scheduled Scraper Engine |
-| **Database** | `5432` | PostgreSQL persistence store |
+| **Backend** | Internal (`backend:8080`) | Quarkus REST API & Scheduled Scraper Engine (proxied via Nginx) |
+| **Database** | Internal (`database:5432`) | PostgreSQL persistence store (isolated on internal network) |
 
 ---
 

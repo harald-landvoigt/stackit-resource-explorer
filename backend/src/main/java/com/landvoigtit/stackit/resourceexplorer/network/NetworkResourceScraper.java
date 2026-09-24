@@ -110,7 +110,7 @@ public class NetworkResourceScraper {
                     permissionDeniedRegion = region;
                     allRegionsSucceeded = false;
                 } else if (msg.contains("404") || msg.contains("not_found")) {
-                    log.info("ALB not enabled for project {} in region {}: {}", projectIdStr, region, msg);
+                    log.warn("ALB not enabled for project {} in region {}: {}", projectIdStr, region, msg);
                 } else {
                     log.warn("Failed to scrape ALB resources for project {} in region {}: {}", projectIdStr, region, e.getMessage());
                     allRegionsSucceeded = false;
