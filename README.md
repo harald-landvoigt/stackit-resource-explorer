@@ -87,6 +87,7 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
     - Displays the exact **Resource UUID** alongside any distinct human-readable **Resource ID** (such as bucket names or IAM accounts). Cleanly formats complex metadata (arrays of IPs or volumes) and excludes blank fields.
     - **Disk Attachment Badges**: VM disks display clear color-coded badges: 🟡 **`[Unattached]`** (amber warning for idle/orphan volumes), 🟢 **`[Attached: <serverName>]`** (green badge with parent VM name), and 🔵 **`[Boot Disk]`** (blue badge for OS root volumes).
     - **S3 Access Key Badges**: Persistent S3 access keys display color-coded identity chips: 🔷 **`[S3 Key: <groupName>]`** (sky-blue badge with credentials group name) and 🔴 **`[EXPIRED]`** (red warning for expired keys).
+    - **Soft-Deleted Resources & Lifecycle Tracking**: Decommissioned resources retain their discovery record with `deletedAt` timestamps. Soft-deleted resources are included in both unfiltered catalog views and text searches, styled with a red `.deleted-card` accent, a distinct `DELETED` status badge (`.deleted-status`) with a `delete_outline` icon, and a `Deleted At: <timestamp>` detail row. Multi-dimensional aggregations consistently tally all active and deleted resources.
   - **Multi-Dimensional Summary Aggregations**: Backend-calculated exact counts stacked across four distinct dimensions with a responsive scrollable container (`max-height: 70vh`) and custom orange scrollbar matching the resource explorer:
     - **By Resource Type** (*VMs*, *Buckets*, *VM Disks*, *Invoices*, *Networks*, *IAM Policies*)
     - **By Project** (e.g. *resource-explorer*, *sandbox-1*, *sandbox-2*, or *Global / No Project* with automatic project ID-to-name resolution)
@@ -99,7 +100,9 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
     - Dedicated **"Access Issues"** tab with live counter badge, KPI summary cards (Total Projects Checked, Affected Projects, Total Issues), Project × Resource Type status matrix with visual status chips (🟢 `OK`, 🔴 `DENIED`, ⚪ `N/A`), and an active issues diagnostic table with error logs, HTTP status codes, and search filters.
 - **Production-Ready Persistence & Flyway Migrations**:
   - Schema lifecycle and GIN full-text index managed via versioned Flyway migrations (`V1.0.0__init_schema_and_fts_gin_index.sql`, `V1.1.0__cleanup_duplicate_storage_resources.sql`).
+  - Strict baseline control (`quarkus.flyway.baseline-on-migrate=false`) guarantees that initial migrations are never silently skipped on pre-existing non-empty databases.
   - Hibernate ORM runs in `validate` mode to safeguard against schema drift.
+  - **Read-Only API Architecture**: Mutation endpoints (e.g. `POST /resources`) are eliminated; data ingestion is performed exclusively through internal scheduled and on-demand cloud scrapers.
 
 ---
 
@@ -216,7 +219,8 @@ All scrapers follow structured, non-blocking operational and logging standards:
 - **Operational Progress (`INFO`)**: Scraper run start and completion, project hierarchy traversal, and discovered resource counts are logged at `INFO` level.
 - **Permission Denials (`WARN`)**: When a service account lacks access to a specific service or project (HTTP 401/403, Unauthorized, Forbidden), a concise `WARN` log is issued detailing the project, region, and HTTP error body. The scraper does not fail or abort; it logs the warning and proceeds with the remaining projects and regions.
 - **Unactivated / Absent Services (`INFO`)**: When an optional service is not enabled for a project (HTTP 404 Not Found), it is logged as benign `INFO` without raising alerts.
-- **Data Validation & Resiliency (`WARN`)**: Any schema anomalies or unexpected API responses are caught and logged as `WARN` without disrupting cataloging of valid resources.
+- **Data Validation & Resiliency (`WARN` / `ERROR`)**: Any schema anomalies, network timeouts, or unexpected API responses caught in exception blocks are strictly logged at `WARN` or `ERROR` level (never demoted to `INFO`) to guarantee visibility of suppressed issues.
+- **Ephemeral S3 Credential Safety**: Dynamic S3 key management (`S3JitKeyManager`) enforces immediate deletion of minted access keys in `finally` and exception catch blocks if client configuration or connection fails partway, preventing credential leaks.
 
 ---
 
@@ -392,14 +396,14 @@ The backend can be configured via `application.properties` or overridden with en
 ### Backend (Quarkus / Java 21)
 ```bash
 cd backend
-./mvnw test                  # Run unit and integration test suite (113 tests)
+./mvnw test                  # Run unit and integration test suite (115 tests)
 ./mvnw quarkus:dev           # Run dev mode with hot reload (Dev UI at http://localhost:8080/q/dev)
 ```
 
 ### Frontend (Angular 21 / Vitest)
 ```bash
 cd frontend
-npm test -- --watch=false    # Run unit tests via Vitest (59 tests)
+npm test -- --watch=false    # Run unit tests via Vitest (60 tests)
 ng serve                     # Start development server on port 4200 (proxies backend to 8080)
 ```
 
