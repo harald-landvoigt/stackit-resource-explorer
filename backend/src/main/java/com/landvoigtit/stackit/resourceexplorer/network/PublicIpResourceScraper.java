@@ -73,16 +73,35 @@ public class PublicIpResourceScraper {
 
     private record ServerRef(String serverId, String serverName) {}
 
-    private boolean scrapeProjectPublicIps(final Project project, final List<String> currentResourceIds) {
-        final String projectIdStr = project.getProjectId().toString();
-        final String projectName = project.getName();
-        final List<String> regions = sdkConfig != null ? sdkConfig.getRegions() : StackitConstants.DEFAULT_REGIONS;
+    private static class ScrapeContext {
         boolean allRegionsSucceeded = true;
         boolean permissionDenied = false;
-        String permissionDeniedMsg = null;
-        String permissionDeniedRegion = null;
+        String permissionDeniedMsg;
+        String permissionDeniedRegion;
+    }
 
-        // Query active compute instances to map public IP -> server
+    private boolean scrapeProjectPublicIps(final Project project, final List<String> currentResourceIds) {
+        final String projectIdStr = project.getProjectId().toString();
+        final List<String> regions = resolveRegions();
+        final Map<String, ServerRef> ipToServerMap = buildIpToServerMap(projectIdStr);
+        final ScrapeContext context = new ScrapeContext();
+
+        for (final String region : regions) {
+            scrapeRegionPublicIps(project, region, ipToServerMap, currentResourceIds, context);
+        }
+
+        recordAccessResult(projectIdStr, project.getName(), context);
+        return context.allRegionsSucceeded;
+    }
+
+    private List<String> resolveRegions() {
+        if (sdkConfig != null && sdkConfig.getRegions() != null && !sdkConfig.getRegions().isEmpty()) {
+            return sdkConfig.getRegions();
+        }
+        return StackitConstants.DEFAULT_REGIONS;
+    }
+
+    private Map<String, ServerRef> buildIpToServerMap(final String projectIdStr) {
         final Map<String, ServerRef> ipToServerMap = new HashMap<>();
         try {
             final List<StackitEntity> servers = repository.list(
@@ -92,84 +111,147 @@ public class PublicIpResourceScraper {
             );
             if (servers != null) {
                 for (final StackitEntity server : servers) {
-                    final String srvId = server.getResourceId() != null
-                            ? server.getResourceId()
-                            : (server.getId() != null ? server.getId().toString() : null);
-                    final String srvName = server.getName();
-
-                    if (server.getData() != null) {
-                        final Object publicIpsObj = server.getData().get("publicIps");
-                        if (publicIpsObj instanceof Iterable<?> ipList) {
-                            for (final Object ip : ipList) {
-                                if (ip != null && !ip.toString().isBlank()) {
-                                    ipToServerMap.put(ip.toString().trim(), new ServerRef(srvId, srvName));
-                                }
-                            }
-                        }
-                    }
+                    mapServerPublicIps(server, ipToServerMap);
                 }
             }
         } catch (final Exception e) {
             log.warn("Could not query compute instances for public IP cross-referencing in project {}: {}", projectIdStr, e.getMessage());
         }
+        return ipToServerMap;
+    }
 
-        for (final String region : regions) {
-            try {
-                final PublicIpListResponse response = iaasApi.listPublicIPs(project.getProjectId(), region, null);
-                if (response == null || response.getItems() == null) {
-                    continue;
-                }
+    private void mapServerPublicIps(final StackitEntity server, final Map<String, ServerRef> ipToServerMap) {
+        if (server.getData() == null) {
+            return;
+        }
+        final Object publicIpsObj = server.getData().get("publicIps");
+        if (!(publicIpsObj instanceof Iterable<?> ipList)) {
+            return;
+        }
+        final String srvId = server.getResourceId() != null
+                ? server.getResourceId()
+                : (server.getId() != null ? server.getId().toString() : null);
+        final String srvName = server.getName();
 
-                for (final PublicIp publicIp : response.getItems()) {
-                    final PublicIpResourceDto dto = PublicIpResourceMapper.mapToDto(publicIp);
-                    if (dto.getRegion() == null || dto.getRegion().isBlank()) {
-                        dto.setRegion(region);
-                    }
-
-                    if (dto.getIp() != null && ipToServerMap.containsKey(dto.getIp().trim())) {
-                        final ServerRef srv = ipToServerMap.get(dto.getIp().trim());
-                        dto.setServerId(srv.serverId());
-                        dto.setServerName(srv.serverName());
-                        dto.setAttached(true);
-                        dto.setStatus("ATTACHED");
-                    }
-
-                    if (validator.validate(dto).isEmpty()) {
-                        final StackitEntity entity = PublicIpResourceMapper.mapToEntity(dto);
-                        entity.setProjectId(projectIdStr);
-                        repository.persistOrUpdate(entity);
-                        currentResourceIds.add(entity.getResourceId());
-                    } else {
-                        log.warn("Invalid Public IP DTO: {}", dto.getPublicIpId());
-                    }
-                }
-            } catch (final Exception e) {
-                final String msg = e.getMessage() != null ? e.getMessage() : "";
-                final boolean is404 = (e instanceof ApiException apiEx && apiEx.getCode() == 404)
-                        || msg.contains("404") || msg.contains("not_found");
-                if (StackitConstants.isPermissionIssue(msg)) {
-                    log.warn("Permission denied accessing Public IPs for project {} in region {}: {}", projectIdStr, region, msg);
-                    permissionDenied = true;
-                    permissionDeniedMsg = msg;
-                    permissionDeniedRegion = region;
-                    allRegionsSucceeded = false;
-                } else if (is404) {
-                    log.info("Public IPs not enabled or not found for project {} in region {}: {}", projectIdStr, region, msg);
-                } else {
-                    log.warn("Failed to scrape Public IPs for project {} in region {}: {}", projectIdStr, region, e.getMessage());
-                    allRegionsSucceeded = false;
-                }
+        for (final Object ip : ipList) {
+            if (ip != null && !ip.toString().isBlank()) {
+                ipToServerMap.put(ip.toString().trim(), new ServerRef(srvId, srvName));
             }
         }
+    }
 
-        if (accessIssueRegistry != null) {
-            if (permissionDenied) {
-                accessIssueRegistry.recordFailure(projectIdStr, projectName, StackitConstants.RESOURCE_TYPE_PUBLIC_IP, permissionDeniedRegion, 403, permissionDeniedMsg);
-            } else if (allRegionsSucceeded) {
-                accessIssueRegistry.recordSuccess(projectIdStr, projectName, StackitConstants.RESOURCE_TYPE_PUBLIC_IP, null);
+    private void scrapeRegionPublicIps(
+            final Project project,
+            final String region,
+            final Map<String, ServerRef> ipToServerMap,
+            final List<String> currentResourceIds,
+            final ScrapeContext context) {
+        final String projectIdStr = project.getProjectId().toString();
+        try {
+            final PublicIpListResponse response = iaasApi.listPublicIPs(project.getProjectId(), region, null);
+            if (response == null || response.getItems() == null) {
+                return;
             }
+            for (final PublicIp publicIp : response.getItems()) {
+                processPublicIp(publicIp, region, projectIdStr, ipToServerMap, currentResourceIds);
+            }
+        } catch (final Exception e) {
+            handleRegionError(projectIdStr, region, e, context);
+        }
+    }
+
+    private void processPublicIp(
+            final PublicIp publicIp,
+            final String region,
+            final String projectIdStr,
+            final Map<String, ServerRef> ipToServerMap,
+            final List<String> currentResourceIds) {
+        final PublicIpResourceDto dto = PublicIpResourceMapper.mapToDto(publicIp);
+        if (dto.getRegion() == null || dto.getRegion().isBlank()) {
+            dto.setRegion(region);
         }
 
-        return allRegionsSucceeded;
+        attachServerRefIfMatching(dto, ipToServerMap);
+
+        if (!validator.validate(dto).isEmpty()) {
+            log.warn("Invalid Public IP DTO: {}", dto.getPublicIpId());
+            return;
+        }
+
+        final StackitEntity entity = PublicIpResourceMapper.mapToEntity(dto);
+        entity.setProjectId(projectIdStr);
+        repository.persistOrUpdate(entity);
+        currentResourceIds.add(entity.getResourceId());
+    }
+
+    private void attachServerRefIfMatching(
+            final PublicIpResourceDto dto,
+            final Map<String, ServerRef> ipToServerMap) {
+        if (dto.getIp() == null) {
+            return;
+        }
+        final String trimmedIp = dto.getIp().trim();
+        final ServerRef srv = ipToServerMap.get(trimmedIp);
+        if (srv != null) {
+            dto.setServerId(srv.serverId());
+            dto.setServerName(srv.serverName());
+            dto.setAttached(true);
+            dto.setStatus("ATTACHED");
+        }
+    }
+
+    private void handleRegionError(
+            final String projectIdStr,
+            final String region,
+            final Exception e,
+            final ScrapeContext context) {
+        final String msg = e.getMessage() != null ? e.getMessage() : "";
+        final boolean is404 = isNotFoundOrNotEnabled(e, msg);
+
+        if (StackitConstants.isPermissionIssue(msg)) {
+            log.warn("Permission denied accessing Public IPs for project {} in region {}: {}", projectIdStr, region, msg);
+            context.permissionDenied = true;
+            context.permissionDeniedMsg = msg;
+            context.permissionDeniedRegion = region;
+            context.allRegionsSucceeded = false;
+        } else if (is404) {
+            log.info("Public IPs not enabled or not found for project {} in region {}: {}", projectIdStr, region, msg);
+        } else {
+            log.warn("Failed to scrape Public IPs for project {} in region {}: {}", projectIdStr, region, e.getMessage());
+            context.allRegionsSucceeded = false;
+        }
+    }
+
+    private boolean isNotFoundOrNotEnabled(final Exception e, final String msg) {
+        if (e instanceof ApiException apiEx && apiEx.getCode() == 404) {
+            return true;
+        }
+        return msg.contains("404") || msg.contains("not_found");
+    }
+
+    private void recordAccessResult(
+            final String projectIdStr,
+            final String projectName,
+            final ScrapeContext context) {
+        if (accessIssueRegistry == null) {
+            return;
+        }
+        if (context.permissionDenied) {
+            accessIssueRegistry.recordFailure(
+                    projectIdStr,
+                    projectName,
+                    StackitConstants.RESOURCE_TYPE_PUBLIC_IP,
+                    context.permissionDeniedRegion,
+                    403,
+                    context.permissionDeniedMsg
+            );
+        } else if (context.allRegionsSucceeded) {
+            accessIssueRegistry.recordSuccess(
+                    projectIdStr,
+                    projectName,
+                    StackitConstants.RESOURCE_TYPE_PUBLIC_IP,
+                    null
+            );
+        }
     }
 }

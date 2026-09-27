@@ -68,6 +68,8 @@ Each scraper implements independent schedules (configurable via `application.pro
 - Cross-references active compute server entities within the project from the database to map server NICs to `serverId` and resolve `serverName`.
 - Captures IP labels as resource tags, records soft-deletion when an IP is unallocated/released, and reports access permissions to `AccessIssueRegistry`.
 - Indexed in PostgreSQL full-text search for instant discovery via `"unattached"` or IP addresses.
+- Built with a modular, decomposed architecture: `scrapeProjectPublicIps` encapsulates server IP extraction, regional query execution, validation, error handling, and access recording into cohesive single-responsibility methods meeting strict SonarQube cognitive complexity constraints (complexity = 1, well below the 15 threshold).
+
 
 #### Compute Scraper Details
 - Maps instance availability zones (e.g. `eu01-3`) to `StackitEntity.region` (falling back to `DEFAULT_REGION`).
