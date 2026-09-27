@@ -1,8 +1,9 @@
 package com.landvoigtit.stackit.resourceexplorer.network;
 
-import cloud.stackit.sdk.iaas.v1api.api.IaasApi;
-import cloud.stackit.sdk.iaas.v1api.model.PublicIp;
-import cloud.stackit.sdk.iaas.v1api.model.PublicIpListResponse;
+import cloud.stackit.sdk.core.exception.ApiException;
+import cloud.stackit.sdk.iaas.v2api.api.IaasApi;
+import cloud.stackit.sdk.iaas.v2api.model.PublicIp;
+import cloud.stackit.sdk.iaas.v2api.model.PublicIpListResponse;
 import cloud.stackit.sdk.resourcemanager.v0api.model.Project;
 import com.landvoigtit.stackit.resourceexplorer.StackitProjectDiscoveryService;
 import com.landvoigtit.stackit.resourceexplorer.access.AccessIssueRegistry;
@@ -114,8 +115,7 @@ public class PublicIpResourceScraper {
 
         for (final String region : regions) {
             try {
-                final IaasApi regionalApi = sdkConfig != null ? sdkConfig.iaasApiForRegion(region, iaasApi) : iaasApi;
-                final PublicIpListResponse response = regionalApi.listPublicIPs(project.getProjectId(), null);
+                final PublicIpListResponse response = iaasApi.listPublicIPs(project.getProjectId(), region, null);
                 if (response == null || response.getItems() == null) {
                     continue;
                 }
@@ -145,14 +145,16 @@ public class PublicIpResourceScraper {
                 }
             } catch (final Exception e) {
                 final String msg = e.getMessage() != null ? e.getMessage() : "";
+                final boolean is404 = (e instanceof ApiException apiEx && apiEx.getCode() == 404)
+                        || msg.contains("404") || msg.contains("not_found");
                 if (StackitConstants.isPermissionIssue(msg)) {
                     log.warn("Permission denied accessing Public IPs for project {} in region {}: {}", projectIdStr, region, msg);
                     permissionDenied = true;
                     permissionDeniedMsg = msg;
                     permissionDeniedRegion = region;
                     allRegionsSucceeded = false;
-                } else if (msg.contains("404") || msg.contains("not_found")) {
-                    log.warn("Public IPs not enabled for project {} in region {}: {}", projectIdStr, region, msg);
+                } else if (is404) {
+                    log.info("Public IPs not enabled or not found for project {} in region {}: {}", projectIdStr, region, msg);
                 } else {
                     log.warn("Failed to scrape Public IPs for project {} in region {}: {}", projectIdStr, region, e.getMessage());
                     allRegionsSucceeded = false;

@@ -387,6 +387,16 @@ public class StackitSdkConfig {
 
     @Produces
     @Singleton
+    public cloud.stackit.sdk.iaas.v2api.api.IaasApi iaasV2Api(final OkHttpClient httpClient, final CoreConfiguration config) {
+        try {
+            return new cloud.stackit.sdk.iaas.v2api.api.IaasApi(httpClient, config);
+        } catch (final IOException e) {
+            throw new IllegalStateException("Failed to initialize Iaas v2 Api", e);
+        }
+    }
+
+    @Produces
+    @Singleton
     public AlbApi albApi(final OkHttpClient httpClient, final CoreConfiguration config) {
         try {
             return new AlbApi(httpClient, config);

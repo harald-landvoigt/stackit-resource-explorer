@@ -126,4 +126,23 @@ public class PublicIpResourceScraperTest {
         final List<StackitEntity> activeIps = repository.list("type = ?1 and deletedAt is null", StackitConstants.RESOURCE_TYPE_PUBLIC_IP);
         assertTrue(activeIps.stream().anyMatch(e -> "193.148.160.10".equals(e.getName())));
     }
+
+    @Test
+    @Transactional
+    public void testScrapeEu02UnattachedPublicIp() {
+        scraper.scrape();
+
+        final List<StackitEntity> ips = repository.list("type = ?1 and deletedAt is null", StackitConstants.RESOURCE_TYPE_PUBLIC_IP);
+        final StackitEntity eu02IpEntity = ips.stream()
+                .filter(e -> "9.206.3.64".equals(e.getName()))
+                .findFirst()
+                .orElse(null);
+
+        assertNotNull(eu02IpEntity, "Expected public IP 9.206.3.64 from eu02");
+        assertEquals("eu02", eu02IpEntity.getRegion());
+        assertEquals("UNATTACHED", eu02IpEntity.getStatus());
+        assertEquals(StackitSdkMockProducer.MOCK_EU02_PUBLIC_IP_ID.toString(), eu02IpEntity.getResourceId());
+        assertEquals(false, eu02IpEntity.getData().get("attached"));
+        assertEquals("false", eu02IpEntity.getTags().get("attached"));
+    }
 }
