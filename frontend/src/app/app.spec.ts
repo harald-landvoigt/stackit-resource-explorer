@@ -556,7 +556,7 @@ describe('App', () => {
       fixture.detectChanges();
       const compiled = fixture.nativeElement as HTMLElement;
       const buttons = compiled.querySelectorAll('.filter-chip-btn');
-      expect(buttons.length).toBe(5);
+      expect(buttons.length).toBe(6);
 
       // First button is Token Flow in red
       expect(buttons[0].classList).toContain('tokenflow-filter-btn');
@@ -574,9 +574,13 @@ describe('App', () => {
       expect(buttons[3].classList).toContain('unattached-filter-btn');
       expect(buttons[3].textContent).toContain('Unattached Disks');
 
-      // Fifth button is S3 Keys in sky blue
-      expect(buttons[4].classList).toContain('s3key-filter-btn');
-      expect(buttons[4].textContent).toContain('S3 Keys');
+      // Fifth button is Unattached IPs in amber/warning
+      expect(buttons[4].classList).toContain('unattached-ip-filter-btn');
+      expect(buttons[4].textContent).toContain('Unattached IPs');
+
+      // Sixth button is S3 Keys in sky blue
+      expect(buttons[5].classList).toContain('s3key-filter-btn');
+      expect(buttons[5].textContent).toContain('S3 Keys');
     });
 
     it('should render deprecated warning chip on resources using Token Flow (Deprecated)', () => {
@@ -1629,6 +1633,66 @@ describe('App', () => {
       expect(app.formatIpDate(null)).toBe('');
       expect(app.formatIpDate('2026-03-01T10:00:00Z')).toBe('2026-03-01 10:00 UTC');
       expect(app.formatIpDate('invalid-date')).toBe('invalid-date');
+    });
+  });
+
+  describe('Public IP Support', () => {
+    it('should toggle search query when filterUnattachedIps is called', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+
+      expect(app.searchString()).toBe('');
+      app.filterUnattachedIps();
+      expect(app.searchString()).toBe('unattached public-ip');
+
+      app.filterUnattachedIps();
+      expect(app.searchString()).toBe('');
+    });
+
+    it('should correctly identify and check public IP attachment status', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+
+      const attachedIp: StackitResource = {
+        id: '1',
+        resourceId: 'ip-1',
+        name: '193.148.160.10',
+        type: 'public-ip',
+        status: 'ATTACHED',
+        region: 'eu01',
+        projectId: 'p-1',
+        data: {
+          ip: '193.148.160.10',
+          attached: true,
+          serverId: 'srv-1',
+          serverName: 'gateway-vm'
+        }
+      };
+
+      const unattachedIp: StackitResource = {
+        id: '2',
+        resourceId: 'ip-2',
+        name: '193.148.160.20',
+        type: 'public-ip',
+        status: 'UNATTACHED',
+        region: 'eu01',
+        projectId: 'p-1',
+        data: {
+          ip: '193.148.160.20',
+          attached: false
+        }
+      };
+
+      expect(app.isPublicIp(attachedIp)).toBe(true);
+      expect(app.isPublicIpAttached(attachedIp)).toBe(true);
+      expect(app.isPublicIpUnattached(attachedIp)).toBe(false);
+
+      expect(app.isPublicIp(unattachedIp)).toBe(true);
+      expect(app.isPublicIpAttached(unattachedIp)).toBe(false);
+      expect(app.isPublicIpUnattached(unattachedIp)).toBe(true);
+
+      expect(app.formatTypeLabel('public-ip')).toBe('Public IPs');
+      expect(app.formatTypeLabel('publicip')).toBe('Public IPs');
     });
   });
 });

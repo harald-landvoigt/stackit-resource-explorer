@@ -198,6 +198,10 @@ public class StackitResourceService {
                 return "Invoices";
             case "iam":
                 return "IAM Policies";
+            case "public-ip":
+            case "publicip":
+            case "publicips":
+                return "Public IPs";
             default:
                 return Character.toUpperCase(type.charAt(0)) + type.substring(1) + "s";
         }

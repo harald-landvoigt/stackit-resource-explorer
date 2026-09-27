@@ -109,6 +109,15 @@ export interface PublicIpHistoryRecord {
   active: boolean;
 }
 
+export interface PublicIpResourceData {
+  ip?: string;
+  attached?: boolean;
+  networkInterfaceId?: string;
+  serverId?: string;
+  serverName?: string;
+  [key: string]: any;
+}
+
 export interface ComputeResourceData {
   machineType?: string;
   powerStatus?: string;

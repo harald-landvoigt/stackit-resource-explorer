@@ -33,10 +33,11 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
   - **Key Flow (Orange)**: Filters service accounts utilizing modern asymmetric RSA key pairs (`"Key Flow"`). Styled with `.keyflow-filter-btn` and deep orange key accent (`#ff6f00`).
   - **Public Buckets (Rose)**: Filters publicly accessible S3 storage buckets (`"is-public: true"`). Styled with `.public-filter-btn` and rose accent (`#f43f5e`).
   - **Unattached Disks (Amber)**: Filters unattached / orphan VM block storage disks (`"unattached"`). Styled with `.unattached-filter-btn` and amber accent (`#f59e0b`).
+  - **Unattached IPs (Purple)**: Filters unattached / floating public IP allocations (`"unattached public-ip"`). Styled with `.unattached-ip-filter-btn` and purple accent (`#c084fc`).
   - **S3 Keys (Sky Blue)**: Filters persistent S3 Object Storage access keys (`"S3 Access Key"`). Styled with `.s3key-filter-btn` and sky-blue accent (`#38bdf8`).
   - All quick filter buttons toggle on/off with a single click.
 - **Summary Aggregations Card (Left Column)**: Stacked sections displaying exact backend-computed breakdowns across the full dataset. Features a responsive height constraint (`max-height: 70vh` on desktop, `45vh` on mobile) with a custom orange scrollbar matching the resource explorer:
-  - **By Resource Type**: Counts for *VMs*, *Buckets*, *VM Disks*, *Invoices*, *Networks*, *IAM Policies*.
+  - **By Resource Type**: Counts for *VMs*, *Public IPs*, *Buckets*, *VM Disks*, *Invoices*, *Networks*, *IAM Policies*.
   - **By Project**: Counts partitioned per STACKIT project (e.g. *resource-explorer*, *sandbox-1*, *sandbox-2*, or *Global / No Project*).
   - **By Region**: Counts by region / availability zone (e.g. *eu01*, *eu01-3*, *global*).
   - **By State**: Counts by status and lifecycle (*ACTIVE*, *RUNNING*, *AVAILABLE*, and *DELETED* with red accent).
@@ -45,6 +46,9 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
     - 🟡 **`[Unattached]`** (`.unattached-badge`): Warning badge for orphan/idle disks.
     - 🟢 **`[Attached: <serverName>]`** (`.attached-badge`): Safe green badge displaying the parent VM name.
     - 🔵 **`[Boot Disk]`** (`.boot-badge`): Blue badge designating root operating system boot volumes.
+  - **Public IP Badges**: Public IPs render dedicated color-coded chips:
+    - 🟢 **`[Attached (VM: <serverName>)]`** (`.attached-badge`): Green badge indicating binding to a VM instance.
+    - 🟣 **`[Unattached / Floating]`** (`.unattached-ip-badge`): Purple badge identifying idle/floating IP allocations.
   - **S3 Access Key Badges**: Persistent S3 access keys render color-coded identity chips:
     - 🔷 **`[S3 Key: <groupName>]`** (`.s3key-badge`): Sky-blue badge showing the parent credentials group.
     - 🔴 **`[EXPIRED]`** (`.expired-badge`): Warning badge for expired access keys.
@@ -82,7 +86,7 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
   - Elevated Surfaces: `#101010`, `#121212`, `#1c1c1c`
   - Accent Color: Deep Orange (`#ff6f00` / `#ff851b`)
   - Text: High-contrast white (`#ffffff`) and soft silver (`#e2e8f0` / `#d6d6d6`)
-- **Component Styling**: Angular Material components (`mat-toolbar`, `mat-card`, `mat-chips`, `mat-tab-group`, `mat-form-field`) customized via SCSS custom properties and targeted overrides. Features dedicated `.deprecated-chip` warning badges, `.unattached-badge`, `.attached-badge`, `.boot-badge`, `.s3key-badge`, `.expired-badge`, `.tokenflow-filter-btn`, `.keyflow-filter-btn`, `.public-filter-btn`, `.unattached-filter-btn`, `.s3key-filter-btn`, and `.org-row` high-visibility table row styling.
+- **Component Styling**: Angular Material components (`mat-toolbar`, `mat-card`, `mat-chips`, `mat-tab-group`, `mat-form-field`) customized via SCSS custom properties and targeted overrides. Features dedicated `.deprecated-chip` warning badges, `.unattached-badge`, `.attached-badge`, `.boot-badge`, `.unattached-ip-badge`, `.s3key-badge`, `.expired-badge`, `.tokenflow-filter-btn`, `.keyflow-filter-btn`, `.public-filter-btn`, `.unattached-filter-btn`, `.unattached-ip-filter-btn`, `.s3key-filter-btn`, and `.org-row` high-visibility table row styling.
 - **Performance Budgets**: Strictly meets Angular build budgets (`maximumWarning: 16kB` for component styles) with optimized SCSS structure and global tab navigation theme styles in `styles.scss`.
 
 ---
@@ -126,7 +130,7 @@ npm start
 Runs at `http://localhost:4200/`. API calls to `/resources` are proxied to `http://localhost:8080` via `proxy.conf.json`.
 
 ### Run Unit Tests (Vitest)
-Unit tests are powered by **Vitest** and Angular Testing Utilities (60 unit tests):
+Unit tests are powered by **Vitest** and Angular Testing Utilities (65 unit tests):
 ```bash
 npm test -- --watch=false
 ```
