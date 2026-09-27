@@ -14,7 +14,7 @@ Runs the application with hot-reload enabled and starts testcontainers Dev Servi
 > **_NOTE:_** The Quarkus Dev UI is available at <http://localhost:8080/q/dev/>.
 
 #### Testing
-Executes unit tests and integration tests against containerized PostgreSQL and mocked/live STACKIT APIs (130 tests):
+Executes unit tests and integration tests against containerized PostgreSQL and mocked/live STACKIT APIs (131 tests):
 ```bash
 ./mvnw test
 ```
@@ -53,7 +53,7 @@ Each scraper implements independent schedules (configurable via `application.pro
 | Scraper Class | Resource Type | Target STACKIT API | Default Schedule |
 | :--- | :--- | :--- | :--- |
 | `ComputeResourceScraper` | `compute` | IaaS API (`/v1/projects/{projectId}/servers`) | `1h` |
-| `PublicIpResourceScraper` | `public-ip` | IaaS API (`/v1/projects/{projectId}/public-ips`) | `1h` |
+| `PublicIpResourceScraper` | `public-ip` | IaaS v2 API (`/v2/projects/{projectId}/regions/{region}/public-ips`) | `1h` |
 | `VmDiskResourceScraper` | `vmdisks` | IaaS API (`/v1/projects/{projectId}/volumes`) | `1h` |
 | `NetworkVpcResourceScraper` | `network-vpc` | IaaS API (`/v1/projects/{projectId}/networks`) | `1h` |
 | `NetworkResourceScraper` | `network` | Load Balancer API | `1h` |
@@ -62,7 +62,8 @@ Each scraper implements independent schedules (configurable via `application.pro
 | `BillingResourceScraper` | `billing` / `billing-org` | Cost API v3 (`/v3/costs/{customerAccountId}`) | `1h` |
 
 #### Public IP Scraper Details
-- Scrapes standalone public IP allocations directly via the STACKIT IaaS API (`/v1/projects/{projectId}/public-ips`) across configured regions.
+- Scrapes standalone public IP allocations directly via the STACKIT IaaS v2 API (`/v2/projects/{projectId}/regions/{region}/public-ips`) across configured regions (`eu01`, `eu02`).
+- Provides native multi-region support across both `eu01` and `eu02` where the legacy IaaS v1 API is not deployed.
 - Determines attachment status: detects whether an IP is bound to a network interface (`attached: true`, `attachmentStatus: "ATTACHED"`) or idle/floating (`attached: false`, `attachmentStatus: "UNATTACHED"`).
 - Cross-references active compute server entities within the project from the database to map server NICs to `serverId` and resolve `serverName`.
 - Captures IP labels as resource tags, records soft-deletion when an IP is unallocated/released, and reports access permissions to `AccessIssueRegistry`.

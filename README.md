@@ -64,7 +64,7 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
 - **Network Scrapers**:
   - **Virtual Private Clouds (VPC)**: Catalogs network VPC topologies (`/v1/projects/{projectId}/networks`), capturing prefixes, gateway routing, and labels.
   - **Load Balancers**: Catalogs application load balancers, listeners, and target pools via the STACKIT Load Balancer API.
-  - **Public IPs (Attached & Unattached / Floating)**: Directly catalogs standalone public IP allocations across all projects and regions via the STACKIT IaaS API (`/v1/projects/{projectId}/public-ips`). Accurately distinguishes attached IPs from unattached/floating IPs (`attached: true|false`, `attachmentStatus: "ATTACHED"|"UNATTACHED"`), correlates network interfaces with compute VM instances to resolve parent server IDs and server names, and identifies unattached allocations. Soft-deleted when released in STACKIT.
+  - **Public IPs (Attached & Unattached / Floating)**: Directly catalogs standalone public IP allocations across all projects and regions via the STACKIT IaaS v2 API (`/v2/projects/{projectId}/regions/{region}/public-ips`). Accurately distinguishes attached IPs from unattached/floating IPs (`attached: true|false`, `attachmentStatus: "ATTACHED"|"UNATTACHED"`), correlates network interfaces with compute VM instances to resolve parent server IDs and server names, and identifies unattached allocations across both `eu01` and `eu02`. Soft-deleted when released in STACKIT.
 - **IAM & Authentication Scraper**: Recursively catalogs identities, permissions, and authentication flows across all discovered projects:
   - **Members (Access Control)**: Project-level role bindings for users, groups, and service accounts via the STACKIT Authorization API (`/v2/project/{projectId}/members`). Correlates project members to service accounts to inherit authentication scheme metadata.
   - **Service Accounts (Defined Identities)**: Service accounts defined within each project via the STACKIT Service Account API (`/v2/projects/{projectId}/service-accounts`).
@@ -403,7 +403,7 @@ The backend can be configured via `application.properties` or overridden with en
 ### Backend (Quarkus / Java 21)
 ```bash
 cd backend
-./mvnw test                  # Run unit and integration test suite (130 tests)
+./mvnw test                  # Run unit and integration test suite (131 tests)
 ./mvnw quarkus:dev           # Run dev mode with hot reload (Dev UI at http://localhost:8080/q/dev)
 ```
 
