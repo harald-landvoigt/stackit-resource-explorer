@@ -103,6 +103,30 @@ public class StackitSdkMockProducer {
 
     public static final UUID MOCK_VOLUME_ID = UUID.fromString("11111111-2222-3333-4444-555555555555");
     public static final UUID MOCK_PUBLIC_IP_ID = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+    public static final UUID MOCK_EU02_PUBLIC_IP_ID = UUID.fromString("72bc8888-15d2-4652-a039-7275b7819536");
+
+    public static class MockIaasV2Api extends cloud.stackit.sdk.iaas.v2api.api.IaasApi {
+        public MockIaasV2Api() throws IOException {
+            super(mockConfig);
+        }
+
+        @Override
+        public cloud.stackit.sdk.iaas.v2api.model.PublicIpListResponse listPublicIPs(final UUID projectId, final String area, final String labelSelector) {
+            final cloud.stackit.sdk.iaas.v2api.model.PublicIpListResponse resp = new cloud.stackit.sdk.iaas.v2api.model.PublicIpListResponse();
+            if ("eu01".equalsIgnoreCase(area)) {
+                final cloud.stackit.sdk.iaas.v2api.model.PublicIp ip = new cloud.stackit.sdk.iaas.v2api.model.PublicIp(MOCK_PUBLIC_IP_ID, "193.148.160.10");
+                ip.setNetworkInterface(null); // Unattached by default
+                resp.setItems(List.of(ip));
+            } else if ("eu02".equalsIgnoreCase(area)) {
+                final cloud.stackit.sdk.iaas.v2api.model.PublicIp ip = new cloud.stackit.sdk.iaas.v2api.model.PublicIp(MOCK_EU02_PUBLIC_IP_ID, "9.206.3.64");
+                ip.setNetworkInterface(null); // Unattached by default
+                resp.setItems(List.of(ip));
+            } else {
+                resp.setItems(List.of());
+            }
+            return resp;
+        }
+    }
 
     public static class MockIaasApi extends IaasApi {
         public MockIaasApi() throws IOException {
@@ -301,6 +325,12 @@ public class StackitSdkMockProducer {
     @Singleton
     public IaasApi iaasApi() throws IOException {
         return new MockIaasApi();
+    }
+
+    @Produces
+    @Singleton
+    public cloud.stackit.sdk.iaas.v2api.api.IaasApi iaasV2Api() throws IOException {
+        return new MockIaasV2Api();
     }
 
     @Produces

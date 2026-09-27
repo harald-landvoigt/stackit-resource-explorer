@@ -1,6 +1,6 @@
 package com.landvoigtit.stackit.resourceexplorer.network;
 
-import cloud.stackit.sdk.iaas.v1api.model.PublicIp;
+import cloud.stackit.sdk.iaas.v2api.model.PublicIp;
 import com.landvoigtit.stackit.resourceexplorer.config.StackitConstants;
 import com.landvoigtit.stackit.resourceexplorer.persistence.StackitEntity;
 import java.time.Instant;
