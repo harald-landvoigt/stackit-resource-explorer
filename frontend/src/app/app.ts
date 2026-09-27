@@ -11,7 +11,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTabsModule } from '@angular/material/tabs';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ResourceService } from './services/resource.service';
-import { StackitResource, BillingSummary, AggregationItem, StorageResourceData, VmDiskResourceData, S3AccessKeyResourceData, AccessIssuesSummary, AccessIssueRecord, ProjectAccessMatrixRow, AccessStatus } from './models/resource.model';
+import { StackitResource, BillingSummary, AggregationItem, StorageResourceData, VmDiskResourceData, S3AccessKeyResourceData, PublicIpHistoryRecord, ComputeResourceData, AccessIssuesSummary, AccessIssueRecord, ProjectAccessMatrixRow, AccessStatus, PublicIpResourceData } from './models/resource.model';
 
 @Component({
   selector: 'app-root',
@@ -329,6 +329,15 @@ export class App implements OnInit {
     this.onSearch();
   }
 
+  filterUnattachedIps(): void {
+    if (this.searchString() === 'unattached public-ip') {
+      this.searchString.set('');
+    } else {
+      this.searchString.set('unattached public-ip');
+    }
+    this.onSearch();
+  }
+
   filterS3Keys(): void {
     if (this.searchString() === 'S3 Access Key') {
       this.searchString.set('');
@@ -336,6 +345,25 @@ export class App implements OnInit {
       this.searchString.set('S3 Access Key');
     }
     this.onSearch();
+  }
+
+  isPublicIp(res: StackitResource): boolean {
+    if (!res) return false;
+    return res.type === 'public-ip' || res.type === 'publicip' || res.type === 'publicips';
+  }
+
+  isPublicIpAttached(res: StackitResource): boolean {
+    if (!this.isPublicIp(res)) return false;
+    return res.data?.['attached'] === true || !!res.data?.['serverId'] || res.status === 'ATTACHED' || res.tags?.['attached'] === 'true';
+  }
+
+  isPublicIpUnattached(res: StackitResource): boolean {
+    if (!this.isPublicIp(res)) return false;
+    return res.data?.['attached'] === false || (!res.data?.['serverId'] && (res.status === 'UNATTACHED' || res.status === 'AVAILABLE')) || res.tags?.['attached'] === 'false';
+  }
+
+  getPublicIpData(res: StackitResource): PublicIpResourceData | undefined {
+    return res.data as PublicIpResourceData | undefined;
   }
 
   isS3AccessKey(res: StackitResource): boolean {
@@ -373,6 +401,33 @@ export class App implements OnInit {
 
   getVmDiskData(res: StackitResource): VmDiskResourceData | undefined {
     return res.data as VmDiskResourceData | undefined;
+  }
+
+  hasPublicIpHistory(res: StackitResource): boolean {
+    if (!res || !res.data) return false;
+    const history = res.data['publicIpHistory'];
+    return Array.isArray(history) && history.length > 0;
+  }
+
+  getPublicIpHistory(res: StackitResource): PublicIpHistoryRecord[] {
+    if (!this.hasPublicIpHistory(res)) return [];
+    const list = (res.data!['publicIpHistory'] as PublicIpHistoryRecord[]).slice();
+    return list.sort((a, b) => {
+      if (a.active && !b.active) return -1;
+      if (!a.active && b.active) return 1;
+      return (b.lastSeen || '').localeCompare(a.lastSeen || '');
+    });
+  }
+
+  formatIpDate(dateStr: string | null | undefined): string {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toISOString().replace('T', ' ').substring(0, 16) + ' UTC';
+    } catch {
+      return String(dateStr);
+    }
   }
 
   togglePolicyDetails(id: string): void {
@@ -451,6 +506,10 @@ export class App implements OnInit {
         return 'Invoices';
       case 'iam':
         return 'IAM Policies';
+      case 'public-ip':
+      case 'publicip':
+      case 'publicips':
+        return 'Public IPs';
       default:
         return type.charAt(0).toUpperCase() + type.slice(1) + 's';
     }

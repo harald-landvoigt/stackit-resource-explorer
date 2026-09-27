@@ -13,8 +13,8 @@ Runs the application with hot-reload enabled and starts testcontainers Dev Servi
 ```
 > **_NOTE:_** The Quarkus Dev UI is available at <http://localhost:8080/q/dev/>.
 
-### Testing
-Executes unit tests and integration tests against containerized PostgreSQL and mocked/live STACKIT APIs (115 tests):
+#### Testing
+Executes unit tests and integration tests against containerized PostgreSQL and mocked/live STACKIT APIs (130 tests):
 ```bash
 ./mvnw test
 ```
@@ -53,12 +53,20 @@ Each scraper implements independent schedules (configurable via `application.pro
 | Scraper Class | Resource Type | Target STACKIT API | Default Schedule |
 | :--- | :--- | :--- | :--- |
 | `ComputeResourceScraper` | `compute` | IaaS API (`/v1/projects/{projectId}/servers`) | `1h` |
+| `PublicIpResourceScraper` | `public-ip` | IaaS API (`/v1/projects/{projectId}/public-ips`) | `1h` |
 | `VmDiskResourceScraper` | `vmdisks` | IaaS API (`/v1/projects/{projectId}/volumes`) | `1h` |
 | `NetworkVpcResourceScraper` | `network-vpc` | IaaS API (`/v1/projects/{projectId}/networks`) | `1h` |
 | `NetworkResourceScraper` | `network` | Load Balancer API | `1h` |
 | `StorageResourceScraper` | `storage` | Object Storage API (`/v1/projects/{projectId}/buckets`) | `1h` |
 | `IamResourceScraper` | `iam` | Authorization API (`/v2/project/.../members`) & Service Account API | `1h` |
 | `BillingResourceScraper` | `billing` / `billing-org` | Cost API v3 (`/v3/costs/{customerAccountId}`) | `1h` |
+
+#### Public IP Scraper Details
+- Scrapes standalone public IP allocations directly via the STACKIT IaaS API (`/v1/projects/{projectId}/public-ips`) across configured regions.
+- Determines attachment status: detects whether an IP is bound to a network interface (`attached: true`, `attachmentStatus: "ATTACHED"`) or idle/floating (`attached: false`, `attachmentStatus: "UNATTACHED"`).
+- Cross-references active compute server entities within the project from the database to map server NICs to `serverId` and resolve `serverName`.
+- Captures IP labels as resource tags, records soft-deletion when an IP is unallocated/released, and reports access permissions to `AccessIssueRegistry`.
+- Indexed in PostgreSQL full-text search for instant discovery via `"unattached"` or IP addresses.
 
 #### Compute Scraper Details
 - Maps instance availability zones (e.g. `eu01-3`) to `StackitEntity.region` (falling back to `DEFAULT_REGION`).
@@ -69,6 +77,8 @@ Each scraper implements independent schedules (configurable via `application.pro
   - `bootVolumeId` and `bootVolumeDeleteOnTermination`
   - `attachedVolumes` (list of volume UUIDs)
   - `ipAddresses` (aggregates IPv4 and public IPs across all server NICs)
+  - `publicIps` (list of currently active public IPs)
+  - `publicIpHistory` (accumulated history with `ip`, `firstSeen`, `lastSeen`, and `active` status)
   - `securityGroups`
   - `keypairName`
   - `launchedAt`
@@ -150,7 +160,7 @@ Each scraper implements independent schedules (configurable via `application.pro
 All scraper jobs adhere to uniform logging and fault-isolation standards:
 - **Operational Progress (`INFO`)**: Scraping phase transitions (start, project discovery, completion) and counts of scraped resources per service and project are logged at `INFO` level.
 - **Permission Denials (`WARN`)**: When encountering HTTP `401` or `403` (Unauthorized, Forbidden) for any target project or region, scrapers log a structured warning including the project ID, region, and error payload. The failure is isolated—the scraper continues processing remaining projects.
-- **Absent / Unactivated Services (`INFO`)**: When a project does not have an optional service enabled (HTTP `404 Not Found`), scrapers log the event as standard `INFO` without triggering warnings.
+- **Absent / Unactivated Services (`INFO`)**: When a project does not have an optional service enabled (HTTP 404 Not Found), scrapers log the event as standard `INFO` without triggering warnings.
 - **Exception Catch Blocks (`WARN` / `ERROR`)**: All catch blocks across scrapers and SDK initialization strictly log at `WARN` or `ERROR` level (never `INFO`) to guarantee visibility of caught exceptions and fallback execution paths.
 
 ---
@@ -163,6 +173,7 @@ All scraper jobs adhere to uniform logging and fault-isolation standards:
 | `stackit.regions` | `STACKIT_REGIONS` | `eu01,eu02` | Comma-separated list of STACKIT regions to scrape for regional services |
 | `stackit.storage.s3.endpoint-template` | `STACKIT_S3_ENDPOINT_TEMPLATE` | `https://object.storage.%s.onstackit.cloud` | S3 data-plane endpoint template (`%s` replaced by region) |
 | `stackit.compute.schedule` | `STACKIT_COMPUTE_SCHEDULE` | `1h` | Interval or cron for Compute VM Scraper |
+| `stackit.publicips.schedule` | `STACKIT_PUBLICIPS_SCHEDULE` | `1h` | Interval or cron for Public IP Scraper |
 | `stackit.storage.schedule` | `STACKIT_STORAGE_SCHEDULE` | `1h` | Interval or cron for Object Storage Scraper |
 | `stackit.vmdisks.schedule` | `STACKIT_VMDISKS_SCHEDULE` | `1h` | Interval or cron for VM Disk (Block Storage) Scraper |
 | `stackit.network.schedule` | `STACKIT_NETWORK_SCHEDULE` | `1h` | Interval or cron for Load Balancer Scraper |
@@ -191,7 +202,7 @@ Searches discovered resources using Full-Text Search.
 - Capped at 100 resources (`LIMIT 100`) for low-latency response times.
 - Returns active and soft-deleted resources (marked with `deletedAt`), allowing full lifecycle visibility without requiring specialized filter syntax.
 - Returns exact total count and multi-dimensional aggregations (including soft-deleted items):
-  - `typeAggregations`: Categorized counts (*VMs*, *Buckets*, *Invoices*, *Networks*, *IAM Policies*).
+  - `typeAggregations`: Categorized counts (*VMs*, *Public IPs*, *Buckets*, *VM Disks*, *Invoices*, *Networks*, *IAM Policies*).
   - `projectAggregations`: Counts by STACKIT project (*resource-explorer*, *sandbox-1*, *sandbox-2*, *Global / No Project*) with project IDs resolved to human-readable names via `StackitProjectDiscoveryService`.
   - `regionAggregations`: Counts by cloud region / AZ (*eu01*, *eu01-3*, *global*).
   - `statusAggregations`: Counts by resource lifecycle state (*ACTIVE*, *RUNNING*, *AVAILABLE*, *DELETED*).

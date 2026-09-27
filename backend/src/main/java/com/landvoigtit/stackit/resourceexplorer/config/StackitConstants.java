@@ -46,6 +46,7 @@ public final class StackitConstants {
     public static final String RESOURCE_TYPE_IAM = "iam";
     public static final String RESOURCE_TYPE_BILLING = "billing";
     public static final String RESOURCE_TYPE_BILLING_ORG = "billing-org";
+    public static final String RESOURCE_TYPE_PUBLIC_IP = "public-ip";
 
     // Default Regions
     public static final String DEFAULT_REGION = "eu-central-1";

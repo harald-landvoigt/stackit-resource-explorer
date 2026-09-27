@@ -53,9 +53,10 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
 ## Core Capabilities
 
 - **Automatic Multi-Project Discovery**: Automatically discovers the parent organization and recursively traverses the entire folder hierarchy to crawl all nested projects using the STACKIT Resource Manager API.
-- **Compute Scraper (Virtual Machines)**:
+- **Compute Scraper (Virtual Machines & Public IP Auditing)**:
   - Scrapes VM instances across all discovered projects via the STACKIT IaaS API (`/v1/projects/{projectId}/servers`).
   - Captures rich metadata: Availability Zone (mapped into region), power status (`RUNNING`, `SHUTOFF`), machine type/size, boot volume ID & termination policy, attached volume IDs, security groups, SSH keypair names, and IPv4/public IP addresses.
+  - **Public IP History & Auditing**: Maintains an append-only timeline of all public IP addresses that have ever been assigned to each VM (`publicIpHistory`), preserving exact first-seen and last-seen timestamps and active/historical status badges (`[Active (since <date>)]` vs. `[Historical (<firstSeen> – <lastSeen>)]`). All historical IPs remain indexed in PostgreSQL full-text search and survive VM IP rotations and soft-deletion.
   - Automatically parses server labels and maps them to resource tags.
 - **Storage Scrapers**:
   - **Object Storage & S3 Security Analysis**: Catalogs buckets and regional endpoints. Uses dynamic Just-In-Time (JIT) S3 access credentials to inspect bucket ACLs, raw bucket policy JSON, and compliance locks (Object Lock & retention periods). Evaluates public exposure risks, applying status badges: 🔴 **Public** (with exposure method), 🟢 **Private**, or 🟠 **UNKNOWN** (when ACL data is unreadable or JIT access is forbidden). Provides an expandable policy and ACL viewer in the UI.
@@ -63,6 +64,7 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
 - **Network Scrapers**:
   - **Virtual Private Clouds (VPC)**: Catalogs network VPC topologies (`/v1/projects/{projectId}/networks`), capturing prefixes, gateway routing, and labels.
   - **Load Balancers**: Catalogs application load balancers, listeners, and target pools via the STACKIT Load Balancer API.
+  - **Public IPs (Attached & Unattached / Floating)**: Directly catalogs standalone public IP allocations across all projects and regions via the STACKIT IaaS API (`/v1/projects/{projectId}/public-ips`). Accurately distinguishes attached IPs from unattached/floating IPs (`attached: true|false`, `attachmentStatus: "ATTACHED"|"UNATTACHED"`), correlates network interfaces with compute VM instances to resolve parent server IDs and server names, and identifies unattached allocations. Soft-deleted when released in STACKIT.
 - **IAM & Authentication Scraper**: Recursively catalogs identities, permissions, and authentication flows across all discovered projects:
   - **Members (Access Control)**: Project-level role bindings for users, groups, and service accounts via the STACKIT Authorization API (`/v2/project/{projectId}/members`). Correlates project members to service accounts to inherit authentication scheme metadata.
   - **Service Accounts (Defined Identities)**: Service accounts defined within each project via the STACKIT Service Account API (`/v2/projects/{projectId}/service-accounts`).
@@ -78,6 +80,7 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
   - **Authentication & Security Quick Filters**:
     - **Public Buckets (Rose)**: 1-click filter for publicly exposed storage buckets (`is-public: true`).
     - **Unattached Disks (Amber)**: 1-click filter for idle / orphan block storage disks (`"unattached"`), enabling quick identification of wasted storage spend.
+    - **Unattached IPs (Purple)**: 1-click filter for idle / unattached floating public IPs (`"unattached public-ip"`), instantly isolating unassigned public IP addresses.
     - **Token Flow (Red)**: Filters service accounts and users utilizing deprecated static API tokens (`"Token Flow"`).
     - **Key Flow (Orange)**: Filters service accounts utilizing modern asymmetric RSA key pairs (`"Key Flow"`).
     - **S3 Keys (Sky Blue)**: 1-click filter for Object Storage S3 access keys (`"S3 Access Key"`).
@@ -86,16 +89,17 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
   - **Resource Details, Badges & UUIDs**:
     - Displays the exact **Resource UUID** alongside any distinct human-readable **Resource ID** (such as bucket names or IAM accounts). Cleanly formats complex metadata (arrays of IPs or volumes) and excludes blank fields.
     - **Disk Attachment Badges**: VM disks display clear color-coded badges: 🟡 **`[Unattached]`** (amber warning for idle/orphan volumes), 🟢 **`[Attached: <serverName>]`** (green badge with parent VM name), and 🔵 **`[Boot Disk]`** (blue badge for OS root volumes).
+    - **Public IP Badges**: Public IPs display dedicated badges: 🟢 **`[Attached (VM: <serverName>)]`** (green badge with parent VM name) or 🟣 **`[Unattached / Floating]`** (purple badge for idle/unassigned public IPs).
     - **S3 Access Key Badges**: Persistent S3 access keys display color-coded identity chips: 🔷 **`[S3 Key: <groupName>]`** (sky-blue badge with credentials group name) and 🔴 **`[EXPIRED]`** (red warning for expired keys).
     - **Soft-Deleted Resources & Lifecycle Tracking**: Decommissioned resources retain their discovery record with `deletedAt` timestamps. Soft-deleted resources are included in both unfiltered catalog views and text searches, styled with a red `.deleted-card` accent, a distinct `DELETED` status badge (`.deleted-status`) with a `delete_outline` icon, and a `Deleted At: <timestamp>` detail row. Multi-dimensional aggregations consistently tally all active and deleted resources.
   - **Multi-Dimensional Summary Aggregations**: Backend-calculated exact counts stacked across four distinct dimensions with a responsive scrollable container (`max-height: 70vh`) and custom orange scrollbar matching the resource explorer:
-    - **By Resource Type** (*VMs*, *Buckets*, *VM Disks*, *Invoices*, *Networks*, *IAM Policies*)
+    - **By Resource Type** (*VMs*, *Public IPs*, *Buckets*, *VM Disks*, *Invoices*, *Networks*, *IAM Policies*)
     - **By Project** (e.g. *resource-explorer*, *sandbox-1*, *sandbox-2*, or *Global / No Project* with automatic project ID-to-name resolution)
     - **By Region** (e.g. *eu01*, *eu01-1*, *eu01-3*, *global*)
     - **By State** (e.g. *ACTIVE*, *RUNNING*, *AVAILABLE*, and *DELETED* with warning accents)
   - **Billing Summary**: Aggregated project and organization consumption for the current calendar month in UTC with currency conversions. The Organization total is pinned to the first row, followed by projects ordered descending by costs.
   - **Access Issues View & Project Status Matrix**:
-    - Automatically monitors and records scraper permission results (`ACCESSIBLE`, `ACCESS_DENIED`, `NOT_CHECKED`) across all discovered projects and services (`compute`, `storage`, `network`, `network-vpc`, `vmdisks`, `iam`, `billing`) in a thread-safe registry.
+    - Automatically monitors and records scraper permission results (`ACCESSIBLE`, `ACCESS_DENIED`, `NOT_CHECKED`) across all discovered projects and services (`compute`, `storage`, `network`, `network-vpc`, `public-ip`, `vmdisks`, `iam`, `billing`) in a thread-safe registry.
     - Exposes `GET /resources/access-issues` providing a consolidated summary, project-by-service matrix, and active issues detail list.
     - Dedicated **"Access Issues"** tab with live counter badge, KPI summary cards (Total Projects Checked, Affected Projects, Total Issues), Project × Resource Type status matrix with visual status chips (🟢 `OK`, 🔴 `DENIED`, ⚪ `N/A`), and an active issues diagnostic table with error logs, HTTP status codes, and search filters.
 - **Production-Ready Persistence & Flyway Migrations**:
@@ -134,7 +138,7 @@ While the Resource Explorer provides robust automated discovery and real-time se
   - *Planned*: Point-in-time configuration history and change timeline (e.g., detecting when a private S3 bucket became public or when security group rules were modified).
 
 - **Cost Optimization & FinOps Recommendations**:
-  - Expanding on unattached disk detection to provide automated cost-saving recommendations (e.g., calculating monthly savings for purging orphan block storage, identifying unused public IPs, or right-sizing underutilized VMs).
+  - Expanding on unattached disk and floating public IP detection to provide automated cost-saving recommendations (e.g., calculating monthly savings for purging orphan block storage or right-sizing underutilized VMs).
 
 - **Compliance & Inventory Export**:
   - 1-click export of discovered resources, security findings, and orphan disks to CSV / JSON / PDF.
@@ -163,6 +167,7 @@ To crawl projects, services, and billing across an organization or project hiera
 | :--- | :--- | :--- |
 | **Resource Manager** | `resourcemanager.organization.viewer`, `resourcemanager.project.viewer` | Discovery of folders and child projects |
 | **Compute (VMs)** | `iaas.viewer` or `iaas.admin` | `iaas.server.read` to list servers |
+| **Public IPs (Network)** | `iaas.viewer` or `iaas.admin` | `iaas.public-ip.read` to list project public IPs |
 | **VM Disks (Storage)** | `iaas.viewer` or `iaas.admin` | `iaas.volume.read` to list block storage volumes |
 | **Network VPC** | `iaas.viewer` or `iaas.admin` | `iaas.network.read` to list VPC networks |
 | **Load Balancers** | `loadbalancer.auditor` or `loadbalancer.viewer` | `loadbalancer.loadbalancer.read` |
@@ -323,6 +328,7 @@ The backend can be configured via `application.properties` or overridden with en
 | `stackit.regions` | `STACKIT_REGIONS` | `eu01,eu02` | Comma-separated list of STACKIT regions to scrape for regional services |
 | `stackit.storage.s3.endpoint-template` | `STACKIT_S3_ENDPOINT_TEMPLATE` | `https://object.storage.%s.onstackit.cloud` | Regional S3 data-plane endpoint template (`%s` is replaced by region, e.g. `eu01`) |
 | `stackit.compute.schedule` | `STACKIT_COMPUTE_SCHEDULE` | `1h` | Schedule for Compute VM Scraper (`1h`, cron, or `off`) |
+| `stackit.publicips.schedule` | `STACKIT_PUBLICIPS_SCHEDULE` | `1h` | Schedule for Public IP Scraper |
 | `stackit.storage.schedule` | `STACKIT_STORAGE_SCHEDULE` | `1h` | Schedule for Object Storage Scraper |
 | `stackit.vmdisks.schedule` | `STACKIT_VMDISKS_SCHEDULE` | `1h` | Schedule for VM Disk (Block Storage) Scraper |
 | `stackit.network.schedule` | `STACKIT_NETWORK_SCHEDULE` | `1h` | Schedule for Load Balancer Scraper |
@@ -363,6 +369,7 @@ The backend can be configured via `application.properties` or overridden with en
     "totalCount": 1450,
     "typeAggregations": [
       { "key": "VMs", "count": 850 },
+      { "key": "Public IPs", "count": 120 },
       { "key": "Buckets", "count": 400 },
       { "key": "Networks", "count": 150 },
       { "key": "IAM Policies", "count": 50 }
@@ -396,14 +403,14 @@ The backend can be configured via `application.properties` or overridden with en
 ### Backend (Quarkus / Java 21)
 ```bash
 cd backend
-./mvnw test                  # Run unit and integration test suite (115 tests)
+./mvnw test                  # Run unit and integration test suite (130 tests)
 ./mvnw quarkus:dev           # Run dev mode with hot reload (Dev UI at http://localhost:8080/q/dev)
 ```
 
 ### Frontend (Angular 21 / Vitest)
 ```bash
 cd frontend
-npm test -- --watch=false    # Run unit tests via Vitest (60 tests)
+npm test -- --watch=false    # Run unit tests via Vitest (65 tests)
 ng serve                     # Start development server on port 4200 (proxies backend to 8080)
 ```
 

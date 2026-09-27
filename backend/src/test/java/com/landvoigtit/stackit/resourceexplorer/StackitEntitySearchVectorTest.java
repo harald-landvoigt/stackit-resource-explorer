@@ -9,6 +9,7 @@ import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -78,5 +79,117 @@ public class StackitEntitySearchVectorTest {
                 .getSingleResult();
         assertNotNull(ginIndexDef, "GIN index should exist");
         assertTrue(ginIndexDef.toString().toLowerCase().contains("using gin"), "Index must use GIN");
+    }
+
+    @Test
+    @Transactional
+    public void testUserBucketDatasetSearch() {
+        final UUID id1 = UUID.fromString("7970f389-3f37-3cd8-89b7-e392fc742773");
+        final StackitEntity b1 = new StackitEntity();
+        b1.setId(id1);
+        b1.setResourceId("tstbucket-2-sandbox-1-6gc5dnh7643");
+        b1.setName("tstbucket-2-sandbox-1-6gc5dnh7643");
+        b1.setType("storage");
+        b1.setStatus("AVAILABLE");
+        b1.setRegion("eu01");
+        b1.setProjectId("f58b4f27-68d7-4bd6-b0f3-2e36a783ad1a");
+        b1.setCreatedAt(Instant.now());
+        b1.setUpdatedAt(Instant.now());
+        b1.setTags(Map.of("is-public", "false", "public-access", "NOT_PUBLIC"));
+        b1.setData(Map.of(
+                "isPublic", false,
+                "storageClass", "standard",
+                "urlPathStyle", "https://object.storage.eu01.onstackit.cloud/tstbucket-2-sandbox-1-6gc5dnh7643",
+                "publicAccessType", "NOT_PUBLIC",
+                "objectLockEnabled", false,
+                "urlVirtualHostedStyle", "https://tstbucket-2-sandbox-1-6gc5dnh7643.object.storage.eu01.onstackit.cloud"
+        ));
+        repository.persistAndFlush(b1);
+
+        final UUID id2 = UUID.fromString("b5ca6a55-1a7b-3e33-acac-137b9d4db74b");
+        final StackitEntity b2 = new StackitEntity();
+        b2.setId(id2);
+        b2.setResourceId("tstbucket-3-sandbox-2-austria-gb64dfgvc");
+        b2.setName("tstbucket-3-sandbox-2-austria-gb64dfgvc");
+        b2.setType("storage");
+        b2.setStatus("AVAILABLE");
+        b2.setRegion("eu02");
+        b2.setProjectId("c2cc46ae-e432-4e4a-b4df-42a4066c344b");
+        b2.setCreatedAt(Instant.now());
+        b2.setUpdatedAt(Instant.now());
+        b2.setTags(Map.of("is-public", "false", "public-access", "NOT_PUBLIC"));
+        b2.setData(Map.of(
+                "isPublic", false,
+                "storageClass", "standard",
+                "urlPathStyle", "https://object.storage.eu02.onstackit.cloud/tstbucket-3-sandbox-2-austria-gb64dfgvc",
+                "publicAccessType", "NOT_PUBLIC",
+                "objectLockEnabled", false,
+                "urlVirtualHostedStyle", "https://tstbucket-3-sandbox-2-austria-gb64dfgvc.object.storage.eu02.onstackit.cloud"
+        ));
+        repository.persistAndFlush(b2);
+
+        final UUID id3 = UUID.fromString("0cbb2feb-88ef-3cba-ac63-cd8fe555b3a8");
+        final StackitEntity b3 = new StackitEntity();
+        b3.setId(id3);
+        b3.setResourceId("tstbucket-1-sandbox-1-2e36a783ad1a");
+        b3.setName("tstbucket-1-sandbox-1-2e36a783ad1a");
+        b3.setType("storage");
+        b3.setStatus("AVAILABLE");
+        b3.setRegion("eu01");
+        b3.setProjectId("f58b4f27-68d7-4bd6-b0f3-2e36a783ad1a");
+        b3.setCreatedAt(Instant.now());
+        b3.setUpdatedAt(Instant.now());
+        b3.setTags(Map.of("is-public", "false", "public-access", "NOT_PUBLIC"));
+        b3.setData(Map.of(
+                "isPublic", false,
+                "storageClass", "standard",
+                "urlPathStyle", "https://object.storage.eu01.onstackit.cloud/tstbucket-1-sandbox-1-2e36a783ad1a",
+                "publicAccessType", "NOT_PUBLIC",
+                "objectLockEnabled", false,
+                "urlVirtualHostedStyle", "https://tstbucket-1-sandbox-1-2e36a783ad1a.object.storage.eu01.onstackit.cloud"
+        ));
+        repository.persistAndFlush(b3);
+
+        final Object rawVector = entityManager.createNativeQuery(
+                "SELECT search_vector::text FROM stackit_resources WHERE id = :id")
+                .setParameter("id", id1)
+                .getSingleResult();
+        System.out.println("Bucket 1 search_vector: " + rawVector);
+
+        // Search for 'tstbucket'
+        final List<StackitEntity> tstbucketResults = repository.search("tstbucket");
+        System.out.println("Results for 'tstbucket': " + tstbucketResults.size());
+        assertEquals(3, tstbucketResults.stream().filter(e -> e.getName() != null && e.getName().startsWith("tstbucket")).count());
+
+        // Search for 'bucket' - verifies 'bucket' does NOT match 'tstbucket' in FTS
+        final List<StackitEntity> bucketResults = repository.search("bucket");
+        System.out.println("Results for 'bucket': " + bucketResults.size());
+        assertEquals(0, bucketResults.stream().filter(e -> e.getName() != null && e.getName().startsWith("tstbucket")).count());
+
+        // Search for 'sandbox'
+        final List<StackitEntity> sandboxResults = repository.search("sandbox");
+        System.out.println("Results for 'sandbox': " + sandboxResults.size());
+        assertEquals(3, sandboxResults.stream().filter(e -> e.getName() != null && e.getName().startsWith("tstbucket")).count());
+
+        // Search for 'storage'
+        final List<StackitEntity> storageResults = repository.search("storage");
+        System.out.println("Results for 'storage': " + storageResults.size());
+        assertEquals(3, storageResults.stream().filter(e -> e.getName() != null && e.getName().startsWith("tstbucket")).count());
+
+        // Test pg_trgm extension and similarity/wildcard
+        entityManager.createNativeQuery("CREATE EXTENSION IF NOT EXISTS pg_trgm").executeUpdate();
+        
+        // Wildcard / substring query for 'bucket' scoped to this dataset
+        final List<?> trgmMatches = entityManager.createNativeQuery(
+                "SELECT name, similarity(name, 'bucket'), word_similarity('bucket', name) " +
+                "FROM stackit_resources " +
+                "WHERE (name ILIKE '%bucket%' OR 'bucket' <% name) AND name LIKE 'tstbucket%'")
+                .getResultList();
+        System.out.println("pg_trgm / wildcard matches count: " + trgmMatches.size());
+        for (final Object obj : trgmMatches) {
+            final Object[] row = (Object[]) obj;
+            System.out.println("Match: name=" + row[0] + ", sim=" + row[1] + ", word_sim=" + row[2]);
+        }
+        assertEquals(3, trgmMatches.size());
     }
 }

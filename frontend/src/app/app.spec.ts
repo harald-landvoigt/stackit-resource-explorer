@@ -556,7 +556,7 @@ describe('App', () => {
       fixture.detectChanges();
       const compiled = fixture.nativeElement as HTMLElement;
       const buttons = compiled.querySelectorAll('.filter-chip-btn');
-      expect(buttons.length).toBe(5);
+      expect(buttons.length).toBe(6);
 
       // First button is Token Flow in red
       expect(buttons[0].classList).toContain('tokenflow-filter-btn');
@@ -574,9 +574,13 @@ describe('App', () => {
       expect(buttons[3].classList).toContain('unattached-filter-btn');
       expect(buttons[3].textContent).toContain('Unattached Disks');
 
-      // Fifth button is S3 Keys in sky blue
-      expect(buttons[4].classList).toContain('s3key-filter-btn');
-      expect(buttons[4].textContent).toContain('S3 Keys');
+      // Fifth button is Unattached IPs in amber/warning
+      expect(buttons[4].classList).toContain('unattached-ip-filter-btn');
+      expect(buttons[4].textContent).toContain('Unattached IPs');
+
+      // Sixth button is S3 Keys in sky blue
+      expect(buttons[5].classList).toContain('s3key-filter-btn');
+      expect(buttons[5].textContent).toContain('S3 Keys');
     });
 
     it('should render deprecated warning chip on resources using Token Flow (Deprecated)', () => {
@@ -1524,6 +1528,171 @@ describe('App', () => {
 
       app.loadAccessIssues();
       expect(mockResourceService.getAccessIssues).toHaveBeenCalled();
+    });
+  });
+
+  describe('VM Public IP History Display', () => {
+    it('should render public IP history section with active and historical badges and exclude from generic metadata grid', () => {
+      const vmWithIpHistory: StackitResource = {
+        id: '33333333-3333-3333-3333-333333333333',
+        resourceId: 'vm-history-1',
+        name: 'vm-with-ip-history',
+        type: 'compute',
+        status: 'RUNNING',
+        region: 'eu01-1',
+        projectId: 'p-1',
+        data: {
+          machineType: 'g1a.2',
+          ipAddresses: ['192.168.1.10', '193.148.160.5'],
+          publicIps: ['193.148.160.5'],
+          publicIpHistory: [
+            {
+              ip: '193.148.160.5',
+              firstSeen: '2026-03-01T10:00:00Z',
+              lastSeen: '2026-09-24T12:00:00Z',
+              active: true
+            },
+            {
+              ip: '193.148.160.12',
+              firstSeen: '2026-01-10T08:00:00Z',
+              lastSeen: '2026-03-01T09:59:59Z',
+              active: false
+            }
+          ]
+        }
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [vmWithIpHistory],
+        totalCount: 1,
+        typeAggregations: [{ key: 'VMs', count: 1 }],
+        regionAggregations: [{ key: 'eu01-1', count: 1 }],
+        statusAggregations: [{ key: 'RUNNING', count: 1 }],
+        projectAggregations: [{ key: 'p-1', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const historySection = compiled.querySelector('.ip-history-section');
+      expect(historySection).toBeTruthy();
+
+      const rows = historySection?.querySelectorAll('.ip-history-row');
+      expect(rows?.length).toBe(2);
+
+      const activeBadge = historySection?.querySelector('.active-ip-badge');
+      expect(activeBadge).toBeTruthy();
+      expect(activeBadge?.textContent).toContain('Active (since');
+
+      const inactiveBadge = historySection?.querySelector('.inactive-ip-badge');
+      expect(inactiveBadge).toBeTruthy();
+      expect(inactiveBadge?.textContent).toContain('Historical (');
+
+      // Verify that publicIpHistory and publicIps are NOT rendered inside .metadata-grid
+      const metaKeys = Array.from(compiled.querySelectorAll('.metadata-grid .meta-key')).map(el => el.textContent?.trim());
+      expect(metaKeys).not.toContain('publicIpHistory:');
+      expect(metaKeys).not.toContain('publicIps:');
+      expect(metaKeys).toContain('machineType:');
+    });
+
+    it('should not render public IP history section when resource has no public IP history', () => {
+      const vmWithoutHistory: StackitResource = {
+        id: '44444444-4444-4444-4444-444444444444',
+        resourceId: 'vm-no-history',
+        name: 'vm-no-history',
+        type: 'compute',
+        status: 'RUNNING',
+        region: 'eu01-1',
+        projectId: 'p-1',
+        data: {
+          machineType: 'g1a.2'
+        }
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [vmWithoutHistory],
+        totalCount: 1,
+        typeAggregations: [{ key: 'VMs', count: 1 }],
+        regionAggregations: [{ key: 'eu01-1', count: 1 }],
+        statusAggregations: [{ key: 'RUNNING', count: 1 }],
+        projectAggregations: [{ key: 'p-1', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('.ip-history-section')).toBeNull();
+    });
+
+    it('should format IP dates correctly', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+
+      expect(app.formatIpDate(null)).toBe('');
+      expect(app.formatIpDate('2026-03-01T10:00:00Z')).toBe('2026-03-01 10:00 UTC');
+      expect(app.formatIpDate('invalid-date')).toBe('invalid-date');
+    });
+  });
+
+  describe('Public IP Support', () => {
+    it('should toggle search query when filterUnattachedIps is called', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+
+      expect(app.searchString()).toBe('');
+      app.filterUnattachedIps();
+      expect(app.searchString()).toBe('unattached public-ip');
+
+      app.filterUnattachedIps();
+      expect(app.searchString()).toBe('');
+    });
+
+    it('should correctly identify and check public IP attachment status', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+
+      const attachedIp: StackitResource = {
+        id: '1',
+        resourceId: 'ip-1',
+        name: '193.148.160.10',
+        type: 'public-ip',
+        status: 'ATTACHED',
+        region: 'eu01',
+        projectId: 'p-1',
+        data: {
+          ip: '193.148.160.10',
+          attached: true,
+          serverId: 'srv-1',
+          serverName: 'gateway-vm'
+        }
+      };
+
+      const unattachedIp: StackitResource = {
+        id: '2',
+        resourceId: 'ip-2',
+        name: '193.148.160.20',
+        type: 'public-ip',
+        status: 'UNATTACHED',
+        region: 'eu01',
+        projectId: 'p-1',
+        data: {
+          ip: '193.148.160.20',
+          attached: false
+        }
+      };
+
+      expect(app.isPublicIp(attachedIp)).toBe(true);
+      expect(app.isPublicIpAttached(attachedIp)).toBe(true);
+      expect(app.isPublicIpUnattached(attachedIp)).toBe(false);
+
+      expect(app.isPublicIp(unattachedIp)).toBe(true);
+      expect(app.isPublicIpAttached(unattachedIp)).toBe(false);
+      expect(app.isPublicIpUnattached(unattachedIp)).toBe(true);
+
+      expect(app.formatTypeLabel('public-ip')).toBe('Public IPs');
+      expect(app.formatTypeLabel('publicip')).toBe('Public IPs');
     });
   });
 });

@@ -445,4 +445,128 @@ public class StackitResourceRepositoryTest {
         assertEquals(1, repository.list("type = ?1 and projectId = ?2 and resourceId = ?3 and deletedAt is null",
                 "storage", "proj-123", "my-test-dedup-bucket").size());
     }
+
+    @Test
+    @Transactional
+    public void testComputePublicIpHistory_PreservesPreviousIpsOnUpdate() {
+        final UUID vmId = UUID.randomUUID();
+        final String serverId = vmId.toString();
+
+        // 1. Initial VM with first public IP
+        final StackitEntity vm1 = new StackitEntity();
+        vm1.setId(vmId);
+        vm1.setResourceId(serverId);
+        vm1.setName("history-vm-test");
+        vm1.setType(com.landvoigtit.stackit.resourceexplorer.config.StackitConstants.RESOURCE_TYPE_COMPUTE);
+        vm1.setStatus("ACTIVE");
+        vm1.setRegion("eu01-1");
+        vm1.setProjectId("proj-hist-test");
+        vm1.setCreatedAt(Instant.now());
+        vm1.setUpdatedAt(Instant.now());
+
+        final Map<String, Object> data1 = new java.util.LinkedHashMap<>();
+        data1.put("publicIps", List.of("193.148.160.10"));
+        data1.put("publicIpHistory", List.of(
+                Map.of("ip", "193.148.160.10", "firstSeen", "2026-01-01T10:00:00Z", "lastSeen", "2026-01-01T10:00:00Z", "active", true)
+        ));
+        vm1.setData(data1);
+
+        repository.persistOrUpdate(vm1);
+        repository.flush();
+
+        final StackitEntity retrieved1 = repository.findById(vmId);
+        assertNotNull(retrieved1);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> hist1 = (List<Map<String, Object>>) retrieved1.getData().get("publicIpHistory");
+        assertEquals(1, hist1.size());
+        assertEquals("193.148.160.10", hist1.get(0).get("ip"));
+        assertEquals(true, hist1.get(0).get("active"));
+
+        // 2. Update VM: new public IP 193.148.160.20, old IP 193.148.160.10 detached
+        final StackitEntity vm2 = new StackitEntity();
+        vm2.setId(vmId);
+        vm2.setResourceId(serverId);
+        vm2.setName("history-vm-test");
+        vm2.setType(com.landvoigtit.stackit.resourceexplorer.config.StackitConstants.RESOURCE_TYPE_COMPUTE);
+        vm2.setStatus("ACTIVE");
+        vm2.setRegion("eu01-1");
+        vm2.setProjectId("proj-hist-test");
+        vm2.setCreatedAt(vm1.getCreatedAt());
+        vm2.setUpdatedAt(Instant.now());
+
+        final Map<String, Object> data2 = new java.util.LinkedHashMap<>();
+        data2.put("publicIps", List.of("193.148.160.20"));
+        vm2.setData(data2);
+
+        repository.persistOrUpdate(vm2);
+        repository.flush();
+
+        final StackitEntity retrieved2 = repository.findById(vmId);
+        assertNotNull(retrieved2);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> hist2 = (List<Map<String, Object>>) retrieved2.getData().get("publicIpHistory");
+        assertNotNull(hist2);
+        assertEquals(2, hist2.size());
+
+        // Find old IP
+        final Map<String, Object> oldIpEntry = hist2.stream()
+                .filter(e -> "193.148.160.10".equals(e.get("ip")))
+                .findFirst().orElse(null);
+        assertNotNull(oldIpEntry);
+        assertEquals(false, oldIpEntry.get("active"));
+        assertEquals("2026-01-01T10:00:00Z", oldIpEntry.get("firstSeen"));
+
+        // Find new IP
+        final Map<String, Object> newIpEntry = hist2.stream()
+                .filter(e -> "193.148.160.20".equals(e.get("ip")))
+                .findFirst().orElse(null);
+        assertNotNull(newIpEntry);
+        assertEquals(true, newIpEntry.get("active"));
+
+        // Verify FTS search by old historical IP finds the VM!
+        final List<StackitEntity> ftsResults = repository.search("193.148.160.10");
+        assertTrue(ftsResults.stream().anyMatch(e -> e.getId().equals(vmId)));
+    }
+
+    @Test
+    @Transactional
+    public void testComputePublicIpHistory_MarksInactiveOnSoftDelete() {
+        final UUID vmId = UUID.randomUUID();
+        final String serverId = vmId.toString();
+
+        final StackitEntity vm = new StackitEntity();
+        vm.setId(vmId);
+        vm.setResourceId(serverId);
+        vm.setName("soft-delete-history-vm");
+        vm.setType(com.landvoigtit.stackit.resourceexplorer.config.StackitConstants.RESOURCE_TYPE_COMPUTE);
+        vm.setStatus("ACTIVE");
+        vm.setRegion("eu01-1");
+        vm.setProjectId("proj-del-test");
+        vm.setCreatedAt(Instant.now());
+        vm.setUpdatedAt(Instant.now());
+
+        final Map<String, Object> data = new java.util.LinkedHashMap<>();
+        data.put("publicIps", List.of("193.148.160.30"));
+        data.put("publicIpHistory", List.of(
+                new java.util.LinkedHashMap<>(Map.of("ip", "193.148.160.30", "firstSeen", "2026-02-01T12:00:00Z", "lastSeen", "2026-02-01T12:00:00Z", "active", true))
+        ));
+        vm.setData(data);
+
+        repository.persist(vm);
+        repository.flush();
+
+        // Soft delete missing
+        repository.softDeleteMissing(com.landvoigtit.stackit.resourceexplorer.config.StackitConstants.RESOURCE_TYPE_COMPUTE, "proj-del-test", List.of());
+        repository.flush();
+
+        final StackitEntity deleted = repository.findById(vmId);
+        assertNotNull(deleted);
+        assertNotNull(deleted.getDeletedAt());
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> hist = (List<Map<String, Object>>) deleted.getData().get("publicIpHistory");
+        assertNotNull(hist);
+        assertEquals(1, hist.size());
+        assertEquals(false, hist.get(0).get("active"));
+    }
 }

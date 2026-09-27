@@ -14,6 +14,8 @@ import cloud.stackit.sdk.iaas.v1api.model.Network;
 import cloud.stackit.sdk.iaas.v1api.model.NetworkListResponse;
 import cloud.stackit.sdk.iaas.v1api.model.Volume;
 import cloud.stackit.sdk.iaas.v1api.model.VolumeListResponse;
+import cloud.stackit.sdk.iaas.v1api.model.PublicIp;
+import cloud.stackit.sdk.iaas.v1api.model.PublicIpListResponse;
 import cloud.stackit.sdk.alb.v2api.api.AlbApi;
 import cloud.stackit.sdk.alb.v2api.model.LoadBalancer;
 import cloud.stackit.sdk.alb.v2api.model.ListLoadBalancersResponse;
@@ -100,6 +102,7 @@ public class StackitSdkMockProducer {
     }
 
     public static final UUID MOCK_VOLUME_ID = UUID.fromString("11111111-2222-3333-4444-555555555555");
+    public static final UUID MOCK_PUBLIC_IP_ID = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
 
     public static class MockIaasApi extends IaasApi {
         public MockIaasApi() throws IOException {
@@ -158,6 +161,15 @@ public class StackitSdkMockProducer {
             v.setAvailabilityZone("eu01-1");
             v.setBootable(false);
             resp.setItems(List.of(v));
+            return resp;
+        }
+
+        @Override
+        public PublicIpListResponse listPublicIPs(final UUID projectId, final String labelSelector) {
+            final PublicIpListResponse resp = new PublicIpListResponse();
+            final PublicIp ip = new PublicIp(MOCK_PUBLIC_IP_ID, "193.148.160.10");
+            ip.setNetworkInterface(null); // Unattached by default
+            resp.setItems(List.of(ip));
             return resp;
         }
     }

@@ -30,6 +30,8 @@ public class ComputeResourceDto {
     private String keypairName;
     private List<String> securityGroups;
     private List<String> ipAddresses;
+    private List<String> publicIps;
+    private List<Map<String, Object>> publicIpHistory;
     private Map<String, String> labels;
     private OffsetDateTime launchedAt;
     private OffsetDateTime createdAt;

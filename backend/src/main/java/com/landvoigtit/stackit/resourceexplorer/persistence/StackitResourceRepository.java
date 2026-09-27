@@ -1,10 +1,17 @@
 package com.landvoigtit.stackit.resourceexplorer.persistence;
 
+import com.landvoigtit.stackit.resourceexplorer.config.StackitConstants;
 import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -35,9 +42,81 @@ public class StackitResourceRepository implements PanacheRepositoryBase<StackitE
             existing.setUpdatedAt(Instant.now());
             existing.setDeletedAt(null);
             existing.setTags(entity.getTags());
+
+            mergePublicIpHistory(existing, entity);
+
             existing.setData(entity.getData());
         } else {
             persist(entity);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void mergePublicIpHistory(final StackitEntity existing, final StackitEntity entity) {
+        if (existing == null || entity == null || entity.getData() == null) {
+            return;
+        }
+        if (!StackitConstants.RESOURCE_TYPE_COMPUTE.equalsIgnoreCase(entity.getType())) {
+            return;
+        }
+
+        final Map<String, Object> existingData = existing.getData();
+        final Map<String, Object> newData = entity.getData();
+        if (existingData == null) {
+            return;
+        }
+
+        final Object existingHistObj = existingData.get("publicIpHistory");
+        final List<Map<String, Object>> existingHistory = (existingHistObj instanceof List<?>)
+                ? (List<Map<String, Object>>) existingHistObj
+                : Collections.emptyList();
+
+        final Object newPublicIpsObj = newData.get("publicIps");
+        final List<String> currentPublicIps = (newPublicIpsObj instanceof List<?>)
+                ? (List<String>) newPublicIpsObj
+                : Collections.emptyList();
+
+        if (existingHistory.isEmpty() && currentPublicIps.isEmpty()) {
+            return;
+        }
+
+        final String now = Instant.now().toString();
+        final List<Map<String, Object>> mergedHistory = new ArrayList<>();
+        final Set<String> processedIps = new HashSet<>();
+
+        for (final Map<String, Object> entry : existingHistory) {
+            if (entry == null) {
+                continue;
+            }
+            final String ip = (String) entry.get("ip");
+            if (ip == null || ip.isBlank()) {
+                continue;
+            }
+            final Map<String, Object> updatedEntry = new LinkedHashMap<>(entry);
+            processedIps.add(ip);
+            if (currentPublicIps.contains(ip)) {
+                updatedEntry.put("active", true);
+                updatedEntry.put("lastSeen", now);
+            } else {
+                updatedEntry.put("active", false);
+            }
+            mergedHistory.add(updatedEntry);
+        }
+
+        for (final String ip : currentPublicIps) {
+            if (ip != null && !ip.isBlank() && !processedIps.contains(ip)) {
+                final Map<String, Object> newEntry = new LinkedHashMap<>();
+                newEntry.put("ip", ip);
+                newEntry.put("firstSeen", now);
+                newEntry.put("lastSeen", now);
+                newEntry.put("active", true);
+                mergedHistory.add(newEntry);
+                processedIps.add(ip);
+            }
+        }
+
+        if (!mergedHistory.isEmpty()) {
+            newData.put("publicIpHistory", mergedHistory);
         }
     }
 
@@ -54,6 +133,21 @@ public class StackitResourceRepository implements PanacheRepositoryBase<StackitE
         }
         for (final StackitEntity entity : missing) {
             entity.setDeletedAt(Instant.now());
+            if (StackitConstants.RESOURCE_TYPE_COMPUTE.equalsIgnoreCase(entity.getType()) && entity.getData() != null) {
+                final Object histObj = entity.getData().get("publicIpHistory");
+                if (histObj instanceof List<?> histList) {
+                    final List<Map<String, Object>> updatedList = new ArrayList<>();
+                    for (final Object item : histList) {
+                        if (item instanceof Map<?, ?> itemMap) {
+                            @SuppressWarnings("unchecked")
+                            final Map<String, Object> mutableMap = new LinkedHashMap<>((Map<String, Object>) itemMap);
+                            mutableMap.put("active", false);
+                            updatedList.add(mutableMap);
+                        }
+                    }
+                    entity.getData().put("publicIpHistory", updatedList);
+                }
+            }
         }
     }
 
