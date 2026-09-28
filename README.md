@@ -79,7 +79,7 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
 - **Interactive UI Dashboard**:
   - **Authentication & Security Quick Filters**:
     - **Public Buckets (Rose)**: 1-click filter for publicly exposed storage buckets (`is-public: true`).
-    - **Unattached Disks (Amber)**: 1-click filter for idle / orphan block storage disks (`"unattached"`), enabling quick identification of wasted storage spend.
+    - **Unattached Disks (Amber)**: 1-click filter for idle / orphan block storage disks (`"unattached vmdisks"`), enabling quick identification of wasted storage spend.
     - **Unattached IPs (Purple)**: 1-click filter for idle / unattached floating public IPs (`"unattached public-ip"`), instantly isolating unassigned public IP addresses.
     - **Token Flow (Red)**: Filters service accounts and users utilizing deprecated static API tokens (`"Token Flow"`).
     - **Key Flow (Orange)**: Filters service accounts utilizing modern asymmetric RSA key pairs (`"Key Flow"`).

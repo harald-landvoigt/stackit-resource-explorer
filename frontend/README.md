@@ -32,7 +32,7 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
   - **Token Flow (Red)**: Filters service accounts and members utilizing deprecated static API tokens (`"Token Flow"`). Styled with `.tokenflow-filter-btn` and red warning accent (`#ef4444`).
   - **Key Flow (Orange)**: Filters service accounts utilizing modern asymmetric RSA key pairs (`"Key Flow"`). Styled with `.keyflow-filter-btn` and deep orange key accent (`#ff6f00`).
   - **Public Buckets (Rose)**: Filters publicly accessible S3 storage buckets (`"is-public: true"`). Styled with `.public-filter-btn` and rose accent (`#f43f5e`).
-  - **Unattached Disks (Amber)**: Filters unattached / orphan VM block storage disks (`"unattached"`). Styled with `.unattached-filter-btn` and amber accent (`#f59e0b`).
+  - **Unattached Disks (Amber)**: Filters unattached / orphan VM block storage disks (`"unattached vmdisks"`). Styled with `.unattached-filter-btn` and amber accent (`#f59e0b`).
   - **Unattached IPs (Purple)**: Filters unattached / floating public IP allocations (`"unattached public-ip"`). Styled with `.unattached-ip-filter-btn` and purple accent (`#c084fc`).
   - **S3 Keys (Sky Blue)**: Filters persistent S3 Object Storage access keys (`"S3 Access Key"`). Styled with `.s3key-filter-btn` and sky-blue accent (`#38bdf8`).
   - All quick filter buttons toggle on/off with a single click.

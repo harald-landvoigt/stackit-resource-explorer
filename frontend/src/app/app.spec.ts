@@ -962,8 +962,8 @@ describe('App', () => {
 
       expect(app.searchString()).toBe('');
       app.filterUnattachedDisks();
-      expect(app.searchString()).toBe('unattached');
-      expect(mockResourceService.getResources).toHaveBeenCalledWith('unattached');
+      expect(app.searchString()).toBe('unattached vmdisks');
+      expect(mockResourceService.getResources).toHaveBeenCalledWith('unattached vmdisks');
 
       // Toggle off
       app.filterUnattachedDisks();
