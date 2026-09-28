@@ -321,10 +321,10 @@ export class App implements OnInit {
   }
 
   filterUnattachedDisks(): void {
-    if (this.searchString().trim().toLowerCase() === 'unattached') {
+    if (this.searchString().trim().toLowerCase() === 'unattached vmdisks') {
       this.searchString.set('');
     } else {
-      this.searchString.set('unattached');
+      this.searchString.set('unattached vmdisks');
     }
     this.onSearch();
   }

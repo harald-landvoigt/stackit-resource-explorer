@@ -192,4 +192,83 @@ public class StackitEntitySearchVectorTest {
         }
         assertEquals(3, trgmMatches.size());
     }
+
+    @Test
+    @Transactional
+    public void testSearchUnattachedDisksVsUnattachedPublicIps() {
+        final UUID unattachedDiskId = UUID.randomUUID();
+        final StackitEntity unattachedDisk = new StackitEntity();
+        unattachedDisk.setId(unattachedDiskId);
+        unattachedDisk.setResourceId("vol-unattached-101");
+        unattachedDisk.setName("data-volume-idle");
+        unattachedDisk.setType("vmdisks");
+        unattachedDisk.setStatus("AVAILABLE");
+        unattachedDisk.setRegion("eu01");
+        unattachedDisk.setProjectId("proj-test-1");
+        unattachedDisk.setCreatedAt(Instant.now());
+        unattachedDisk.setUpdatedAt(Instant.now());
+        unattachedDisk.setData(Map.of("attached", false, "attachmentStatus", "UNATTACHED", "sizeGb", 100));
+        repository.persistAndFlush(unattachedDisk);
+
+        final UUID attachedDiskId = UUID.randomUUID();
+        final StackitEntity attachedDisk = new StackitEntity();
+        attachedDisk.setId(attachedDiskId);
+        attachedDisk.setResourceId("vol-attached-102");
+        attachedDisk.setName("data-volume-bound");
+        attachedDisk.setType("vmdisks");
+        attachedDisk.setStatus("AVAILABLE");
+        attachedDisk.setRegion("eu01");
+        attachedDisk.setProjectId("proj-test-1");
+        attachedDisk.setCreatedAt(Instant.now());
+        attachedDisk.setUpdatedAt(Instant.now());
+        attachedDisk.setData(Map.of("attached", true, "attachmentStatus", "ATTACHED", "serverId", "srv-101"));
+        repository.persistAndFlush(attachedDisk);
+
+        final UUID unattachedIpId = UUID.randomUUID();
+        final StackitEntity unattachedIp = new StackitEntity();
+        unattachedIp.setId(unattachedIpId);
+        unattachedIp.setResourceId("ip-unattached-201");
+        unattachedIp.setName("193.148.160.77");
+        unattachedIp.setType("public-ip");
+        unattachedIp.setStatus("UNATTACHED");
+        unattachedIp.setRegion("eu01");
+        unattachedIp.setProjectId("proj-test-1");
+        unattachedIp.setCreatedAt(Instant.now());
+        unattachedIp.setUpdatedAt(Instant.now());
+        unattachedIp.setData(Map.of("attached", false, "attachmentStatus", "UNATTACHED"));
+        repository.persistAndFlush(unattachedIp);
+
+        final UUID attachedIpId = UUID.randomUUID();
+        final StackitEntity attachedIp = new StackitEntity();
+        attachedIp.setId(attachedIpId);
+        attachedIp.setResourceId("ip-attached-202");
+        attachedIp.setName("193.148.160.88");
+        attachedIp.setType("public-ip");
+        attachedIp.setStatus("ATTACHED");
+        attachedIp.setRegion("eu01");
+        attachedIp.setProjectId("proj-test-1");
+        attachedIp.setCreatedAt(Instant.now());
+        attachedIp.setUpdatedAt(Instant.now());
+        attachedIp.setData(Map.of("attached", true, "attachmentStatus", "ATTACHED", "serverId", "srv-102"));
+        repository.persistAndFlush(attachedIp);
+
+        // Searching generic 'unattached' matches BOTH unattached disks and unattached public-ips
+        final List<StackitEntity> genericUnattached = repository.search("unattached");
+        assertTrue(genericUnattached.stream().anyMatch(e -> e.getId().equals(unattachedDiskId)), "generic unattached must match unattached disk");
+        assertTrue(genericUnattached.stream().anyMatch(e -> e.getId().equals(unattachedIpId)), "generic unattached must match unattached public IP");
+
+        // Searching 'unattached vmdisks' matches ONLY unattached disks
+        final List<StackitEntity> unattachedDisks = repository.search("unattached vmdisks");
+        assertTrue(unattachedDisks.stream().anyMatch(e -> e.getId().equals(unattachedDiskId)), "unattached vmdisks must match unattached disk");
+        assertFalse(unattachedDisks.stream().anyMatch(e -> e.getId().equals(attachedDiskId)), "unattached vmdisks must not match attached disk");
+        assertFalse(unattachedDisks.stream().anyMatch(e -> e.getId().equals(unattachedIpId)), "unattached vmdisks must NOT match unattached public IP");
+        assertFalse(unattachedDisks.stream().anyMatch(e -> e.getId().equals(attachedIpId)), "unattached vmdisks must not match attached public IP");
+
+        // Searching 'unattached public-ip' matches ONLY unattached public IPs
+        final List<StackitEntity> unattachedIps = repository.search("unattached public-ip");
+        assertTrue(unattachedIps.stream().anyMatch(e -> e.getId().equals(unattachedIpId)), "unattached public-ip must match unattached public IP");
+        assertFalse(unattachedIps.stream().anyMatch(e -> e.getId().equals(attachedIpId)), "unattached public-ip must not match attached public IP");
+        assertFalse(unattachedIps.stream().anyMatch(e -> e.getId().equals(unattachedDiskId)), "unattached public-ip must NOT match unattached disk");
+        assertFalse(unattachedIps.stream().anyMatch(e -> e.getId().equals(attachedDiskId)), "unattached public-ip must not match attached disk");
+    }
 }
