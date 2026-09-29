@@ -40,7 +40,7 @@ This plan addresses issues **1, 2, 4, 5, and 7** identified in the STACKIT Resou
   - [x] Verify `forceRefresh=true` bypasses cache.
   - [x] Verify concurrent requests coalesce into a single remote API execution.
 
-### Phase 2: Error Classification & ALB False-Positive Access Denial Fix (Item 2)
+### Phase 2: Error Classification & ALB False-Positive Access Denial Fix (Item 2) [checkpoint: 183d815]
 - [x] Update [`StackitConstants.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/config/StackitConstants.java): [c09abe8]
   - [x] Add `isServiceDisabled(String msg)` and `isServiceDisabled(Throwable t)` checking for:
     - `"service not enabled"`, `"servicenotenabled"`, `"not enabled"`, `"project.not_found"`, or HTTP 404.
