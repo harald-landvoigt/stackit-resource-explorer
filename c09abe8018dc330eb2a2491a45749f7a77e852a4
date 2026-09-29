@@ -1,0 +1,6 @@
+Task: Error Classification in StackitConstants
+- Added isServiceDisabled(String) and isServiceDisabled(Throwable) to identify disabled services (404, not_found, service not enabled)
+- Updated isPermissionIssue(String) and isPermissionIssue(Throwable) to check isServiceDisabled first, giving precedence to disabled service classifications
+- Added unit tests in StackitConstantsTest validating isServiceDisabled and precedence over isPermissionIssue
+- Created/Modified files: StackitConstants.java, StackitConstantsTest.java
+- Why: Prevents HTTP 403 'Service not enabled' responses from being incorrectly classified as permission denials
