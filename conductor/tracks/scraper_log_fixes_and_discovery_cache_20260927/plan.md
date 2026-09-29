@@ -26,7 +26,7 @@ This plan addresses issues **1, 2, 4, 5, and 7** identified in the STACKIT Resou
 
 ## Implementation Steps
 
-### Phase 1: In-Memory TTL Caching & Coalescing for Project Discovery (Item 1)
+### Phase 1: In-Memory TTL Caching & Coalescing for Project Discovery (Item 1) [checkpoint: cf56cbd]
 - [x] Add TTL cache configuration property `stackit.discovery.cache-ttl` (default: `10m`) to [`StackitSdkConfig.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/config/StackitSdkConfig.java) and [`application.properties`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/resources/application.properties). [cff8934]
 - [x] Update [`StackitProjectDiscoveryService.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/StackitProjectDiscoveryService.java): [cf7cf2e]
   - [x] Add cached `List<Project>` and cached `Map<String, String>` (ID to name lookup) with timestamp tracking (`Instant cachedAt`).
