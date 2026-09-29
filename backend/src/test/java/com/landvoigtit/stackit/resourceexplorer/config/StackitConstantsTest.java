@@ -67,4 +67,51 @@ public class StackitConstantsTest {
         assertEquals("standard", StackitConstants.STORAGE_CLASS_STANDARD);
         assertEquals("unknown", StackitConstants.UNKNOWN_PROJECT_ID);
     }
+
+    @Test
+    public void testIsServiceDisabled() {
+        assertFalse(StackitConstants.isServiceDisabled((String) null));
+        assertFalse(StackitConstants.isServiceDisabled(""));
+        assertFalse(StackitConstants.isServiceDisabled("   "));
+        assertFalse(StackitConstants.isServiceDisabled("500 Internal Server Error"));
+        assertFalse(StackitConstants.isServiceDisabled("403 Forbidden: User lacks role 'loadbalancer.admin'"));
+
+        assertTrue(StackitConstants.isServiceDisabled("Service not enabled"));
+        assertTrue(StackitConstants.isServiceDisabled("servicenotenabled"));
+        assertTrue(StackitConstants.isServiceDisabled("The service is not enabled for region eu02"));
+        assertTrue(StackitConstants.isServiceDisabled("project.not_found"));
+        assertTrue(StackitConstants.isServiceDisabled("HTTP 404 Not Found"));
+        assertTrue(StackitConstants.isServiceDisabled("status 404"));
+        assertTrue(StackitConstants.isServiceDisabled("403 Forbidden: {\"message\":\"Service not enabled\"}"));
+        assertTrue(StackitConstants.isServiceDisabled("HTTP 403: {\"error\":\"service not enabled\"}"));
+
+        // Throwable overload
+        assertFalse(StackitConstants.isServiceDisabled((Throwable) null));
+        assertTrue(StackitConstants.isServiceDisabled(new RuntimeException("Service not enabled")));
+        assertTrue(StackitConstants.isServiceDisabled(new RuntimeException("Wrapped", new IllegalStateException("403 Forbidden: Service not enabled"))));
+    }
+
+    @Test
+    public void testIsPermissionIssueWithServiceDisabledPrecedence() {
+        assertFalse(StackitConstants.isPermissionIssue((String) null));
+        assertFalse(StackitConstants.isPermissionIssue(""));
+        assertFalse(StackitConstants.isPermissionIssue("HTTP 404 Not Found"));
+
+        // True permission issues
+        assertTrue(StackitConstants.isPermissionIssue("403 Forbidden: User lacks permissions"));
+        assertTrue(StackitConstants.isPermissionIssue("401 Unauthorized"));
+        assertTrue(StackitConstants.isPermissionIssue("AccessDenied: User does not have access"));
+        assertTrue(StackitConstants.isPermissionIssue("permission denied accessing resource"));
+
+        // Disabled service should NOT be flagged as permission issue
+        assertFalse(StackitConstants.isPermissionIssue("403 Forbidden: {\"message\":\"Service not enabled\"}"));
+        assertFalse(StackitConstants.isPermissionIssue("HTTP 403: service not enabled"));
+        assertFalse(StackitConstants.isPermissionIssue("404 Not Found"));
+        assertFalse(StackitConstants.isPermissionIssue("project.not_found"));
+
+        // Throwable overload
+        assertFalse(StackitConstants.isPermissionIssue((Throwable) null));
+        assertTrue(StackitConstants.isPermissionIssue(new RuntimeException("403 Forbidden: User lacks permissions")));
+        assertFalse(StackitConstants.isPermissionIssue(new RuntimeException("403 Forbidden: Service not enabled")));
+    }
 }

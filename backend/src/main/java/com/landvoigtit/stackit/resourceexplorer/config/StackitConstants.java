@@ -166,13 +166,56 @@ public final class StackitConstants {
     }
 
     /**
+     * Checks if an error message indicates that a service is not enabled / disabled in a project or region.
+     *
+     * @param msg the error message
+     * @return true if the message indicates a disabled/inactive service
+     */
+    public static boolean isServiceDisabled(final String msg) {
+        if (msg == null || msg.isBlank()) {
+            return false;
+        }
+        final String lower = msg.toLowerCase();
+        return lower.contains("service not enabled")
+                || lower.contains("servicenotenabled")
+                || lower.contains("not enabled")
+                || lower.contains("project.not_found")
+                || lower.contains("404")
+                || lower.contains("not found");
+    }
+
+    /**
+     * Checks if a Throwable indicates that a service is not enabled / disabled in a project or region.
+     *
+     * @param t the throwable
+     * @return true if the throwable indicates a disabled/inactive service
+     */
+    public static boolean isServiceDisabled(final Throwable t) {
+        if (t == null) {
+            return false;
+        }
+        if (isServiceDisabled(t.getMessage())) {
+            return true;
+        }
+        if (t.getCause() != null && t.getCause() != t) {
+            return isServiceDisabled(t.getCause());
+        }
+        return false;
+    }
+
+    /**
      * Checks if an error message indicates an authorization, authentication, or permission failure.
+     * Note: If the message indicates a disabled service (e.g. HTTP 403 with "Service not enabled"),
+     * this returns false so disabled services are not misclassified as permission issues.
      *
      * @param msg the error message
      * @return true if the message indicates a permission issue
      */
     public static boolean isPermissionIssue(final String msg) {
         if (msg == null || msg.isBlank()) {
+            return false;
+        }
+        if (isServiceDisabled(msg)) {
             return false;
         }
         final String lower = msg.toLowerCase();
@@ -193,6 +236,9 @@ public final class StackitConstants {
      */
     public static boolean isPermissionIssue(final Throwable t) {
         if (t == null) {
+            return false;
+        }
+        if (isServiceDisabled(t)) {
             return false;
         }
         if (isPermissionIssue(t.getMessage())) {
