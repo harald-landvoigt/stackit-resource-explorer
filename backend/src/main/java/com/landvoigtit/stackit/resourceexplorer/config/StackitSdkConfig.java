@@ -20,6 +20,7 @@ import com.landvoigtit.stackit.resourceexplorer.billing.BillingApiClient;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
@@ -43,6 +44,9 @@ public class StackitSdkConfig {
 
     @ConfigProperty(name = "stackit.regions", defaultValue = "eu01,eu02")
     List<String> regions;
+
+    @ConfigProperty(name = "stackit.discovery.cache-ttl", defaultValue = "10m")
+    Duration discoveryCacheTtl;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private volatile ResilientKeyFlowAuthenticator authenticator;
@@ -132,6 +136,10 @@ public class StackitSdkConfig {
                 .distinct()
                 .toList();
         return list.isEmpty() ? StackitConstants.DEFAULT_REGIONS : list;
+    }
+
+    public Duration getDiscoveryCacheTtl() {
+        return discoveryCacheTtl != null ? discoveryCacheTtl : Duration.ofMinutes(10);
     }
 
     public void registerRegionalIaasApi(final String region, final IaasApi api) {

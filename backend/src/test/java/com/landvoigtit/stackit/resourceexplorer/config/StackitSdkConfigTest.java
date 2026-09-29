@@ -52,4 +52,13 @@ public class StackitSdkConfigTest {
         config.regions = java.util.List.of(" EU01 ", "eu02", "EU01");
         assertEquals(java.util.List.of("eu01", "eu02"), config.getRegions());
     }
+
+    @Test
+    public void testDiscoveryCacheTtl() {
+        final StackitSdkConfig config = new StackitSdkConfig();
+        assertEquals(java.time.Duration.ofMinutes(10), config.getDiscoveryCacheTtl());
+
+        config.discoveryCacheTtl = java.time.Duration.ofMinutes(5);
+        assertEquals(java.time.Duration.ofMinutes(5), config.getDiscoveryCacheTtl());
+    }
 }
