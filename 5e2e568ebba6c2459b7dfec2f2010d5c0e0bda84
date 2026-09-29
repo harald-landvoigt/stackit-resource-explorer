@@ -1,0 +1,7 @@
+Task: ALB False-Positive Access Denial Fix
+- Updated NetworkResourceScraper to check StackitConstants.isServiceDisabled before isPermissionIssue
+- Demoted disabled ALB logs from warn to debug level
+- Ensured disabled ALB services do not set permissionDenied=true and do not record ACCESS_DENIED in AccessIssueRegistry
+- Added unit tests in NetworkResourceScraperTest verifying disabled service handling vs true permission denial
+- Created/Modified files: NetworkResourceScraper.java, NetworkResourceScraperTest.java
+- Why: STACKIT ALB API returns HTTP 403 'Service not enabled' when ALB is disabled in a region, which was incorrectly treated as a permission denial
