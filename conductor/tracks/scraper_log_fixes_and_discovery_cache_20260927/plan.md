@@ -64,14 +64,14 @@ This plan addresses issues **1, 2, 4, 5, and 7** identified in the STACKIT Resou
   - [x] Verify 404 on bucket policy does not log a warning.
 
 ### Phase 4: Multi-region Disabled Service Noise Reduction & Error Sanitization (Item 7)
-- [ ] Update [`StackitConstants.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/config/StackitConstants.java):
-  - [ ] Add `cleanErrorMessage(Throwable t)` / `cleanErrorMessage(String msg)` to extract concise descriptions (e.g. `HTTP 404: Not Found`) rather than printing multiline Istio headers and raw payloads.
-- [ ] Update regional scrapers:
-  - [ ] [`ComputeResourceScraper.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/compute/ComputeResourceScraper.java): Use `isServiceDisabled` and log disabled services at `DEBUG`.
-  - [ ] [`VmDiskResourceScraper.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/storage/VmDiskResourceScraper.java): Use `isServiceDisabled` and log disabled services at `DEBUG`.
-  - [ ] [`NetworkVpcResourceScraper.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/network/NetworkVpcResourceScraper.java): Use `isServiceDisabled` and log disabled services at `DEBUG`.
-  - [ ] [`PublicIpResourceScraper.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/network/PublicIpResourceScraper.java): Clean up 404 message formatting so raw HTTP headers are not logged.
-- [ ] Add/update scraper unit tests to verify concise error logging for disabled services.
+- [x] Update [`StackitConstants.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/config/StackitConstants.java): [7be0714]
+  - [x] Add `cleanErrorMessage(Throwable t)` / `cleanErrorMessage(String msg)` to extract concise descriptions (e.g. `HTTP 404: Not Found`) rather than printing multiline Istio headers and raw payloads.
+- [x] Update regional scrapers: [7be0714]
+  - [x] [`ComputeResourceScraper.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/compute/ComputeResourceScraper.java): Use `isServiceDisabled` and log disabled services at `DEBUG`.
+  - [x] [`VmDiskResourceScraper.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/storage/VmDiskResourceScraper.java): Use `isServiceDisabled` and log disabled services at `DEBUG`.
+  - [x] [`NetworkVpcResourceScraper.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/network/NetworkVpcResourceScraper.java): Use `isServiceDisabled` and log disabled services at `DEBUG`.
+  - [x] [`PublicIpResourceScraper.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/network/PublicIpResourceScraper.java): Clean up 404 message formatting so raw HTTP headers are not logged.
+- [x] Add/update scraper unit tests to verify concise error logging for disabled services. [7be0714]
 
 ### Phase 5: Verification & Quality Gate
 - [ ] Run full Maven test suite (`./mvnw clean test`) and ensure 100% pass rate.
