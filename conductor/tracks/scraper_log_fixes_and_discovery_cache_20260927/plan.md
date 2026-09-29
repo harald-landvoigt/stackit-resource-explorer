@@ -54,7 +54,7 @@ This plan addresses issues **1, 2, 4, 5, and 7** identified in the STACKIT Resou
   - [x] Verify HTTP 403 with `"Service not enabled"` does not produce a warning or register an access issue.
   - [x] Verify true HTTP 403 (unauthorized/forbidden role) still registers `ACCESS_DENIED`.
 
-### Phase 3: S3 PublicAccessBlock (501) & Bucket Policy (404) Log Cleanup (Items 4 & 5)
+### Phase 3: S3 PublicAccessBlock (501) & Bucket Policy (404) Log Cleanup (Items 4 & 5) [checkpoint: 963ee84]
 - [x] Update [`StorageResourceScraper.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/storage/StorageResourceScraper.java): [85a6634]
   - [x] In `enrichWithS3` step 2 (Bucket Policy): Change log level for `NoSuchBucketPolicy` / 404 from `log.warn(...)` to `log.debug(...)`.
   - [x] In `enrichWithS3` step 3 (Public Access Block): Catch `S3Exception` where `statusCode() == 501` or error code is `NotImplemented`; log at `log.debug(...)` without logging a warning.
