@@ -1,0 +1,8 @@
+Phase: Phase 2: Error Classification & ALB False-Positive Access Denial Fix
+Automated Test Command: ./mvnw test -Dtest=StackitConstantsTest,NetworkResourceScraperTest
+Automated Test Result: 8 tests run, 0 failures, 0 errors, 0 skipped (BUILD SUCCESS)
+Manual Verification Steps:
+1. Ensure the backend application is running against an organization where some projects/regions do not have ALB enabled.
+2. Execute curl -s http://localhost:8080/resources/access-issues | jq .
+3. Confirm that projects with disabled ALB services do NOT show ACCESS_DENIED under the network resource type, and that disabled services log cleanly at DEBUG level.
+User Confirmation: Explicit confirmation received ('yes').
