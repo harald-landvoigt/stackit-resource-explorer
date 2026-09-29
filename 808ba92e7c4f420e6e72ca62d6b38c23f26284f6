@@ -1,0 +1,7 @@
+Task: Replace volatile discovery cache collections with AtomicReference and immutable record
+Summary:
+- Replaced volatile List<Project> and volatile Map<String, String> with AtomicReference<DiscoveredProjectsSnapshot>.
+- DiscoveredProjectsSnapshot encapsulates projects, projectNames map, and cachedAt timestamp into an immutable record.
+- Replaced volatile String cachedOrganizationId with AtomicReference<String>.
+- Resolves SonarLint rule java:S3077 and provides atomic consistency across cache state fields.
+All 160 backend tests passed.
