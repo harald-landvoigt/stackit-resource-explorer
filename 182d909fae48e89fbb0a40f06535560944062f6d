@@ -1,0 +1,10 @@
+Phase: Phase 4: Multi-region Disabled Service Noise Reduction & Error Sanitization
+Automated Test Commands:
+- ./mvnw test -Dtest=StackitConstantsTest,ComputeResourceScraperUnitTest,VmDiskResourceScraperUnitTest,NetworkVpcResourceScraperUnitTest,PublicIpResourceScraperUnitTest
+- ./mvnw test -Dtest=MultiRegionScraperTest,ScraperAccessIssueTrackingTest,PublicIpResourceScraperTest
+Automated Test Results: All 30 tests run, 0 failures, 0 errors, 0 skipped (BUILD SUCCESS).
+Manual Verification Steps:
+1. Ensure the backend application is running against an organization where some projects have services disabled in secondary regions such as eu02.
+2. Execute docker logs -f stackit-backend 2>&1 | grep -E 'Compute|VM Disks|Network VPC|Public IPs'.
+3. Confirm that no multiline stack traces dumping raw Istio Envoy headers appear, that disabled services in secondary regions log at DEBUG, and genuine permission failures log clean single-line warnings.
+User Confirmation: Explicit confirmation received ('push to remote origin').
