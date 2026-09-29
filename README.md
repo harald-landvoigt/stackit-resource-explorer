@@ -218,9 +218,11 @@ object-storage.service.list
 > - **Without these permissions** (e.g., if only `objectstorage.viewer` or `objectstorage.auditor` is assigned): The scraper can list bucket names via the control-plane API, but JIT key generation will fail with `403 Forbidden`. The scraper gracefully degrades by recording the `ACL_NOT_ACCESSIBLE` security finding, tagging the bucket with `is-public: unknown`, and rendering an **orange badge for UNKNOWN** (🟠).
 > - **Read-Only S3 Access Key Discovery**: In contrast to the S3 Security Audit, cataloging existing S3 access keys and credentials groups under IAM only requires read permissions (`object-storage.credentials-group.list` and `object-storage.access-key.list`), available in `objectstorage.auditor` or `objectstorage.viewer`.
 
-### Resilient Scraping & Logging Standards
+### Resilient Scraping & Code Quality Standards
 
-All scrapers follow structured, non-blocking operational and logging standards:
+All scrapers and backend services follow structured, non-blocking operational, complexity, and logging standards:
+- **Cognitive Complexity (< 15)**: Every method across backend services, utilities, and scrapers must maintain a Cognitive Complexity strictly `< 15` (enforcing SonarLint rule `java:S3776`). Workflows with nested branching, loops, or complex error handling are decomposed into focused, single-responsibility helper methods.
+- **Immutability & Final Modifiers**: All method parameters and local variables that are not reassigned must declare the `final` modifier.
 - **Operational Progress (`INFO`)**: Scraper run start and completion, project hierarchy traversal, and discovered resource counts are logged at `INFO` level.
 - **Permission Denials (`WARN`)**: When a service account lacks access to a specific service or project (HTTP 401/403, Unauthorized, Forbidden), a concise `WARN` log is issued detailing the project, region, and HTTP error body. The scraper does not fail or abort; it logs the warning and proceeds with the remaining projects and regions.
 - **Unactivated / Absent Services (`INFO`)**: When an optional service is not enabled for a project (HTTP 404 Not Found), it is logged as benign `INFO` without raising alerts.

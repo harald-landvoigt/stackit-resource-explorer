@@ -151,7 +151,7 @@ Each scraper implements independent schedules (configurable via `application.pro
   - **Token Flow (Deprecated)**: Detects legacy static API secrets (*"The legacy model where a long-lived, static API secret acted directly as a bearer token."*), flagging `deprecated = true`, active static token counts, expiration timestamps, and tagging with `auth-flow: "token-flow-deprecated"`.
 - Correlates project members to service accounts so project-level access entries automatically inherit their service account's authentication scheme.
 - Full-Text Search indexing enables instant querying by `"Token Flow"`, `"Token Flow (Deprecated)"`, `"static API secret"`, `"token-flow-deprecated"`, `"S3 Access Key"`, or `"s3-hmac-key"`.
-- **Maintainability & Low Cognitive Complexity**: Scraper logic is decomposed into dedicated helper methods (`processServiceAccount`, `processMemberRole`, `scrapeProjectAccessKeysInRegion`, `processAccessKey`) to maintain cognitive complexity well within strict linter thresholds (<= 15).
+- **Maintainability & Low Cognitive Complexity**: Scraper logic is decomposed into dedicated helper methods (`processServiceAccount`, `processMemberRole`, `scrapeProjectAccessKeysInRegion`, `processAccessKey`) to maintain cognitive complexity strictly below linter thresholds (< 15).
 
 #### Billing / Cost Scraper Details
 - Aggregates current calendar month usage in UTC.
@@ -159,8 +159,9 @@ Each scraper implements independent schedules (configurable via `application.pro
 - Features an on-demand fallback: when `/resources/billing-summary` is called, if the database has no billing records, an immediate scrape is triggered.
 - Summary ordering places the Organization total in the first row, followed by child projects sorted descending by cost.
 
-### 3. Resilient Scraping & Logging Standards
-All scraper jobs adhere to uniform logging and fault-isolation standards:
+### 3. Resilient Scraping & Code Quality Standards
+All scraper jobs and backend domain services adhere to uniform coding, quality, and fault-isolation standards:
+- **Cognitive Complexity (< 15)**: Every method must maintain a Cognitive Complexity strictly `< 15` (enforcing SonarLint rule `java:S3776`). Workflows with nested branching, loops, or complex error handling must be decomposed into cohesive single-responsibility helper methods.
 - **Operational Progress (`INFO`)**: Scraping phase transitions (start, project discovery, completion) and counts of scraped resources per service and project are logged at `INFO` level.
 - **Permission Denials (`WARN`)**: When encountering HTTP `401` or `403` (Unauthorized, Forbidden) for any target project or region, scrapers log a structured warning including the project ID, region, and error payload. The failure is isolated—the scraper continues processing remaining projects.
 - **Absent / Unactivated Services (`INFO`)**: When a project does not have an optional service enabled (HTTP 404 Not Found), scrapers log the event as standard `INFO` without triggering warnings.
