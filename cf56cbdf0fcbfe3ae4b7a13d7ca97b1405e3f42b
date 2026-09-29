@@ -1,0 +1,8 @@
+Phase: Phase 1: In-Memory TTL Caching & Coalescing for Project Discovery
+Automated Test Command: ./mvnw test
+Automated Test Result: 140 tests run, 0 failures, 0 errors, 0 skipped (BUILD SUCCESS)
+Manual Verification Steps:
+1. Ensure the backend application is running.
+2. Execute curl commands for /resources?q=test, /resources/billing-summary, and /resources/access-issues.
+3. Confirm HTTP 200 OK responses with resolved project names and verify that project discovery runs only once, served from cache within TTL.
+User Confirmation: Explicit confirmation received ('yes').
