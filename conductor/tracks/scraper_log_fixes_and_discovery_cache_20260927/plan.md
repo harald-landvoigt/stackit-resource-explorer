@@ -55,13 +55,13 @@ This plan addresses issues **1, 2, 4, 5, and 7** identified in the STACKIT Resou
   - [x] Verify true HTTP 403 (unauthorized/forbidden role) still registers `ACCESS_DENIED`.
 
 ### Phase 3: S3 PublicAccessBlock (501) & Bucket Policy (404) Log Cleanup (Items 4 & 5)
-- [ ] Update [`StorageResourceScraper.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/storage/StorageResourceScraper.java):
-  - [ ] In `enrichWithS3` step 2 (Bucket Policy): Change log level for `NoSuchBucketPolicy` / 404 from `log.warn(...)` to `log.debug(...)`.
-  - [ ] In `enrichWithS3` step 3 (Public Access Block): Catch `S3Exception` where `statusCode() == 501` or error code is `NotImplemented`; log at `log.debug(...)` without logging a warning.
-  - [ ] In `enrichRetention`: Check whether compliance lock is active on the project; if inactive or 409 `compliance_lock.required` is returned, handle cleanly at `DEBUG` without warning logs.
-- [ ] Add unit tests in [`StorageResourceScraperTest.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/test/java/com/landvoigtit/stackit/resourceexplorer/storage/StorageResourceScraperTest.java):
-  - [ ] Verify S3 501 Not Implemented on `getPublicAccessBlock` logs at `DEBUG` and defaults to standard security evaluation.
-  - [ ] Verify 404 on bucket policy does not log a warning.
+- [x] Update [`StorageResourceScraper.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/storage/StorageResourceScraper.java): [85a6634]
+  - [x] In `enrichWithS3` step 2 (Bucket Policy): Change log level for `NoSuchBucketPolicy` / 404 from `log.warn(...)` to `log.debug(...)`.
+  - [x] In `enrichWithS3` step 3 (Public Access Block): Catch `S3Exception` where `statusCode() == 501` or error code is `NotImplemented`; log at `log.debug(...)` without logging a warning.
+  - [x] In `enrichRetention`: Check whether compliance lock is active on the project; if inactive or 409 `compliance_lock.required` is returned, handle cleanly at `DEBUG` without warning logs.
+- [x] Add unit tests in [`StorageResourceScraperTest.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/test/java/com/landvoigtit/stackit/resourceexplorer/storage/StorageResourceScraperTest.java): [85a6634]
+  - [x] Verify S3 501 Not Implemented on `getPublicAccessBlock` logs at `DEBUG` and defaults to standard security evaluation.
+  - [x] Verify 404 on bucket policy does not log a warning.
 
 ### Phase 4: Multi-region Disabled Service Noise Reduction & Error Sanitization (Item 7)
 - [ ] Update [`StackitConstants.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/config/StackitConstants.java):
