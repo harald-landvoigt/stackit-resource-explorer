@@ -1,0 +1,8 @@
+Phase: Phase 3: S3 PublicAccessBlock (501) & Bucket Policy (404) Log Cleanup
+Automated Test Command: ./mvnw test -Dtest=StorageResourceScraperTest
+Automated Test Result: 6 tests run, 0 failures, 0 errors, 0 skipped (BUILD SUCCESS)
+Manual Verification Steps:
+1. Ensure the backend server is running and triggering storage scraping against STACKIT Object Storage buckets.
+2. Execute curl -s "http://localhost:8080/resources?type=storage" | jq .
+3. Confirm that all buckets are cataloged with security evaluations and that no WARN logs appear for S3 501 GetPublicAccessBlock, S3 404 NoSuchBucketPolicy, or inactive compliance lock.
+User Confirmation: Explicit confirmation received ('yes').
