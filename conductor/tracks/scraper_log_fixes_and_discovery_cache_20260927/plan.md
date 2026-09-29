@@ -74,9 +74,9 @@ This plan addresses issues **1, 2, 4, 5, and 7** identified in the STACKIT Resou
 - [x] Add/update scraper unit tests to verify concise error logging for disabled services. [7be0714]
 
 ### Phase 5: Verification & Quality Gate
-- [ ] Run full Maven test suite (`./mvnw clean test`) and ensure 100% pass rate.
-- [ ] Run Angular frontend test suite (`npm test -- --watch=false`).
-- [ ] Verify in Docker logs that:
+- [x] Run full Maven test suite (`./mvnw clean test`) and ensure 100% pass rate.
+- [x] Run Angular frontend test suite (`npm test -- --watch=false`).
+- [x] Verify in Docker logs that:
   - Startup project discovery runs once instead of 8 times.
   - Search queries and billing summary requests do not log repeated project discovery scans.
   - No 501 PublicAccessBlock warnings are logged.
