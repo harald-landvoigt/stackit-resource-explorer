@@ -26,6 +26,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 @ApplicationScoped
 @Slf4j
 public class StackitProjectDiscoveryService {
@@ -35,12 +37,24 @@ public class StackitProjectDiscoveryService {
     private final StackitSdkConfig sdkConfig;
     private final ResourceManagerApi resourceManagerApi;
 
-    private volatile String cachedOrganizationId;
+    private final AtomicReference<String> cachedOrganizationId = new AtomicReference<>();
     private final Object orgLock = new Object();
 
-    private volatile List<Project> cachedProjects;
-    private volatile Map<String, String> cachedProjectNames;
-    private volatile Instant projectsCachedAt;
+    public record DiscoveredProjectsSnapshot(
+            List<Project> projects,
+            Map<String, String> projectNames,
+            Instant cachedAt
+    ) {
+        public boolean isValid(final Duration ttl) {
+            if (projects == null || cachedAt == null) {
+                return false;
+            }
+            final Duration effectiveTtl = ttl != null ? ttl : Duration.ofMinutes(10);
+            return Duration.between(cachedAt, Instant.now()).compareTo(effectiveTtl) < 0;
+        }
+    }
+
+    private final AtomicReference<DiscoveredProjectsSnapshot> projectsSnapshot = new AtomicReference<>();
     private final Object discoveryLock = new Object();
 
     @Inject
@@ -50,19 +64,21 @@ public class StackitProjectDiscoveryService {
     }
 
     public final String discoverOrganizationId() {
-        if (cachedOrganizationId != null && !cachedOrganizationId.isBlank()) {
-            return cachedOrganizationId;
+        final String cachedOrg = cachedOrganizationId.get();
+        if (cachedOrg != null && !cachedOrg.isBlank()) {
+            return cachedOrg;
         }
         synchronized (orgLock) {
-            if (cachedOrganizationId != null && !cachedOrganizationId.isBlank()) {
-                return cachedOrganizationId;
+            final String existing = cachedOrganizationId.get();
+            if (existing != null && !existing.isBlank()) {
+                return existing;
             }
             try {
                 final String tokenOrgId = sdkConfig.getDiscoveredOrganizationId();
                 if (tokenOrgId != null && !tokenOrgId.isBlank()) {
                     log.info("Discovered organization ID {} from access token claims.", tokenOrgId);
-                    cachedOrganizationId = tokenOrgId;
-                    return cachedOrganizationId;
+                    cachedOrganizationId.set(tokenOrgId);
+                    return tokenOrgId;
                 }
                 log.info("No organization ID found in access token claims. Attempting discovery via initial project parent...");
                 final String initialProjectId = resolveInitialProjectId();
@@ -72,8 +88,8 @@ public class StackitProjectDiscoveryService {
                     final String orgId = getOrganizationId(initialProject);
                     if (orgId != null && !orgId.isBlank()) {
                         log.info("Discovered organization ID {} via project {} parent hierarchy.", orgId, initialProjectId);
-                        cachedOrganizationId = orgId;
-                        return cachedOrganizationId;
+                        cachedOrganizationId.set(orgId);
+                        return orgId;
                     } else {
                         log.warn("Project {} has no organization parent container in hierarchy.", initialProjectId);
                     }
@@ -92,18 +108,21 @@ public class StackitProjectDiscoveryService {
     }
 
     public List<Project> discoverProjects(final boolean forceRefresh) {
-        if (!forceRefresh && isCacheValid()) {
-            return cachedProjects;
+        final Duration ttl = sdkConfig != null ? sdkConfig.getDiscoveryCacheTtl() : Duration.ofMinutes(10);
+        final DiscoveredProjectsSnapshot snapshot = projectsSnapshot.get();
+        if (!forceRefresh && snapshot != null && snapshot.isValid(ttl)) {
+            return snapshot.projects();
         }
 
         synchronized (discoveryLock) {
-            if (!forceRefresh && isCacheValid()) {
-                return cachedProjects;
+            final DiscoveredProjectsSnapshot currentSnapshot = projectsSnapshot.get();
+            if (!forceRefresh && currentSnapshot != null && currentSnapshot.isValid(ttl)) {
+                return currentSnapshot.projects();
             }
 
             final List<Project> discovered = fetchProjectsRemotely();
             if (discovered != null && !discovered.isEmpty()) {
-                cachedProjects = Collections.unmodifiableList(discovered);
+                final List<Project> unmodifiableProjects = Collections.unmodifiableList(discovered);
                 final Map<String, String> namesMap = new LinkedHashMap<>();
                 for (final Project p : discovered) {
                     final String pid = p.getProjectId() != null ? p.getProjectId().toString() : p.getContainerId();
@@ -111,42 +130,35 @@ public class StackitProjectDiscoveryService {
                         namesMap.put(pid, p.getName());
                     }
                 }
-                cachedProjectNames = Collections.unmodifiableMap(namesMap);
-                projectsCachedAt = Instant.now();
-                return cachedProjects;
-            } else if (cachedProjects != null) {
-                return cachedProjects;
+                final DiscoveredProjectsSnapshot newSnapshot = new DiscoveredProjectsSnapshot(
+                        unmodifiableProjects,
+                        Collections.unmodifiableMap(namesMap),
+                        Instant.now()
+                );
+                projectsSnapshot.set(newSnapshot);
+                return unmodifiableProjects;
+            } else if (currentSnapshot != null && currentSnapshot.projects() != null) {
+                return currentSnapshot.projects();
             }
             return discovered != null ? discovered : Collections.emptyList();
         }
     }
 
-    private boolean isCacheValid() {
-        if (cachedProjects == null || projectsCachedAt == null) {
-            return false;
-        }
+    boolean isCacheValid() {
         final Duration ttl = sdkConfig != null ? sdkConfig.getDiscoveryCacheTtl() : Duration.ofMinutes(10);
-        return Duration.between(projectsCachedAt, Instant.now()).compareTo(ttl) < 0;
+        final DiscoveredProjectsSnapshot snapshot = projectsSnapshot.get();
+        return snapshot != null && snapshot.isValid(ttl);
     }
 
     public Map<String, String> getProjectNamesMap() {
-        if (!isCacheValid() || cachedProjectNames == null) {
-            final List<Project> projects = discoverProjects(false);
-            if (cachedProjectNames != null) {
-                return cachedProjectNames;
-            }
-            if (projects != null && !projects.isEmpty()) {
-                final Map<String, String> namesMap = new LinkedHashMap<>();
-                for (final Project p : projects) {
-                    final String pid = p.getProjectId() != null ? p.getProjectId().toString() : p.getContainerId();
-                    if (pid != null && p.getName() != null && !p.getName().isBlank()) {
-                        namesMap.put(pid, p.getName());
-                    }
-                }
-                return namesMap;
-            }
+        final Duration ttl = sdkConfig != null ? sdkConfig.getDiscoveryCacheTtl() : Duration.ofMinutes(10);
+        final DiscoveredProjectsSnapshot snapshot = projectsSnapshot.get();
+        if (snapshot != null && snapshot.isValid(ttl) && snapshot.projectNames() != null) {
+            return snapshot.projectNames();
         }
-        return cachedProjectNames != null ? cachedProjectNames : Collections.emptyMap();
+        discoverProjects(false);
+        final DiscoveredProjectsSnapshot updated = projectsSnapshot.get();
+        return updated != null && updated.projectNames() != null ? updated.projectNames() : Collections.emptyMap();
     }
 
     private List<Project> fetchProjectsRemotely() {
