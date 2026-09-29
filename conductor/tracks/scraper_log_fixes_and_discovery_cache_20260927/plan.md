@@ -41,11 +41,11 @@ This plan addresses issues **1, 2, 4, 5, and 7** identified in the STACKIT Resou
   - [x] Verify concurrent requests coalesce into a single remote API execution.
 
 ### Phase 2: Error Classification & ALB False-Positive Access Denial Fix (Item 2)
-- [ ] Update [`StackitConstants.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/config/StackitConstants.java):
-  - [ ] Add `isServiceDisabled(String msg)` and `isServiceDisabled(Throwable t)` checking for:
+- [x] Update [`StackitConstants.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/config/StackitConstants.java): [c09abe8]
+  - [x] Add `isServiceDisabled(String msg)` and `isServiceDisabled(Throwable t)` checking for:
     - `"service not enabled"`, `"servicenotenabled"`, `"not enabled"`, `"project.not_found"`, or HTTP 404.
     - HTTP 403 where body/message explicitly states `"Service not enabled"`.
-  - [ ] Refactor `isPermissionIssue(msg)` to ensure `isServiceDisabled(msg)` takes precedence (returns `false` if the message is merely a disabled service).
+  - [x] Refactor `isPermissionIssue(msg)` to ensure `isServiceDisabled(msg)` takes precedence (returns `false` if the message is merely a disabled service).
 - [ ] Update [`NetworkResourceScraper.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/network/NetworkResourceScraper.java):
   - [ ] Check `StackitConstants.isServiceDisabled(msg)` before `isPermissionIssue(msg)`.
   - [ ] If disabled, log at `DEBUG` or clean `INFO` (`"ALB not enabled for project {} in region {}"`).
