@@ -1,0 +1,7 @@
+Task: S3 PublicAccessBlock & Bucket Policy Log Cleanup
+- Demoted S3 404 NoSuchBucketPolicy from warn to debug level
+- Added S3Exception handling for 501 / NotImplemented on getPublicAccessBlock, logging at debug level without emitting warnings
+- Handled inactive compliance lock (404/409) at debug level and skipped redundant default retention queries
+- Added unit tests in StorageResourceScraperTest validating S3 501 and inactive compliance lock handling
+- Created/Modified files: StorageResourceScraper.java, StorageResourceScraperTest.java
+- Why: STACKIT Object Storage does not support AWS S3 GetPublicAccessBlock (501) and buckets without custom policies return 404, creating false warning log noise
