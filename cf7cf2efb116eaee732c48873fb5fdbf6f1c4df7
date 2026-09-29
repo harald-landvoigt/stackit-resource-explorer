@@ -1,0 +1,8 @@
+Task: In-Memory Caching & Coalescing for Project Discovery
+- Added cachedProjects, cachedProjectNames, and projectsCachedAt with discoveryLock synchronization
+- Implemented discoverProjects(boolean forceRefresh) and isCacheValid() based on configurable discoveryCacheTtl
+- Added cachedOrganizationId with orgLock synchronization to avoid repeated parent hierarchy lookups
+- Added getProjectNamesMap() for fast O(1) project name lookups
+- Added unit tests in StackitProjectDiscoveryServiceTest validating TTL expiration, force refresh, project name map, orgId caching, and concurrent request coalescing
+- Created/Modified files: StackitProjectDiscoveryService.java, StackitProjectDiscoveryServiceTest.java
+- Why: Eliminates duplicate remote discovery calls from 8 parallel scrapers at startup and subsequent periodic queries
