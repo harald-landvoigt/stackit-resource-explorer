@@ -1,0 +1,6 @@
+Task: Use Cached Project Names Map in StackitResourceService
+- Updated searchResources(), getBillingSummary(), and getAccessIssues() to use projectDiscoveryService.getProjectNamesMap()
+- Avoids triggering redundant remote organization/project discovery scans on every search query, billing summary, or access issue query
+- Added unit tests in StackitResourceServiceTest verifying getProjectNamesMap() usage and that discoverProjects() is never called
+- Created/Modified files: StackitProjectDiscoveryService.java, StackitResourceService.java, StackitResourceServiceTest.java
+- Why: Replaces expensive remote discovery calls with fast O(1) in-memory cache lookup
