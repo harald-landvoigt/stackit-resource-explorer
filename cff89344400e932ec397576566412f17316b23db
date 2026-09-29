@@ -1,0 +1,6 @@
+Task: TTL Cache Configuration Property
+- Added discoveryCacheTtl configuration property with default 10m to StackitSdkConfig
+- Added stackit.discovery.cache-ttl=${STACKIT_DISCOVERY_CACHE_TTL:10m} to application.properties
+- Added testDiscoveryCacheTtl to StackitSdkConfigTest
+- Created/Modified files: StackitSdkConfig.java, application.properties, StackitSdkConfigTest.java
+- Why: Provides configurable TTL for in-memory discovery caching to prevent redundant Resource Manager API calls
