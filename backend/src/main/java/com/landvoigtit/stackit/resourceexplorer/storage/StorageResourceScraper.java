@@ -101,20 +101,29 @@ public class StorageResourceScraper {
 
                 // Query project-level compliance lock
                 Integer projectMaxRetentionDays = null;
+                boolean complianceLockActive = false;
                 try {
                     final ComplianceLockResponse lockResponse = objectStorageApi.getComplianceLock(projectIdStr, region);
                     if (lockResponse != null && lockResponse.getMaxRetentionDays() != null) {
                         projectMaxRetentionDays = lockResponse.getMaxRetentionDays();
+                        complianceLockActive = true;
                     }
                 } catch (final Exception e) {
-                    log.warn("Compliance lock not found or accessible for project {} in region {}: {}", projectIdStr, region, e.getMessage());
+                    final String msg = e.getMessage() != null ? e.getMessage() : "";
+                    if (msg.contains("404") || msg.contains("409") || msg.contains("compliance_lock.required")) {
+                        log.debug("Compliance lock inactive or not configured for project {} in region {}: {}", projectIdStr, region, msg);
+                    } else {
+                        log.debug("Compliance lock not accessible for project {} in region {}: {}", projectIdStr, region, e.getMessage());
+                    }
                 }
 
                 // Prepare initial bucket DTOs and query control-plane retention
                 final List<StorageResourceDto> dtos = new ArrayList<>();
                 for (final Bucket bucket : bucketsResponse.getBuckets()) {
                     final StorageResourceDto dto = StorageResourceMapper.mapToDto(bucket);
-                    enrichRetention(projectIdStr, region, bucket.getName(), projectMaxRetentionDays, dto);
+                    if (complianceLockActive) {
+                        enrichRetention(projectIdStr, region, bucket.getName(), projectMaxRetentionDays, dto);
+                    }
                     dtos.add(dto);
                 }
 
@@ -149,14 +158,14 @@ public class StorageResourceScraper {
                 }
             } catch (final Exception e) {
                 final String msg = e.getMessage() != null ? e.getMessage() : "";
-                if (StackitConstants.isPermissionIssue(msg)) {
+                if (StackitConstants.isServiceDisabled(e)) {
+                    log.debug("Storage not enabled for project {} in region {}: {}", projectIdStr, region, msg);
+                } else if (StackitConstants.isPermissionIssue(msg)) {
                     log.warn("Permission denied accessing Storage resources for project {} in region {}: {}", projectIdStr, region, msg);
                     permissionDenied = true;
                     permissionDeniedMsg = msg;
                     permissionDeniedRegion = region;
                     allRegionsSucceeded = false;
-                } else if (msg.contains("404") || msg.contains("not_found")) {
-                    log.warn("Storage not enabled for project {} in region {}: {}", projectIdStr, region, msg);
                 } else {
                     log.warn("Failed to scrape Storage resources for project {} in region {}: {}", projectIdStr, region, e.getMessage());
                     allRegionsSucceeded = false;
@@ -198,7 +207,12 @@ public class StorageResourceScraper {
                 dto.setRetention(retentionDto);
             }
         } catch (final Exception e) {
-            log.warn("Default retention not found or error for bucket {} in project {}: {}", bucketName, projectId, e.getMessage());
+            final String msg = e.getMessage() != null ? e.getMessage() : "";
+            if (msg.contains("404") || msg.contains("409") || msg.contains("compliance_lock.required")) {
+                log.debug("Default retention not found or not configured for bucket {} in project {}: {}", bucketName, projectId, msg);
+            } else {
+                log.warn("Default retention error for bucket {} in project {}: {}", bucketName, projectId, e.getMessage());
+            }
         }
     }
 
@@ -239,7 +253,7 @@ public class StorageResourceScraper {
             }
         } catch (final S3Exception e) {
             if (e.statusCode() == 404 || (e.awsErrorDetails() != null && "NoSuchBucketPolicy".equals(e.awsErrorDetails().errorCode()))) {
-                log.warn("No bucket policy found for bucket {}", bucketName);
+                log.debug("No bucket policy found for bucket {}", bucketName);
             } else if (e.statusCode() == 403 || StackitConstants.isPermissionIssue(e.getMessage())) {
                 log.warn("Permission denied fetching policy for bucket {}: {}", bucketName, e.getMessage());
             } else {
@@ -247,7 +261,9 @@ public class StorageResourceScraper {
             }
         } catch (final Exception e) {
             final String msg = e.getMessage() != null ? e.getMessage() : "";
-            if (StackitConstants.isPermissionIssue(msg)) {
+            if (msg.contains("404") || msg.contains("NoSuchBucketPolicy")) {
+                log.debug("No bucket policy found for bucket {}", bucketName);
+            } else if (StackitConstants.isPermissionIssue(msg)) {
                 log.warn("Permission denied fetching policy for bucket {}: {}", bucketName, msg);
             } else {
                 log.warn("Could not fetch policy for bucket {}: {}", bucketName, msg);
@@ -265,9 +281,20 @@ public class StorageResourceScraper {
                         || Boolean.TRUE.equals(pab.ignorePublicAcls())
                         || Boolean.TRUE.equals(pab.restrictPublicBuckets());
             }
+        } catch (final S3Exception e) {
+            final String errorCode = e.awsErrorDetails() != null ? e.awsErrorDetails().errorCode() : "";
+            if (e.statusCode() == 501 || "NotImplemented".equalsIgnoreCase(errorCode) || e.statusCode() == 404 || "NoSuchPublicAccessBlockConfiguration".equalsIgnoreCase(errorCode)) {
+                log.debug("PublicAccessBlock not supported or not configured for bucket {}: {}", bucketName, e.getMessage());
+            } else if (e.statusCode() == 403 || StackitConstants.isPermissionIssue(e.getMessage())) {
+                log.warn("Permission denied fetching PublicAccessBlock for bucket {}: {}", bucketName, e.getMessage());
+            } else {
+                log.warn("Could not fetch PublicAccessBlock for bucket {}: {}", bucketName, e.getMessage());
+            }
         } catch (final Exception e) {
             final String msg = e.getMessage() != null ? e.getMessage() : "";
-            if (StackitConstants.isPermissionIssue(msg)) {
+            if (msg.contains("501") || msg.toLowerCase().contains("notimplemented") || msg.toLowerCase().contains("not implemented") || msg.contains("404")) {
+                log.debug("PublicAccessBlock not supported or not found for bucket {}: {}", bucketName, msg);
+            } else if (StackitConstants.isPermissionIssue(msg)) {
                 log.warn("Permission denied fetching PublicAccessBlock for bucket {}: {}", bucketName, msg);
             } else {
                 log.warn("PublicAccessBlock not supported or not found for bucket {}: {}", bucketName, msg);
