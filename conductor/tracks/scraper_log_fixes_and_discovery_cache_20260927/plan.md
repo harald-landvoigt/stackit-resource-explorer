@@ -63,7 +63,7 @@ This plan addresses issues **1, 2, 4, 5, and 7** identified in the STACKIT Resou
   - [x] Verify S3 501 Not Implemented on `getPublicAccessBlock` logs at `DEBUG` and defaults to standard security evaluation.
   - [x] Verify 404 on bucket policy does not log a warning.
 
-### Phase 4: Multi-region Disabled Service Noise Reduction & Error Sanitization (Item 7)
+### Phase 4: Multi-region Disabled Service Noise Reduction & Error Sanitization (Item 7) [checkpoint: 182d909]
 - [x] Update [`StackitConstants.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/config/StackitConstants.java): [7be0714]
   - [x] Add `cleanErrorMessage(Throwable t)` / `cleanErrorMessage(String msg)` to extract concise descriptions (e.g. `HTTP 404: Not Found`) rather than printing multiline Istio headers and raw payloads.
 - [x] Update regional scrapers: [7be0714]
