@@ -114,4 +114,35 @@ public class StackitConstantsTest {
         assertTrue(StackitConstants.isPermissionIssue(new RuntimeException("403 Forbidden: User lacks permissions")));
         assertFalse(StackitConstants.isPermissionIssue(new RuntimeException("403 Forbidden: Service not enabled")));
     }
+
+    @Test
+    public void testCleanErrorMessage() {
+        assertEquals("", StackitConstants.cleanErrorMessage((String) null));
+        assertEquals("", StackitConstants.cleanErrorMessage(""));
+        assertEquals("Resource not found", StackitConstants.cleanErrorMessage("Resource not found"));
+
+        final String rawApiExceptionMsg = "Message: 404 Not Found\n" +
+                "HTTP response code: 404\n" +
+                "HTTP response body: {\"error\":\"Service disabled in region eu02\"}\n" +
+                "HTTP response headers: {date=[Tue, 29 Sep 2026 12:00:00 GMT], server=[istio-envoy], x-envoy-upstream-service-time=[12]}";
+
+        final String cleaned = StackitConstants.cleanErrorMessage(rawApiExceptionMsg);
+        assertEquals("HTTP 404: {\"error\":\"Service disabled in region eu02\"}", cleaned);
+        assertFalse(cleaned.contains("istio-envoy"));
+        assertFalse(cleaned.contains("HTTP response headers"));
+
+        // Null response body
+        final String rawMsgNoBody = "Message: 404 Not Found\n" +
+                "HTTP response code: 404\n" +
+                "HTTP response body: null\n" +
+                "HTTP response headers: {date=[Tue, 29 Sep 2026 12:00:00 GMT], server=[istio-envoy]}";
+        assertEquals("HTTP 404: 404 Not Found", StackitConstants.cleanErrorMessage(rawMsgNoBody));
+
+        // Throwable overload
+        assertEquals("", StackitConstants.cleanErrorMessage((Throwable) null));
+        assertEquals("Network timeout", StackitConstants.cleanErrorMessage(new RuntimeException("Network timeout")));
+        final cloud.stackit.sdk.core.exception.ApiException apiEx = new cloud.stackit.sdk.core.exception.ApiException(404, "404 Not Found");
+        assertTrue(StackitConstants.cleanErrorMessage(apiEx).contains("404"));
+        assertFalse(StackitConstants.cleanErrorMessage(apiEx).contains("HTTP response headers"));
+    }
 }

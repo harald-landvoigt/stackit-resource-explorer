@@ -249,5 +249,72 @@ public final class StackitConstants {
         }
         return false;
     }
+
+    /**
+     * Sanitizes and extracts a concise error message from a raw error or SDK ApiException string,
+     * removing multiline Istio headers and raw header payloads.
+     *
+     * @param msg the raw error message
+     * @return a sanitized, single-line error message
+     */
+    public static String cleanErrorMessage(final String msg) {
+        if (msg == null || msg.isBlank()) {
+            return "";
+        }
+        String cleaned = msg.trim();
+        final int headersIdx = cleaned.indexOf("HTTP response headers:");
+        if (headersIdx != -1) {
+            cleaned = cleaned.substring(0, headersIdx).trim();
+        }
+        if (cleaned.startsWith("Message: ")) {
+            final String[] lines = cleaned.split("\r?\n");
+            final String firstLine = lines[0].substring("Message: ".length()).trim();
+            String code = null;
+            String body = null;
+            for (final String line : lines) {
+                final String trimmed = line.trim();
+                if (trimmed.startsWith("HTTP response code: ")) {
+                    code = trimmed.substring("HTTP response code: ".length()).trim();
+                } else if (trimmed.startsWith("HTTP response body: ")) {
+                    body = trimmed.substring("HTTP response body: ".length()).trim();
+                }
+            }
+            if (body != null && !body.equals("null") && !body.isBlank()) {
+                return (code != null && !code.equals("null") ? "HTTP " + code + ": " : "") + body;
+            } else if (code != null && !code.equals("null")) {
+                return "HTTP " + code + ": " + firstLine;
+            } else {
+                return firstLine;
+            }
+        }
+        return cleaned.replaceAll("\\s+", " ").trim();
+    }
+
+    /**
+     * Extracts a concise error message from a Throwable, handling STACKIT SDK ApiExceptions cleanly.
+     *
+     * @param t the throwable
+     * @return a sanitized, concise error message
+     */
+    public static String cleanErrorMessage(final Throwable t) {
+        if (t == null) {
+            return "";
+        }
+        if (t instanceof cloud.stackit.sdk.core.exception.ApiException apiEx) {
+            final int code = apiEx.getCode();
+            final String body = apiEx.getResponseBody();
+            if (body != null && !body.isBlank() && !"null".equalsIgnoreCase(body.trim())) {
+                return "HTTP " + code + ": " + body.trim();
+            }
+            if (code > 0) {
+                final String cleaned = cleanErrorMessage(apiEx.getMessage());
+                if (cleaned.startsWith("HTTP " + code)) {
+                    return cleaned;
+                }
+                return "HTTP " + code + (!cleaned.isBlank() ? ": " + cleaned : "");
+            }
+        }
+        return cleanErrorMessage(t.getMessage());
+    }
 }
 
