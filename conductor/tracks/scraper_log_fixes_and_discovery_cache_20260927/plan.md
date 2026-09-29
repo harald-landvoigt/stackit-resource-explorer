@@ -33,8 +33,8 @@ This plan addresses issues **1, 2, 4, 5, and 7** identified in the STACKIT Resou
   - [x] Implement thread-safe synchronization/coalescing around `discoverProjects()` so parallel startup scrapers share a single remote discovery call.
   - [x] Add `discoverProjects(boolean forceRefresh)` and `getProjectNamesMap()` helper methods.
   - [x] Cache discovered organization ID so access token claims/parent hierarchy queries run only once.
-- [~] Update [`StackitResourceService.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/StackitResourceService.java):
-  - [ ] In `searchResources()`, `getBillingSummary()`, and `getAccessIssues()`, use cached project name mappings instead of triggering remote discovery.
+- [x] Update [`StackitResourceService.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/StackitResourceService.java): [bb7b4ec]
+  - [x] In `searchResources()`, `getBillingSummary()`, and `getAccessIssues()`, use cached project name mappings instead of triggering remote discovery.
 - [x] Add unit tests in `StackitProjectDiscoveryServiceTest.java`: [cf7cf2e]
   - [x] Verify discovery caching returns cached data within TTL.
   - [x] Verify `forceRefresh=true` bypasses cache.
