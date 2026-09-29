@@ -46,13 +46,13 @@ This plan addresses issues **1, 2, 4, 5, and 7** identified in the STACKIT Resou
     - `"service not enabled"`, `"servicenotenabled"`, `"not enabled"`, `"project.not_found"`, or HTTP 404.
     - HTTP 403 where body/message explicitly states `"Service not enabled"`.
   - [x] Refactor `isPermissionIssue(msg)` to ensure `isServiceDisabled(msg)` takes precedence (returns `false` if the message is merely a disabled service).
-- [ ] Update [`NetworkResourceScraper.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/network/NetworkResourceScraper.java):
-  - [ ] Check `StackitConstants.isServiceDisabled(msg)` before `isPermissionIssue(msg)`.
-  - [ ] If disabled, log at `DEBUG` or clean `INFO` (`"ALB not enabled for project {} in region {}"`).
-  - [ ] Ensure disabled services do NOT mark `permissionDenied = true` and do NOT record `ACCESS_DENIED` in [`AccessIssueRegistry`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/access/AccessIssueRegistry.java).
-- [ ] Add unit tests in [`NetworkResourceScraperTest.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/test/java/com/landvoigtit/stackit/resourceexplorer/network/NetworkResourceScraperTest.java):
-  - [ ] Verify HTTP 403 with `"Service not enabled"` does not produce a warning or register an access issue.
-  - [ ] Verify true HTTP 403 (unauthorized/forbidden role) still registers `ACCESS_DENIED`.
+- [x] Update [`NetworkResourceScraper.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/network/NetworkResourceScraper.java): [5e2e568]
+  - [x] Check `StackitConstants.isServiceDisabled(msg)` before `isPermissionIssue(msg)`.
+  - [x] If disabled, log at `DEBUG` or clean `INFO` (`"ALB not enabled for project {} in region {}"`).
+  - [x] Ensure disabled services do NOT mark `permissionDenied = true` and do NOT record `ACCESS_DENIED` in [`AccessIssueRegistry`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/access/AccessIssueRegistry.java).
+- [x] Add unit tests in [`NetworkResourceScraperTest.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/test/java/com/landvoigtit/stackit/resourceexplorer/network/NetworkResourceScraperTest.java): [5e2e568]
+  - [x] Verify HTTP 403 with `"Service not enabled"` does not produce a warning or register an access issue.
+  - [x] Verify true HTTP 403 (unauthorized/forbidden role) still registers `ACCESS_DENIED`.
 
 ### Phase 3: S3 PublicAccessBlock (501) & Bucket Policy (404) Log Cleanup (Items 4 & 5)
 - [ ] Update [`StorageResourceScraper.java`](file:///home/hadi/workspace/landvoigt-it-sources/stackit/resource-explorer/backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/storage/StorageResourceScraper.java):
