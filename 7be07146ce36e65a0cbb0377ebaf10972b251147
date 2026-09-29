@@ -1,0 +1,18 @@
+Task: Phase 4 Multi-region Disabled Service Noise Reduction & Error Sanitization
+Summary of changes:
+- StackitConstants.cleanErrorMessage: sanitizes multiline Istio headers, extracting concise status code and body/message.
+- ComputeResourceScraper, VmDiskResourceScraper, NetworkVpcResourceScraper, PublicIpResourceScraper: demote disabled service errors to DEBUG and clean up error logs.
+- Added comprehensive unit tests in ComputeResourceScraperUnitTest, VmDiskResourceScraperUnitTest, NetworkVpcResourceScraperUnitTest, PublicIpResourceScraperUnitTest, and StackitConstantsTest.
+Files modified/created:
+- backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/config/StackitConstants.java
+- backend/src/test/java/com/landvoigtit/stackit/resourceexplorer/config/StackitConstantsTest.java
+- backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/compute/ComputeResourceScraper.java
+- backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/storage/VmDiskResourceScraper.java
+- backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/network/NetworkVpcResourceScraper.java
+- backend/src/main/java/com/landvoigtit/stackit/resourceexplorer/network/PublicIpResourceScraper.java
+- backend/src/test/java/com/landvoigtit/stackit/resourceexplorer/compute/ComputeResourceScraperUnitTest.java
+- backend/src/test/java/com/landvoigtit/stackit/resourceexplorer/storage/VmDiskResourceScraperUnitTest.java
+- backend/src/test/java/com/landvoigtit/stackit/resourceexplorer/network/NetworkVpcResourceScraperUnitTest.java
+- backend/src/test/java/com/landvoigtit/stackit/resourceexplorer/network/PublicIpResourceScraperUnitTest.java
+Why:
+Prevent multiline Istio Envoy headers and false warnings for disabled regional services in non-primary regions.
