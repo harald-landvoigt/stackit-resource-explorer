@@ -15,6 +15,8 @@ import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -33,6 +35,14 @@ public class StackitProjectDiscoveryService {
     private final StackitSdkConfig sdkConfig;
     private final ResourceManagerApi resourceManagerApi;
 
+    private volatile String cachedOrganizationId;
+    private final Object orgLock = new Object();
+
+    private volatile List<Project> cachedProjects;
+    private volatile Map<String, String> cachedProjectNames;
+    private volatile Instant projectsCachedAt;
+    private final Object discoveryLock = new Object();
+
     @Inject
     public StackitProjectDiscoveryService(final StackitSdkConfig sdkConfig, final ResourceManagerApi resourceManagerApi) {
         this.sdkConfig = sdkConfig;
@@ -40,52 +50,99 @@ public class StackitProjectDiscoveryService {
     }
 
     public final String discoverOrganizationId() {
-        try {
-            final String tokenOrgId = sdkConfig.getDiscoveredOrganizationId();
-            if (tokenOrgId != null && !tokenOrgId.isBlank()) {
-                log.info("Discovered organization ID {} from access token claims.", tokenOrgId);
-                return tokenOrgId;
-            }
-            log.info("No organization ID found in access token claims. Attempting discovery via initial project parent...");
-            final String initialProjectId = resolveInitialProjectId();
-            if (initialProjectId != null) {
-                log.info("Found initial project ID {}; querying project details to determine organization ID...", initialProjectId);
-                final GetProjectResponse initialProject = resourceManagerApi.getProject(initialProjectId, true);
-                final String orgId = getOrganizationId(initialProject);
-                if (orgId != null && !orgId.isBlank()) {
-                    log.info("Discovered organization ID {} via project {} parent hierarchy.", orgId, initialProjectId);
-                    return orgId;
-                } else {
-                    log.warn("Project {} has no organization parent container in hierarchy.", initialProjectId);
-                }
-            } else {
-                log.info("Cannot discover organization ID: No initial project ID could be resolved.");
-            }
-        } catch (final Exception e) {
-            log.error("Failed to discover organization ID: {}", formatApiException(e), e);
+        if (cachedOrganizationId != null && !cachedOrganizationId.isBlank()) {
+            return cachedOrganizationId;
         }
-        return null;
+        synchronized (orgLock) {
+            if (cachedOrganizationId != null && !cachedOrganizationId.isBlank()) {
+                return cachedOrganizationId;
+            }
+            try {
+                final String tokenOrgId = sdkConfig.getDiscoveredOrganizationId();
+                if (tokenOrgId != null && !tokenOrgId.isBlank()) {
+                    log.info("Discovered organization ID {} from access token claims.", tokenOrgId);
+                    cachedOrganizationId = tokenOrgId;
+                    return cachedOrganizationId;
+                }
+                log.info("No organization ID found in access token claims. Attempting discovery via initial project parent...");
+                final String initialProjectId = resolveInitialProjectId();
+                if (initialProjectId != null) {
+                    log.info("Found initial project ID {}; querying project details to determine organization ID...", initialProjectId);
+                    final GetProjectResponse initialProject = resourceManagerApi.getProject(initialProjectId, true);
+                    final String orgId = getOrganizationId(initialProject);
+                    if (orgId != null && !orgId.isBlank()) {
+                        log.info("Discovered organization ID {} via project {} parent hierarchy.", orgId, initialProjectId);
+                        cachedOrganizationId = orgId;
+                        return cachedOrganizationId;
+                    } else {
+                        log.warn("Project {} has no organization parent container in hierarchy.", initialProjectId);
+                    }
+                } else {
+                    log.info("Cannot discover organization ID: No initial project ID could be resolved.");
+                }
+            } catch (final Exception e) {
+                log.error("Failed to discover organization ID: {}", formatApiException(e), e);
+            }
+            return null;
+        }
     }
 
     public List<Project> discoverProjects() {
+        return discoverProjects(false);
+    }
+
+    public List<Project> discoverProjects(final boolean forceRefresh) {
+        if (!forceRefresh && isCacheValid()) {
+            return cachedProjects;
+        }
+
+        synchronized (discoveryLock) {
+            if (!forceRefresh && isCacheValid()) {
+                return cachedProjects;
+            }
+
+            final List<Project> discovered = fetchProjectsRemotely();
+            if (discovered != null && !discovered.isEmpty()) {
+                cachedProjects = Collections.unmodifiableList(discovered);
+                final Map<String, String> namesMap = new LinkedHashMap<>();
+                for (final Project p : discovered) {
+                    final String pid = p.getProjectId() != null ? p.getProjectId().toString() : p.getContainerId();
+                    if (pid != null && p.getName() != null && !p.getName().isBlank()) {
+                        namesMap.put(pid, p.getName());
+                    }
+                }
+                cachedProjectNames = Collections.unmodifiableMap(namesMap);
+                projectsCachedAt = Instant.now();
+                return cachedProjects;
+            } else if (cachedProjects != null) {
+                return cachedProjects;
+            }
+            return discovered != null ? discovered : Collections.emptyList();
+        }
+    }
+
+    private boolean isCacheValid() {
+        if (cachedProjects == null || projectsCachedAt == null) {
+            return false;
+        }
+        final Duration ttl = sdkConfig != null ? sdkConfig.getDiscoveryCacheTtl() : Duration.ofMinutes(10);
+        return Duration.between(projectsCachedAt, Instant.now()).compareTo(ttl) < 0;
+    }
+
+    public Map<String, String> getProjectNamesMap() {
+        if (!isCacheValid() || cachedProjectNames == null) {
+            discoverProjects(false);
+        }
+        return cachedProjectNames != null ? cachedProjectNames : Collections.emptyMap();
+    }
+
+    private List<Project> fetchProjectsRemotely() {
         final String configuredKeyPath = sdkConfig.getServiceAccountKeyPath().orElse("<not configured>");
         final String saEmail = sdkConfig.getServiceAccountEmail();
-        String orgId = sdkConfig.getDiscoveredOrganizationId();
+        String orgId = discoverOrganizationId();
         String initialProjectId = null;
 
         try {
-            if (orgId == null) {
-                initialProjectId = resolveInitialProjectId();
-                if (initialProjectId != null) {
-                    try {
-                        final GetProjectResponse initialProject = resourceManagerApi.getProject(initialProjectId, true);
-                        orgId = getOrganizationId(initialProject);
-                    } catch (final Exception e) {
-                        log.warn("Could not query parent hierarchy for initial project {}: {}", initialProjectId, formatApiException(e));
-                    }
-                }
-            }
-
             if (orgId != null) {
                 log.info("Discovering projects recursively under organization container {}...", orgId);
                 final Map<String, Project> projectsById = new LinkedHashMap<>();
