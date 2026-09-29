@@ -146,18 +146,9 @@ public class StackitResourceService {
 
         // Project aggregations
         final List<AggregationItemDto> rawProjectAggs = repository.aggregateByProject(query);
-        final List<cloud.stackit.sdk.resourcemanager.v0api.model.Project> projects = projectDiscoveryService != null
-                ? projectDiscoveryService.discoverProjects()
-                : java.util.Collections.emptyList();
-
-        final java.util.Map<String, String> projectNames = new java.util.HashMap<>();
-        if (projects != null) {
-            for (final cloud.stackit.sdk.resourcemanager.v0api.model.Project p : projects) {
-                if (p.getProjectId() != null && p.getName() != null && !p.getName().isBlank()) {
-                    projectNames.put(p.getProjectId().toString(), p.getName());
-                }
-            }
-        }
+        final java.util.Map<String, String> projectNames = projectDiscoveryService != null
+                ? projectDiscoveryService.getProjectNamesMap()
+                : java.util.Collections.emptyMap();
 
         final List<AggregationItemDto> projectAggs = new java.util.ArrayList<>();
         if (rawProjectAggs != null) {
@@ -248,18 +239,9 @@ public class StackitResourceService {
                 .collect(Collectors.toList());
 
         // Discover projects to map names
-        final List<cloud.stackit.sdk.resourcemanager.v0api.model.Project> projects = projectDiscoveryService != null 
-                ? projectDiscoveryService.discoverProjects() 
-                : java.util.Collections.emptyList();
-
-        final java.util.Map<String, String> projectNames = new java.util.HashMap<>();
-        if (projects != null) {
-            for (final cloud.stackit.sdk.resourcemanager.v0api.model.Project p : projects) {
-                if (p.getProjectId() != null && p.getName() != null) {
-                    projectNames.put(p.getProjectId().toString(), p.getName());
-                }
-            }
-        }
+        final java.util.Map<String, String> projectNames = projectDiscoveryService != null 
+                ? projectDiscoveryService.getProjectNamesMap() 
+                : java.util.Collections.emptyMap();
 
         // Group and aggregate by projectId, type, and currency
         final java.util.Map<String, BillingSummaryDto> aggregated = new java.util.LinkedHashMap<>();
@@ -339,12 +321,10 @@ public class StackitResourceService {
         }
         final com.landvoigtit.stackit.resourceexplorer.access.AccessIssuesSummaryDto summary = accessIssueRegistry.getSummary();
         if (summary.getTotalProjectsChecked() == 0 && projectDiscoveryService != null) {
-            final List<cloud.stackit.sdk.resourcemanager.v0api.model.Project> projects = projectDiscoveryService.discoverProjects();
-            if (projects != null) {
-                for (final cloud.stackit.sdk.resourcemanager.v0api.model.Project p : projects) {
-                    if (p.getProjectId() != null) {
-                        accessIssueRegistry.registerProject(p.getProjectId().toString(), p.getName());
-                    }
+            final java.util.Map<String, String> projectNames = projectDiscoveryService.getProjectNamesMap();
+            if (projectNames != null) {
+                for (final java.util.Map.Entry<String, String> entry : projectNames.entrySet()) {
+                    accessIssueRegistry.registerProject(entry.getKey(), entry.getValue());
                 }
                 return accessIssueRegistry.getSummary();
             }

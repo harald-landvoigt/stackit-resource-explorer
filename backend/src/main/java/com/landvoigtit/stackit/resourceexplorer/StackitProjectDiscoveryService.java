@@ -131,7 +131,20 @@ public class StackitProjectDiscoveryService {
 
     public Map<String, String> getProjectNamesMap() {
         if (!isCacheValid() || cachedProjectNames == null) {
-            discoverProjects(false);
+            final List<Project> projects = discoverProjects(false);
+            if (cachedProjectNames != null) {
+                return cachedProjectNames;
+            }
+            if (projects != null && !projects.isEmpty()) {
+                final Map<String, String> namesMap = new LinkedHashMap<>();
+                for (final Project p : projects) {
+                    final String pid = p.getProjectId() != null ? p.getProjectId().toString() : p.getContainerId();
+                    if (pid != null && p.getName() != null && !p.getName().isBlank()) {
+                        namesMap.put(pid, p.getName());
+                    }
+                }
+                return namesMap;
+            }
         }
         return cachedProjectNames != null ? cachedProjectNames : Collections.emptyMap();
     }

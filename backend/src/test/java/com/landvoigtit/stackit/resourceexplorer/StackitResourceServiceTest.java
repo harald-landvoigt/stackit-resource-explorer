@@ -194,6 +194,11 @@ public class StackitResourceServiceTest {
                 p.setName("Production Project");
                 return java.util.List.of(p);
             }
+
+            @Override
+            public java.util.Map<String, String> getProjectNamesMap() {
+                return java.util.Map.of("11111111-1111-1111-1111-111111111111", "Production Project");
+            }
         };
 
         final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
@@ -292,5 +297,57 @@ public class StackitResourceServiceTest {
         assertEquals("Unknown", service.formatTypeLabel(null));
         assertEquals("Unknown", service.formatTypeLabel("  "));
         assertEquals("Databases", service.formatTypeLabel("database"));
+    }
+
+    @Test
+    public void testBillingSummaryUsesProjectNamesMap() {
+        final StackitEntity billingItem = new StackitEntity();
+        billingItem.setId(UUID.randomUUID());
+        billingItem.setType("billing");
+        billingItem.setProjectId("proj-123");
+        billingItem.setCreatedAt(Instant.now());
+        billingItem.setData(Map.of("amount", 42.50, "currency", "EUR"));
+
+        final StackitResourceRepository repoFake = new StackitResourceRepository() {
+            @Override
+            public java.util.List<StackitEntity> list(String query, Object... params) {
+                return java.util.List.of(billingItem);
+            }
+        };
+
+        final StackitProjectDiscoveryService discoveryMock = org.mockito.Mockito.mock(StackitProjectDiscoveryService.class);
+        org.mockito.Mockito.when(discoveryMock.getProjectNamesMap()).thenReturn(Map.of("proj-123", "Cool Project"));
+
+        final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+        final StackitResourceService svc = new StackitResourceService(repoFake, validator, discoveryMock, null, null);
+
+        final java.util.List<BillingSummaryDto> summaries = svc.getBillingSummary();
+        assertNotNull(summaries);
+        assertEquals(1, summaries.size());
+        assertEquals("Cool Project", summaries.get(0).getName());
+        assertEquals("proj-123", summaries.get(0).getId());
+        assertEquals(42.50, summaries.get(0).getAmount());
+        assertEquals("EUR", summaries.get(0).getCurrency());
+
+        org.mockito.Mockito.verify(discoveryMock, org.mockito.Mockito.times(1)).getProjectNamesMap();
+        org.mockito.Mockito.verify(discoveryMock, org.mockito.Mockito.never()).discoverProjects();
+    }
+
+    @Test
+    public void testGetAccessIssuesUsesProjectNamesMap() {
+        final com.landvoigtit.stackit.resourceexplorer.access.AccessIssueRegistry registry = new com.landvoigtit.stackit.resourceexplorer.access.AccessIssueRegistry();
+        final StackitProjectDiscoveryService discoveryMock = org.mockito.Mockito.mock(StackitProjectDiscoveryService.class);
+        org.mockito.Mockito.when(discoveryMock.getProjectNamesMap()).thenReturn(Map.of("proj-123", "Cool Project"));
+
+        final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+        final StackitResourceService svc = new StackitResourceService(null, validator, discoveryMock, null, registry);
+
+        final com.landvoigtit.stackit.resourceexplorer.access.AccessIssuesSummaryDto summary = svc.getAccessIssues();
+        assertNotNull(summary);
+        assertEquals(1, summary.getTotalProjectsChecked());
+        assertEquals("Cool Project", summary.getMatrix().get(0).getProjectName());
+
+        org.mockito.Mockito.verify(discoveryMock, org.mockito.Mockito.times(1)).getProjectNamesMap();
+        org.mockito.Mockito.verify(discoveryMock, org.mockito.Mockito.never()).discoverProjects();
     }
 }
