@@ -1,0 +1,2 @@
+Phase: DNS Zones & Record Sets Scraper Track Complete
+Task: Implement DnsApiClient, DnsResourceScraper, standalone record sets with deletion tracking, Angular UI, budget fixes, and 133-permission custom role documentation
