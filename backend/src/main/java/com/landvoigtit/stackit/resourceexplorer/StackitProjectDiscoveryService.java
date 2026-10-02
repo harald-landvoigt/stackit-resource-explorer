@@ -15,6 +15,8 @@ import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -23,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 @ApplicationScoped
 @Slf4j
@@ -33,6 +36,26 @@ public class StackitProjectDiscoveryService {
     private final StackitSdkConfig sdkConfig;
     private final ResourceManagerApi resourceManagerApi;
 
+    private final AtomicReference<String> cachedOrganizationId = new AtomicReference<>();
+    private final Object orgLock = new Object();
+
+    public record DiscoveredProjectsSnapshot(
+            List<Project> projects,
+            Map<String, String> projectNames,
+            Instant cachedAt
+    ) {
+        public boolean isValid(final Duration ttl) {
+            if (projects == null || cachedAt == null) {
+                return false;
+            }
+            final Duration effectiveTtl = ttl != null ? ttl : Duration.ofMinutes(10);
+            return Duration.between(cachedAt, Instant.now()).compareTo(effectiveTtl) < 0;
+        }
+    }
+
+    private final AtomicReference<DiscoveredProjectsSnapshot> projectsSnapshot = new AtomicReference<>();
+    private final Object discoveryLock = new Object();
+
     @Inject
     public StackitProjectDiscoveryService(final StackitSdkConfig sdkConfig, final ResourceManagerApi resourceManagerApi) {
         this.sdkConfig = sdkConfig;
@@ -40,6 +63,24 @@ public class StackitProjectDiscoveryService {
     }
 
     public final String discoverOrganizationId() {
+        final String cachedOrg = cachedOrganizationId.get();
+        if (cachedOrg != null && !cachedOrg.isBlank()) {
+            return cachedOrg;
+        }
+        synchronized (orgLock) {
+            final String existing = cachedOrganizationId.get();
+            if (existing != null && !existing.isBlank()) {
+                return existing;
+            }
+            final String discovered = resolveOrganizationId();
+            if (discovered != null) {
+                cachedOrganizationId.set(discovered);
+            }
+            return discovered;
+        }
+    }
+
+    private String resolveOrganizationId() {
         try {
             final String tokenOrgId = sdkConfig.getDiscoveredOrganizationId();
             if (tokenOrgId != null && !tokenOrgId.isBlank()) {
@@ -47,109 +88,196 @@ public class StackitProjectDiscoveryService {
                 return tokenOrgId;
             }
             log.info("No organization ID found in access token claims. Attempting discovery via initial project parent...");
-            final String initialProjectId = resolveInitialProjectId();
-            if (initialProjectId != null) {
-                log.info("Found initial project ID {}; querying project details to determine organization ID...", initialProjectId);
-                final GetProjectResponse initialProject = resourceManagerApi.getProject(initialProjectId, true);
-                final String orgId = getOrganizationId(initialProject);
-                if (orgId != null && !orgId.isBlank()) {
-                    log.info("Discovered organization ID {} via project {} parent hierarchy.", orgId, initialProjectId);
-                    return orgId;
-                } else {
-                    log.warn("Project {} has no organization parent container in hierarchy.", initialProjectId);
-                }
-            } else {
-                log.info("Cannot discover organization ID: No initial project ID could be resolved.");
-            }
+            return discoverOrgIdViaInitialProject();
         } catch (final Exception e) {
             log.error("Failed to discover organization ID: {}", formatApiException(e), e);
+            return null;
         }
+    }
+
+    private String discoverOrgIdViaInitialProject() throws ApiException {
+        final String initialProjectId = resolveInitialProjectId();
+        if (initialProjectId == null) {
+            log.info("Cannot discover organization ID: No initial project ID could be resolved.");
+            return null;
+        }
+        log.info("Found initial project ID {}; querying project details to determine organization ID...", initialProjectId);
+        final GetProjectResponse initialProject = resourceManagerApi.getProject(initialProjectId, true);
+        final String orgId = getOrganizationId(initialProject);
+        if (orgId != null && !orgId.isBlank()) {
+            log.info("Discovered organization ID {} via project {} parent hierarchy.", orgId, initialProjectId);
+            return orgId;
+        }
+        log.warn("Project {} has no organization parent container in hierarchy.", initialProjectId);
         return null;
     }
 
     public List<Project> discoverProjects() {
+        return discoverProjects(false);
+    }
+
+    public List<Project> discoverProjects(final boolean forceRefresh) {
+        final Duration ttl = sdkConfig != null ? sdkConfig.getDiscoveryCacheTtl() : Duration.ofMinutes(10);
+        final DiscoveredProjectsSnapshot snapshot = projectsSnapshot.get();
+        if (!forceRefresh && snapshot != null && snapshot.isValid(ttl)) {
+            return snapshot.projects();
+        }
+
+        synchronized (discoveryLock) {
+            final DiscoveredProjectsSnapshot currentSnapshot = projectsSnapshot.get();
+            if (!forceRefresh && currentSnapshot != null && currentSnapshot.isValid(ttl)) {
+                return currentSnapshot.projects();
+            }
+
+            final List<Project> discovered = fetchProjectsRemotely();
+            if (discovered != null && !discovered.isEmpty()) {
+                final List<Project> unmodifiableProjects = Collections.unmodifiableList(discovered);
+                final DiscoveredProjectsSnapshot newSnapshot = new DiscoveredProjectsSnapshot(
+                        unmodifiableProjects,
+                        buildProjectNamesMap(discovered),
+                        Instant.now()
+                );
+                projectsSnapshot.set(newSnapshot);
+                return unmodifiableProjects;
+            } else if (currentSnapshot != null && currentSnapshot.projects() != null) {
+                return currentSnapshot.projects();
+            }
+            return discovered != null ? discovered : Collections.emptyList();
+        }
+    }
+
+    private Map<String, String> buildProjectNamesMap(final List<Project> projects) {
+        final Map<String, String> namesMap = new LinkedHashMap<>();
+        for (final Project p : projects) {
+            final String pid = resolveProjectId(p);
+            if (pid != null && p.getName() != null && !p.getName().isBlank()) {
+                namesMap.put(pid, p.getName());
+            }
+        }
+        return Collections.unmodifiableMap(namesMap);
+    }
+
+    private String resolveProjectId(final Project project) {
+        if (project.getProjectId() != null) {
+            return project.getProjectId().toString();
+        }
+        return project.getContainerId();
+    }
+
+    public Map<String, String> getProjectNamesMap() {
+        final Duration ttl = sdkConfig != null ? sdkConfig.getDiscoveryCacheTtl() : Duration.ofMinutes(10);
+        final DiscoveredProjectsSnapshot snapshot = projectsSnapshot.get();
+        if (snapshot != null && snapshot.isValid(ttl) && snapshot.projectNames() != null) {
+            return snapshot.projectNames();
+        }
+        discoverProjects(false);
+        final DiscoveredProjectsSnapshot updated = projectsSnapshot.get();
+        return updated != null && updated.projectNames() != null ? updated.projectNames() : Collections.emptyMap();
+    }
+
+    private List<Project> fetchProjectsRemotely() {
         final String configuredKeyPath = sdkConfig.getServiceAccountKeyPath().orElse("<not configured>");
         final String saEmail = sdkConfig.getServiceAccountEmail();
-        String orgId = sdkConfig.getDiscoveredOrganizationId();
-        String initialProjectId = null;
+        final String orgId = discoverOrganizationId();
 
         try {
-            if (orgId == null) {
-                initialProjectId = resolveInitialProjectId();
-                if (initialProjectId != null) {
-                    try {
-                        final GetProjectResponse initialProject = resourceManagerApi.getProject(initialProjectId, true);
-                        orgId = getOrganizationId(initialProject);
-                    } catch (final Exception e) {
-                        log.warn("Could not query parent hierarchy for initial project {}: {}", initialProjectId, formatApiException(e));
-                    }
-                }
-            }
-
             if (orgId != null) {
-                log.info("Discovering projects recursively under organization container {}...", orgId);
-                final Map<String, Project> projectsById = new LinkedHashMap<>();
-                final Set<String> visitedContainers = new HashSet<>();
-                discoverProjectsRecursively(orgId, projectsById, visitedContainers);
-                if (!projectsById.isEmpty()) {
-                    log.info("Successfully discovered {} project(s) under organization {}.", projectsById.size(), orgId);
-                    return new ArrayList<>(projectsById.values());
+                final List<Project> orgProjects = discoverProjectsUnderOrganization(orgId);
+                if (!orgProjects.isEmpty()) {
+                    return orgProjects;
                 }
-                log.warn("Recursive project discovery under organization {} yielded 0 projects. Attempting fallback project discovery...", orgId);
             }
 
-            if (initialProjectId == null) {
-                initialProjectId = resolveInitialProjectId();
-            }
-
+            final String initialProjectId = resolveInitialProjectId();
             if (initialProjectId != null) {
-                log.info("Attempting direct discovery of fallback project ID: {}", initialProjectId);
-                try {
-                    final ListProjectsResponse projectsResponse = resourceManagerApi.listProjects(null, List.of(initialProjectId), null, null, null, null);
-                    if (projectsResponse != null && projectsResponse.getItems() != null && !projectsResponse.getItems().isEmpty()) {
-                        log.info("Successfully discovered fallback project {} via listProjects.", initialProjectId);
-                        return projectsResponse.getItems();
-                    }
-                } catch (final Exception e) {
-                    log.warn("Direct listProjects query for project {} failed: {}", initialProjectId, formatApiException(e));
-                }
-
-                try {
-                    final GetProjectResponse directProject = resourceManagerApi.getProject(initialProjectId, false);
-                    if (directProject != null) {
-                        final Project fallbackProject = new Project();
-                        fallbackProject.setProjectId(directProject.getProjectId());
-                        if (fallbackProject.getProjectId() == null) {
-                            try {
-                                fallbackProject.setProjectId(UUID.fromString(initialProjectId));
-                            } catch (final IllegalArgumentException ignored) {
-                            }
-                        }
-                        fallbackProject.setName(directProject.getName());
-                        fallbackProject.setContainerId(directProject.getContainerId());
-                        log.info("Successfully discovered single project {} ({}) via getProject fallback.",
-                                directProject.getName(), directProject.getProjectId());
-                        return List.of(fallbackProject);
-                    }
-                } catch (final Exception e) {
-                    log.warn("Direct getProject query for project {} failed: {}", initialProjectId, formatApiException(e));
+                final List<Project> fallbackProjects = discoverFallbackProjects(initialProjectId);
+                if (!fallbackProjects.isEmpty()) {
+                    return fallbackProjects;
                 }
             }
 
-            log.error("Unable to query accessible projects from Resource Manager API. " +
-                    "Diagnostics: keyPath='{}', serviceAccountEmail='{}', orgId='{}', initialProjectId='{}'. " +
-                    "Please check: " +
-                    "1) Service account key file is mounted, readable, and valid JSON. " +
-                    "2) The service account is assigned appropriate roles in the STACKIT portal " +
-                    "(e.g., 'resourcemanager.organization.viewer' for organization-wide discovery, " +
-                    "or 'resourcemanager.project.viewer' on the project).",
-                    configuredKeyPath, saEmail, orgId, initialProjectId);
+            logFallbackDiagnostics(configuredKeyPath, saEmail, orgId, initialProjectId);
             return Collections.emptyList();
         } catch (final Exception e) {
-            log.error("Failed to discover STACKIT projects. Diagnostics: keyPath='{}', serviceAccountEmail='{}', orgId='{}', initialProjectId='{}': {}",
-                    configuredKeyPath, saEmail, orgId, initialProjectId, formatApiException(e), e);
+            log.error("Failed to discover STACKIT projects. Diagnostics: keyPath='{}', serviceAccountEmail='{}', orgId='{}': {}",
+                    configuredKeyPath, saEmail, orgId, formatApiException(e), e);
+            return Collections.emptyList();
+        }
+    }
+
+    private List<Project> discoverProjectsUnderOrganization(final String orgId) {
+        log.info("Discovering projects recursively under organization container {}...", orgId);
+        final Map<String, Project> projectsById = new LinkedHashMap<>();
+        final Set<String> visitedContainers = new HashSet<>();
+        discoverProjectsRecursively(orgId, projectsById, visitedContainers);
+        if (!projectsById.isEmpty()) {
+            log.info("Successfully discovered {} project(s) under organization {}.", projectsById.size(), orgId);
+            return new ArrayList<>(projectsById.values());
+        }
+        log.warn("Recursive project discovery under organization {} yielded 0 projects. Attempting fallback project discovery...", orgId);
+        return Collections.emptyList();
+    }
+
+    private List<Project> discoverFallbackProjects(final String initialProjectId) {
+        log.info("Attempting direct discovery of fallback project ID: {}", initialProjectId);
+        final List<Project> listProjectsFallback = queryFallbackListProjects(initialProjectId);
+        if (!listProjectsFallback.isEmpty()) {
+            return listProjectsFallback;
+        }
+        return queryFallbackGetProject(initialProjectId);
+    }
+
+    private List<Project> queryFallbackListProjects(final String initialProjectId) {
+        try {
+            final ListProjectsResponse projectsResponse = resourceManagerApi.listProjects(null, List.of(initialProjectId), null, null, null, null);
+            if (projectsResponse != null && projectsResponse.getItems() != null && !projectsResponse.getItems().isEmpty()) {
+                log.info("Successfully discovered fallback project {} via listProjects.", initialProjectId);
+                return projectsResponse.getItems();
+            }
+        } catch (final Exception e) {
+            log.warn("Direct listProjects query for project {} failed: {}", initialProjectId, formatApiException(e));
         }
         return Collections.emptyList();
+    }
+
+    private List<Project> queryFallbackGetProject(final String initialProjectId) {
+        try {
+            final GetProjectResponse directProject = resourceManagerApi.getProject(initialProjectId, false);
+            if (directProject != null) {
+                final Project fallbackProject = new Project();
+                fallbackProject.setProjectId(resolveProjectUuid(directProject.getProjectId(), initialProjectId));
+                fallbackProject.setName(directProject.getName());
+                fallbackProject.setContainerId(directProject.getContainerId());
+                log.info("Successfully discovered single project {} ({}) via getProject fallback.",
+                        directProject.getName(), directProject.getProjectId());
+                return List.of(fallbackProject);
+            }
+        } catch (final Exception e) {
+            log.warn("Direct getProject query for project {} failed: {}", initialProjectId, formatApiException(e));
+        }
+        return Collections.emptyList();
+    }
+
+    private UUID resolveProjectUuid(final UUID currentId, final String fallbackIdStr) {
+        if (currentId != null) {
+            return currentId;
+        }
+        try {
+            return UUID.fromString(fallbackIdStr);
+        } catch (final IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    private void logFallbackDiagnostics(final String configuredKeyPath, final String saEmail, final String orgId, final String initialProjectId) {
+        log.error("Unable to query accessible projects from Resource Manager API. " +
+                "Diagnostics: keyPath='{}', serviceAccountEmail='{}', orgId='{}', initialProjectId='{}'. " +
+                "Please check: " +
+                "1) Service account key file is mounted, readable, and valid JSON. " +
+                "2) The service account is assigned appropriate roles in the STACKIT portal " +
+                "(e.g., 'resourcemanager.organization.viewer' for organization-wide discovery, " +
+                "or 'resourcemanager.project.viewer' on the project).",
+                configuredKeyPath, saEmail, orgId, initialProjectId);
     }
 
     private void discoverProjectsRecursively(final String containerId,
@@ -158,50 +286,51 @@ public class StackitProjectDiscoveryService {
         if (containerId == null || !visitedContainers.add(containerId)) {
             return;
         }
+        fetchProjectsInContainer(containerId, projectsById);
+        traverseSubfolders(containerId, projectsById, visitedContainers);
+    }
 
-        // 1. List projects in this container with paging
+    private void fetchProjectsInContainer(final String containerId, final Map<String, Project> projectsById) {
         try {
             BigDecimal offset = BigDecimal.ZERO;
-            ListProjectsResponse projectsResponse;
             do {
-                projectsResponse = resourceManagerApi.listProjects(containerId, null, null, offset, PAGE_SIZE, null);
+                final ListProjectsResponse projectsResponse = resourceManagerApi.listProjects(containerId, null, null, offset, PAGE_SIZE, null);
                 if (projectsResponse == null || projectsResponse.getItems() == null || projectsResponse.getItems().isEmpty()) {
                     break;
                 }
                 for (final Project project : projectsResponse.getItems()) {
-                    final String projectIdStr = project.getProjectId() != null ? project.getProjectId().toString() : project.getContainerId();
+                    final String projectIdStr = resolveProjectId(project);
                     if (projectIdStr != null) {
                         projectsById.putIfAbsent(projectIdStr, project);
                     }
                 }
-
                 if (projectsResponse.getItems().size() < PAGE_SIZE.intValue()) {
-                    break; // Last page reached
+                    break;
                 }
                 offset = offset.add(BigDecimal.valueOf(projectsResponse.getItems().size()));
             } while (true);
         } catch (final Exception e) {
             log.warn("Failed to list projects in container {}: {}", containerId, formatApiException(e));
         }
+    }
 
-        // 2. List subfolders in this container and traverse recursively with paging
+    private void traverseSubfolders(final String containerId,
+                                    final Map<String, Project> projectsById,
+                                    final Set<String> visitedContainers) {
         try {
             BigDecimal folderOffset = BigDecimal.ZERO;
-            ListFoldersResponse foldersResponse;
             do {
-                foldersResponse = resourceManagerApi.listFolders(containerId, null, null, PAGE_SIZE, folderOffset, null);
+                final ListFoldersResponse foldersResponse = resourceManagerApi.listFolders(containerId, null, null, PAGE_SIZE, folderOffset, null);
                 if (foldersResponse == null || foldersResponse.getItems() == null || foldersResponse.getItems().isEmpty()) {
                     break;
                 }
                 for (final ListFoldersResponseItemsInner folder : foldersResponse.getItems()) {
-                    final String subContainerId = folder.getContainerId();
-                    if (subContainerId != null) {
-                        discoverProjectsRecursively(subContainerId, projectsById, visitedContainers);
+                    if (folder.getContainerId() != null) {
+                        discoverProjectsRecursively(folder.getContainerId(), projectsById, visitedContainers);
                     }
                 }
-
                 if (foldersResponse.getItems().size() < PAGE_SIZE.intValue()) {
-                    break; // Last page reached
+                    break;
                 }
                 folderOffset = folderOffset.add(BigDecimal.valueOf(foldersResponse.getItems().size()));
             } while (true);
@@ -217,15 +346,21 @@ public class StackitProjectDiscoveryService {
         if (projectResponse.getParents() != null) {
             for (final ParentListInner parent : projectResponse.getParents()) {
                 if (parent.getType() != null && "ORGANIZATION".equalsIgnoreCase(parent.getType().name())) {
-                    return parent.getId() != null ? parent.getId().toString() : parent.getContainerId();
+                    return resolveContainerOrId(parent.getId(), parent.getContainerId());
                 }
             }
         }
-        final Parent directParent = projectResponse.getParent();
-        if (directParent != null) {
-            return directParent.getId() != null ? directParent.getId().toString() : directParent.getContainerId();
+        if (projectResponse.getParent() != null) {
+            return resolveContainerOrId(projectResponse.getParent().getId(), projectResponse.getParent().getContainerId());
         }
         return null;
+    }
+
+    private String resolveContainerOrId(final UUID id, final String containerId) {
+        if (id != null) {
+            return id.toString();
+        }
+        return containerId;
     }
 
     private String resolveInitialProjectId() {
@@ -234,7 +369,6 @@ public class StackitProjectDiscoveryService {
             return discoveredProjectId;
         }
 
-        // Query accessible projects where the service account is an active member
         final String saEmail = sdkConfig.getServiceAccountEmail();
         if (saEmail != null && !saEmail.isBlank()) {
             try {
@@ -242,7 +376,7 @@ public class StackitProjectDiscoveryService {
                 final ListProjectsResponse projectsResponse = resourceManagerApi.listProjects(null, null, saEmail, BigDecimal.ZERO, BigDecimal.valueOf(10), null);
                 if (projectsResponse != null && projectsResponse.getItems() != null && !projectsResponse.getItems().isEmpty()) {
                     final Project firstProject = projectsResponse.getItems().get(0);
-                    final String discoveredMemberProjectId = firstProject.getProjectId() != null ? firstProject.getProjectId().toString() : firstProject.getContainerId();
+                    final String discoveredMemberProjectId = resolveProjectId(firstProject);
                     log.info("Discovered initial project ID {} via service account membership query ({})", discoveredMemberProjectId, saEmail);
                     return discoveredMemberProjectId;
                 } else {
@@ -266,5 +400,4 @@ public class StackitProjectDiscoveryService {
         }
         return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
     }
-
 }

@@ -205,19 +205,17 @@ public class PublicIpResourceScraper {
             final String region,
             final Exception e,
             final ScrapeContext context) {
-        final String msg = e.getMessage() != null ? e.getMessage() : "";
-        final boolean is404 = isNotFoundOrNotEnabled(e, msg);
-
-        if (StackitConstants.isPermissionIssue(msg)) {
-            log.warn("Permission denied accessing Public IPs for project {} in region {}: {}", projectIdStr, region, msg);
+        final String cleanedMsg = StackitConstants.cleanErrorMessage(e);
+        if (StackitConstants.isServiceDisabled(e) || isNotFoundOrNotEnabled(e, e.getMessage())) {
+            log.debug("Public IPs not enabled or not found for project {} in region {}: {}", projectIdStr, region, cleanedMsg);
+        } else if (StackitConstants.isPermissionIssue(e)) {
+            log.warn("Permission denied accessing Public IPs for project {} in region {}: {}", projectIdStr, region, cleanedMsg);
             context.permissionDenied = true;
-            context.permissionDeniedMsg = msg;
+            context.permissionDeniedMsg = cleanedMsg;
             context.permissionDeniedRegion = region;
             context.allRegionsSucceeded = false;
-        } else if (is404) {
-            log.info("Public IPs not enabled or not found for project {} in region {}: {}", projectIdStr, region, msg);
         } else {
-            log.warn("Failed to scrape Public IPs for project {} in region {}: {}", projectIdStr, region, e.getMessage());
+            log.warn("Failed to scrape Public IPs for project {} in region {}: {}", projectIdStr, region, cleanedMsg);
             context.allRegionsSucceeded = false;
         }
     }

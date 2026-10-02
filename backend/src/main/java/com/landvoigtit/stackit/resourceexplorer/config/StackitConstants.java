@@ -166,13 +166,56 @@ public final class StackitConstants {
     }
 
     /**
+     * Checks if an error message indicates that a service is not enabled / disabled in a project or region.
+     *
+     * @param msg the error message
+     * @return true if the message indicates a disabled/inactive service
+     */
+    public static boolean isServiceDisabled(final String msg) {
+        if (msg == null || msg.isBlank()) {
+            return false;
+        }
+        final String lower = msg.toLowerCase();
+        return lower.contains("service not enabled")
+                || lower.contains("servicenotenabled")
+                || lower.contains("not enabled")
+                || lower.contains("project.not_found")
+                || lower.contains("404")
+                || lower.contains("not found");
+    }
+
+    /**
+     * Checks if a Throwable indicates that a service is not enabled / disabled in a project or region.
+     *
+     * @param t the throwable
+     * @return true if the throwable indicates a disabled/inactive service
+     */
+    public static boolean isServiceDisabled(final Throwable t) {
+        if (t == null) {
+            return false;
+        }
+        if (isServiceDisabled(t.getMessage())) {
+            return true;
+        }
+        if (t.getCause() != null && t.getCause() != t) {
+            return isServiceDisabled(t.getCause());
+        }
+        return false;
+    }
+
+    /**
      * Checks if an error message indicates an authorization, authentication, or permission failure.
+     * Note: If the message indicates a disabled service (e.g. HTTP 403 with "Service not enabled"),
+     * this returns false so disabled services are not misclassified as permission issues.
      *
      * @param msg the error message
      * @return true if the message indicates a permission issue
      */
     public static boolean isPermissionIssue(final String msg) {
         if (msg == null || msg.isBlank()) {
+            return false;
+        }
+        if (isServiceDisabled(msg)) {
             return false;
         }
         final String lower = msg.toLowerCase();
@@ -195,6 +238,9 @@ public final class StackitConstants {
         if (t == null) {
             return false;
         }
+        if (isServiceDisabled(t)) {
+            return false;
+        }
         if (isPermissionIssue(t.getMessage())) {
             return true;
         }
@@ -202,6 +248,73 @@ public final class StackitConstants {
             return isPermissionIssue(t.getCause());
         }
         return false;
+    }
+
+    /**
+     * Sanitizes and extracts a concise error message from a raw error or SDK ApiException string,
+     * removing multiline Istio headers and raw header payloads.
+     *
+     * @param msg the raw error message
+     * @return a sanitized, single-line error message
+     */
+    public static String cleanErrorMessage(final String msg) {
+        if (msg == null || msg.isBlank()) {
+            return "";
+        }
+        String cleaned = msg.trim();
+        final int headersIdx = cleaned.indexOf("HTTP response headers:");
+        if (headersIdx != -1) {
+            cleaned = cleaned.substring(0, headersIdx).trim();
+        }
+        if (cleaned.startsWith("Message: ")) {
+            final String[] lines = cleaned.split("\r?\n");
+            final String firstLine = lines[0].substring("Message: ".length()).trim();
+            String code = null;
+            String body = null;
+            for (final String line : lines) {
+                final String trimmed = line.trim();
+                if (trimmed.startsWith("HTTP response code: ")) {
+                    code = trimmed.substring("HTTP response code: ".length()).trim();
+                } else if (trimmed.startsWith("HTTP response body: ")) {
+                    body = trimmed.substring("HTTP response body: ".length()).trim();
+                }
+            }
+            if (body != null && !body.equals("null") && !body.isBlank()) {
+                return (code != null && !code.equals("null") ? "HTTP " + code + ": " : "") + body;
+            } else if (code != null && !code.equals("null")) {
+                return "HTTP " + code + ": " + firstLine;
+            } else {
+                return firstLine;
+            }
+        }
+        return cleaned.replaceAll("\\s+", " ").trim();
+    }
+
+    /**
+     * Extracts a concise error message from a Throwable, handling STACKIT SDK ApiExceptions cleanly.
+     *
+     * @param t the throwable
+     * @return a sanitized, concise error message
+     */
+    public static String cleanErrorMessage(final Throwable t) {
+        if (t == null) {
+            return "";
+        }
+        if (t instanceof cloud.stackit.sdk.core.exception.ApiException apiEx) {
+            final int code = apiEx.getCode();
+            final String body = apiEx.getResponseBody();
+            if (body != null && !body.isBlank() && !"null".equalsIgnoreCase(body.trim())) {
+                return "HTTP " + code + ": " + body.trim();
+            }
+            if (code > 0) {
+                final String cleaned = cleanErrorMessage(apiEx.getMessage());
+                if (cleaned.startsWith("HTTP " + code)) {
+                    return cleaned;
+                }
+                return "HTTP " + code + (!cleaned.isBlank() ? ": " + cleaned : "");
+            }
+        }
+        return cleanErrorMessage(t.getMessage());
     }
 }
 

@@ -16,6 +16,7 @@ import jakarta.validation.Validator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 
@@ -227,5 +228,49 @@ public class StorageResourceScraperTest {
         final StackitEntity entity = entityCaptor.getValue();
         assertNotNull(entity);
         assertNull(entity.getData().get("bucketPolicy"));
+    }
+
+    @Test
+    public void testScrapeProjectStorageHandlesS3PublicAccessBlock501NotImplementedGracefully() throws Exception {
+        final S3Client s3Client = mock(S3Client.class);
+        final S3Exception notImplemented = (S3Exception) S3Exception.builder()
+                .statusCode(501)
+                .message("The requested method is not implemented on STACKIT Object Storage")
+                .awsErrorDetails(AwsErrorDetails.builder().errorCode("NotImplemented").build())
+                .build();
+        when(s3Client.getPublicAccessBlock(any(GetPublicAccessBlockRequest.class)))
+                .thenThrow(notImplemented);
+
+        final GetBucketAclResponse aclResponse = GetBucketAclResponse.builder()
+                .owner(Owner.builder().displayName("owner-1").id("id-1").build())
+                .grants(List.of())
+                .build();
+        when(s3Client.getBucketAcl(any(GetBucketAclRequest.class))).thenReturn(aclResponse);
+
+        when(s3JitKeyManager.withEphemeralClient(anyString(), eq(REGION), any()))
+                .thenAnswer(invocation -> {
+                    final S3JitKeyManager.S3ClientFunction<?> fn = invocation.getArgument(2);
+                    return fn.apply(s3Client);
+                });
+
+        scraper.scrape();
+
+        final ArgumentCaptor<StackitEntity> entityCaptor = ArgumentCaptor.forClass(StackitEntity.class);
+        verify(repository, atLeastOnce()).persistOrUpdate(entityCaptor.capture());
+
+        final StackitEntity entity = entityCaptor.getValue();
+        assertNotNull(entity);
+        assertEquals(BUCKET_NAME, entity.getName());
+        assertEquals("NOT_PUBLIC", entity.getData().get("publicAccessType"));
+    }
+
+    @Test
+    public void testScrapeProjectStorageInactiveComplianceLockDoesNotCallDefaultRetention() throws Exception {
+        when(objectStorageApi.getComplianceLock(anyString(), eq(REGION)))
+                .thenThrow(new RuntimeException("404 Not Found: compliance lock not active"));
+
+        scraper.scrape();
+
+        verify(objectStorageApi, never()).getDefaultRetention(anyString(), anyString(), anyString());
     }
 }
