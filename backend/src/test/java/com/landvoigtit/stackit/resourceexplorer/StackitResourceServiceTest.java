@@ -294,6 +294,13 @@ public class StackitResourceServiceTest {
         assertEquals("Invoices", service.formatTypeLabel("billing"));
         assertEquals("Invoices", service.formatTypeLabel("billing-org"));
         assertEquals("IAM Policies", service.formatTypeLabel("iam"));
+        assertEquals("DNS Zones", service.formatTypeLabel("dns-zone"));
+        assertEquals("DNS Zones", service.formatTypeLabel("dns"));
+        assertEquals("DNS Zones", service.formatTypeLabel("dnszone"));
+        assertEquals("DNS Zones", service.formatTypeLabel("dnszones"));
+        assertEquals("DNS Record Sets", service.formatTypeLabel("dns-record-set"));
+        assertEquals("DNS Record Sets", service.formatTypeLabel("dns-record"));
+        assertEquals("DNS Record Sets", service.formatTypeLabel("dnsrecordset"));
         assertEquals("Unknown", service.formatTypeLabel(null));
         assertEquals("Unknown", service.formatTypeLabel("  "));
         assertEquals("Databases", service.formatTypeLabel("database"));

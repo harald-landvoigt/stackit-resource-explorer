@@ -11,7 +11,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTabsModule } from '@angular/material/tabs';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ResourceService } from './services/resource.service';
-import { StackitResource, BillingSummary, AggregationItem, StorageResourceData, VmDiskResourceData, S3AccessKeyResourceData, PublicIpHistoryRecord, ComputeResourceData, AccessIssuesSummary, AccessIssueRecord, ProjectAccessMatrixRow, AccessStatus, PublicIpResourceData } from './models/resource.model';
+import { StackitResource, BillingSummary, AggregationItem, StorageResourceData, VmDiskResourceData, S3AccessKeyResourceData, PublicIpHistoryRecord, ComputeResourceData, AccessIssuesSummary, AccessIssueRecord, ProjectAccessMatrixRow, AccessStatus, PublicIpResourceData, DnsZoneResourceData, DnsRecordSet, DnsRecordSetResourceData } from './models/resource.model';
 
 @Component({
   selector: 'app-root',
@@ -70,6 +70,8 @@ export class App implements OnInit {
 
   // Expanded S3 policy and ACL detail views
   readonly expandedPolicyIds = signal<Set<string>>(new Set());
+  // Expanded DNS Zone record set detail views
+  readonly expandedDnsZoneIds = signal<Set<string>>(new Set());
   // Exact project aggregations calculated by the backend across the full query dataset
   readonly projectAggregations = signal<AggregationItem[]>([]);
 
@@ -90,7 +92,8 @@ export class App implements OnInit {
     { key: 'network', label: 'Load Balancers' },
     { key: 'network-vpc', label: 'VPCs' },
     { key: 'iam', label: 'IAM' },
-    { key: 'billing', label: 'Billing' }
+    { key: 'billing', label: 'Billing' },
+    { key: 'dns-zone', label: 'DNS Zones' }
   ];
 
   // Filtered matrix rows based on search query and issues-only mode
@@ -347,6 +350,66 @@ export class App implements OnInit {
     this.onSearch();
   }
 
+  filterDnsZones(): void {
+    if (this.searchString() === 'dns-zone' || this.searchString() === 'DNS Zones') {
+      this.searchString.set('');
+    } else {
+      this.searchString.set('dns-zone');
+    }
+    this.onSearch();
+  }
+
+  isDnsZone(res: StackitResource): boolean {
+    if (!res) return false;
+    return res.type === 'dns-zone' || res.type === 'dns' || res.type === 'dnszone' || res.type === 'dnszones';
+  }
+
+  getDnsZoneData(res: StackitResource): DnsZoneResourceData | undefined {
+    return res.data as DnsZoneResourceData | undefined;
+  }
+
+  hasDnsRecordSets(res: StackitResource): boolean {
+    const data = this.getDnsZoneData(res);
+    return Array.isArray(data?.recordSets) && data!.recordSets.length > 0;
+  }
+
+  getDnsRecordSets(res: StackitResource): DnsRecordSet[] {
+    const data = this.getDnsZoneData(res);
+    return data?.recordSets || [];
+  }
+
+  toggleDnsRecordSets(id: string): void {
+    this.expandedDnsZoneIds.update((set) => {
+      const next = new Set(set);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  isDnsZoneExpanded(id: string): boolean {
+    return this.expandedDnsZoneIds().has(id);
+  }
+
+  formatRecordTargets(rs?: { records?: string[] } | null): string {
+    if (!rs || !rs.records || rs.records.length === 0) {
+      return '-';
+    }
+    return rs.records.join(', ');
+  }
+
+  isDnsRecordSet(res: StackitResource): boolean {
+    if (!res) return false;
+    return res.type === 'dns-record-set' || res.type === 'dns-record' || res.type === 'dnsrecord' || res.type === 'dnsrecordset' || res.type === 'dnsrecordsets';
+  }
+
+  getDnsRecordSetData(res: StackitResource): DnsRecordSetResourceData | undefined {
+    return res.data as DnsRecordSetResourceData | undefined;
+  }
+
   isPublicIp(res: StackitResource): boolean {
     if (!res) return false;
     return res.type === 'public-ip' || res.type === 'publicip' || res.type === 'publicips';
@@ -510,6 +573,17 @@ export class App implements OnInit {
       case 'publicip':
       case 'publicips':
         return 'Public IPs';
+      case 'dns-zone':
+      case 'dns':
+      case 'dnszone':
+      case 'dnszones':
+        return 'DNS Zones';
+      case 'dns-record-set':
+      case 'dns-record':
+      case 'dnsrecord':
+      case 'dnsrecordset':
+      case 'dnsrecordsets':
+        return 'DNS Record Sets';
       default:
         return type.charAt(0).toUpperCase() + type.slice(1) + 's';
     }

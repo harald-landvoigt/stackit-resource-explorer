@@ -53,6 +53,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 import com.landvoigtit.stackit.resourceexplorer.billing.BillingApiClient;
+import com.landvoigtit.stackit.resourceexplorer.dns.DnsApiClient;
 import com.landvoigtit.stackit.resourceexplorer.config.StackitSdkConfig;
 
 @Mock
@@ -410,6 +411,12 @@ public class StackitSdkMockProducer {
 
     @Produces
     @Singleton
+    public DnsApiClient dnsApiClient() throws IOException {
+        return new DnsApiClient(okHttpClient(), "https://dns.mock.local");
+    }
+
+    @Produces
+    @Singleton
     public OkHttpClient okHttpClient() {
         return new OkHttpClient.Builder()
                 .addInterceptor(new Interceptor() {
@@ -493,6 +500,53 @@ public class StackitSdkMockProducer {
                                     "      \"id\": \"legacy-sa-id\",\n" +
                                     "      \"internal\": false,\n" +
                                     "      \"projectId\": \"00000000-0000-0000-0000-000000000000\"\n" +
+                                    "    }\n" +
+                                    "  ]\n" +
+                                    "}";
+                            return new Response.Builder()
+                                    .request(chain.request())
+                                    .protocol(Protocol.HTTP_1_1)
+                                    .code(200)
+                                    .message("OK")
+                                    .body(ResponseBody.create(json, MediaType.parse("application/json")))
+                                    .build();
+                        } else if (url.contains("/rrsets")) {
+                            final String json = "{\n" +
+                                    "  \"itemsPerPage\": 100,\n" +
+                                    "  \"totalItems\": 1,\n" +
+                                    "  \"totalPages\": 1,\n" +
+                                    "  \"rrSets\": [\n" +
+                                    "    {\n" +
+                                    "      \"id\": \"rs-mock-01\",\n" +
+                                    "      \"name\": \"app.example.com.\",\n" +
+                                    "      \"type\": \"A\",\n" +
+                                    "      \"ttl\": 300,\n" +
+                                    "      \"active\": true,\n" +
+                                    "      \"records\": [{\"content\": \"193.148.160.10\"}]\n" +
+                                    "    }\n" +
+                                    "  ]\n" +
+                                    "}";
+                            return new Response.Builder()
+                                    .request(chain.request())
+                                    .protocol(Protocol.HTTP_1_1)
+                                    .code(200)
+                                    .message("OK")
+                                    .body(ResponseBody.create(json, MediaType.parse("application/json")))
+                                    .build();
+                        } else if (url.contains("/zones")) {
+                            final String json = "{\n" +
+                                    "  \"itemsPerPage\": 100,\n" +
+                                    "  \"totalItems\": 1,\n" +
+                                    "  \"totalPages\": 1,\n" +
+                                    "  \"zones\": [\n" +
+                                    "    {\n" +
+                                    "      \"id\": \"zone-mock-01\",\n" +
+                                    "      \"name\": \"example-zone\",\n" +
+                                    "      \"dnsName\": \"example.com.\",\n" +
+                                    "      \"type\": \"primary\",\n" +
+                                    "      \"state\": \"CREATE_SUCCEEDED\",\n" +
+                                    "      \"active\": true,\n" +
+                                    "      \"recordCount\": 1\n" +
                                     "    }\n" +
                                     "  ]\n" +
                                     "}";

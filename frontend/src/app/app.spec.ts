@@ -481,6 +481,13 @@ describe('App', () => {
       expect(app.formatTypeLabel('iam')).toBe('IAM Policies');
       expect(app.formatTypeLabel('')).toBe('Unknown');
       expect(app.formatTypeLabel('database')).toBe('Databases');
+      expect(app.formatTypeLabel('dns-zone')).toBe('DNS Zones');
+      expect(app.formatTypeLabel('dns')).toBe('DNS Zones');
+      expect(app.formatTypeLabel('dnszone')).toBe('DNS Zones');
+      expect(app.formatTypeLabel('dnszones')).toBe('DNS Zones');
+      expect(app.formatTypeLabel('dns-record-set')).toBe('DNS Record Sets');
+      expect(app.formatTypeLabel('dns-record')).toBe('DNS Record Sets');
+      expect(app.formatTypeLabel('dnsrecordset')).toBe('DNS Record Sets');
     });
   });
 
@@ -556,7 +563,7 @@ describe('App', () => {
       fixture.detectChanges();
       const compiled = fixture.nativeElement as HTMLElement;
       const buttons = compiled.querySelectorAll('.filter-chip-btn');
-      expect(buttons.length).toBe(6);
+      expect(buttons.length).toBe(7);
 
       // First button is Token Flow in red
       expect(buttons[0].classList).toContain('tokenflow-filter-btn');
@@ -581,6 +588,10 @@ describe('App', () => {
       // Sixth button is S3 Keys in sky blue
       expect(buttons[5].classList).toContain('s3key-filter-btn');
       expect(buttons[5].textContent).toContain('S3 Keys');
+
+      // Seventh button is DNS Zones in purple
+      expect(buttons[6].classList).toContain('dns-filter-btn');
+      expect(buttons[6].textContent).toContain('DNS Zones');
     });
 
     it('should render deprecated warning chip on resources using Token Flow (Deprecated)', () => {
@@ -651,6 +662,21 @@ describe('App', () => {
 
       // Toggle off
       app.filterS3Keys();
+      expect(app.searchString()).toBe('');
+      expect(mockResourceService.getResources).toHaveBeenCalledWith('');
+    });
+
+    it('should toggle search query when filterDnsZones is called', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+
+      expect(app.searchString()).toBe('');
+      app.filterDnsZones();
+      expect(app.searchString()).toBe('dns-zone');
+      expect(mockResourceService.getResources).toHaveBeenCalledWith('dns-zone');
+
+      // Toggle off
+      app.filterDnsZones();
       expect(app.searchString()).toBe('');
       expect(mockResourceService.getResources).toHaveBeenCalledWith('');
     });
@@ -1229,6 +1255,7 @@ describe('App', () => {
             network: 'ACCESSIBLE',
             'network-vpc': 'ACCESSIBLE',
             iam: 'ACCESS_DENIED',
+            'dns-zone': 'ACCESSIBLE',
             billing: 'NOT_CHECKED'
           },
           hasAccessIssues: true
@@ -1243,6 +1270,7 @@ describe('App', () => {
             network: 'ACCESSIBLE',
             'network-vpc': 'ACCESSIBLE',
             iam: 'ACCESSIBLE',
+            'dns-zone': 'ACCESSIBLE',
             billing: 'ACCESSIBLE'
           },
           hasAccessIssues: false
@@ -1360,7 +1388,7 @@ describe('App', () => {
       expect(deniedBadges[0].textContent?.trim()).toBe('DENIED');
 
       const accessibleBadges = rows[0].querySelectorAll('.status-accessible');
-      expect(accessibleBadges.length).toBe(4); // compute, vmdisks, network, network-vpc
+      expect(accessibleBadges.length).toBe(5); // compute, vmdisks, network, network-vpc, dns-zone
       expect(accessibleBadges[0].textContent?.trim()).toBe('OK');
 
       const notCheckedBadges = rows[0].querySelectorAll('.status-not-checked');
@@ -1693,6 +1721,283 @@ describe('App', () => {
 
       expect(app.formatTypeLabel('public-ip')).toBe('Public IPs');
       expect(app.formatTypeLabel('publicip')).toBe('Public IPs');
+    });
+  });
+
+  describe('DNS Zones & Record Sets Support', () => {
+    it('should correctly identify DNS zone resources', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+      expect(app.isDnsZone({ type: 'dns-zone' } as StackitResource)).toBe(true);
+      expect(app.isDnsZone({ type: 'compute' } as StackitResource)).toBe(false);
+    });
+
+    it('should extract DNS zone data and record sets', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+      const dnsRes: StackitResource = {
+        id: 'z-1',
+        resourceId: 'zone-123',
+        name: 'example.com',
+        type: 'dns-zone',
+        status: 'active',
+        region: 'global',
+        projectId: 'proj-1',
+        data: {
+          zoneType: 'primary',
+          dnsName: 'example.com.',
+          visibility: 'public',
+          recordSets: [
+            { id: 'rs-1', name: 'www', type: 'A', ttl: 300, records: ['1.2.3.4'] }
+          ]
+        }
+      };
+      expect(app.getDnsZoneData(dnsRes)?.zoneType).toBe('primary');
+      expect(app.hasDnsRecordSets(dnsRes)).toBe(true);
+      expect(app.getDnsRecordSets(dnsRes).length).toBe(1);
+      expect(app.formatRecordTargets(app.getDnsRecordSets(dnsRes)[0])).toBe('1.2.3.4');
+    });
+
+    it('should toggle expanded DNS zone record sets', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+      expect(app.isDnsZoneExpanded('z-1')).toBe(false);
+      app.toggleDnsRecordSets('z-1');
+      expect(app.isDnsZoneExpanded('z-1')).toBe(true);
+      app.toggleDnsRecordSets('z-1');
+      expect(app.isDnsZoneExpanded('z-1')).toBe(false);
+    });
+
+    it('should format record targets gracefully', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+      expect(app.formatRecordTargets({ records: ['1.1.1.1', '1.0.0.1'] } as any)).toBe('1.1.1.1, 1.0.0.1');
+      expect(app.formatRecordTargets({ records: [] } as any)).toBe('-');
+      expect(app.formatRecordTargets({} as any)).toBe('-');
+    });
+
+    it('should render DNS zone card, chips, expandable records table, and infrastructure match badges', () => {
+      const dnsZone: StackitResource = {
+        id: 'dns-z1',
+        resourceId: 'dns-z1-res',
+        name: 'prod.example.com',
+        type: 'dns-zone',
+        status: 'ACTIVE',
+        region: 'global',
+        projectId: 'proj-1',
+        data: {
+          zoneType: 'primary',
+          dnsName: 'prod.example.com.',
+          visibility: 'public',
+          recordSets: [
+            {
+              id: 'rs-vm',
+              name: 'api.prod.example.com.',
+              type: 'A',
+              ttl: 3600,
+              records: ['193.148.160.10'],
+              matchedServerId: 'srv-1',
+              matchedServerName: 'api-server-1',
+              matchedPublicIpId: 'ip-1'
+            },
+            {
+              id: 'rs-ip',
+              name: 'vpn.prod.example.com.',
+              type: 'A',
+              ttl: 300,
+              records: ['193.148.160.20'],
+              matchedPublicIpId: 'ip-2'
+            },
+            {
+              id: 'rs-ext',
+              name: 'mail.prod.example.com.',
+              type: 'MX',
+              ttl: 7200,
+              records: ['10 mail.example.com.']
+            }
+          ]
+        }
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [dnsZone],
+        totalCount: 1,
+        typeAggregations: [{ key: 'DNS Zones', count: 1 }],
+        regionAggregations: [{ key: 'global', count: 1 }],
+        statusAggregations: [{ key: 'ACTIVE', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const compiled = fixture.nativeElement as HTMLElement;
+
+      // Check DNS icon
+      expect(compiled.querySelector('.dns-icon')).toBeTruthy();
+
+      // Check badges
+      const typeBadge = compiled.querySelector('.dns-type-badge');
+      expect(typeBadge?.textContent).toContain('PRIMARY');
+
+      const recordsBadge = compiled.querySelector('.dns-records-badge');
+      expect(recordsBadge?.textContent).toContain('3 Records');
+
+      const visibilityBadge = compiled.querySelector('.dns-visibility-badge');
+      expect(visibilityBadge?.textContent).toContain('Public');
+
+      // Table should not be visible before toggle
+      expect(compiled.querySelector('.dns-records-details')).toBeNull();
+
+      // Click toggle button
+      const toggleBtn = compiled.querySelector('.toggle-records-btn') as HTMLButtonElement;
+      expect(toggleBtn).toBeTruthy();
+      expect(toggleBtn.textContent).toContain('View Record Sets (3)');
+      toggleBtn.click();
+      fixture.detectChanges();
+
+      // Table should now be visible
+      expect(compiled.querySelector('.dns-records-details')).toBeTruthy();
+      expect(toggleBtn.textContent).toContain('Hide Record Sets');
+
+      const rows = compiled.querySelectorAll('.records-table tbody tr');
+      expect(rows.length).toBe(3);
+
+      // Row 1: VM Match
+      expect(rows[0].querySelector('.rs-name')?.textContent).toContain('api.prod.example.com.');
+      expect(rows[0].querySelector('.vm-match')?.textContent).toContain('VM: api-server-1');
+
+      // Row 2: Public IP Match
+      expect(rows[1].querySelector('.rs-name')?.textContent).toContain('vpn.prod.example.com.');
+      expect(rows[1].querySelector('.ip-match')?.textContent).toContain('Public IP');
+
+      // Row 3: Unmatched
+      expect(rows[2].querySelector('.rs-name')?.textContent).toContain('mail.prod.example.com.');
+      expect(rows[2].querySelector('.rs-unmatched')?.textContent?.trim()).toBe('-');
+    });
+
+    it('should correctly identify DNS record set resources and extract data', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+      const recordSetRes: StackitResource = {
+        id: 'rs-1',
+        resourceId: 'rs-1',
+        name: 'api.example.com.',
+        type: 'dns-record-set',
+        status: 'ACTIVE',
+        region: 'global',
+        projectId: 'proj-1',
+        data: {
+          recordSetId: 'rs-1',
+          zoneId: 'z-1',
+          zoneName: 'example.com.',
+          recordType: 'A',
+          ttl: 300,
+          records: ['198.51.100.1']
+        }
+      };
+      expect(app.isDnsRecordSet(recordSetRes)).toBe(true);
+      expect(app.isDnsRecordSet({ type: 'compute' } as StackitResource)).toBe(false);
+      expect(app.getDnsRecordSetData(recordSetRes)?.recordType).toBe('A');
+      expect(app.getDnsRecordSetData(recordSetRes)?.zoneName).toBe('example.com.');
+    });
+
+    it('should render standalone DNS record set card with chips, target info, and match badge', () => {
+      const recordSet: StackitResource = {
+        id: 'rs-uuid-1',
+        resourceId: 'rs-1',
+        name: 'api.example.com.',
+        type: 'dns-record-set',
+        status: 'ACTIVE',
+        region: 'global',
+        projectId: 'proj-1',
+        data: {
+          recordSetId: 'rs-1',
+          zoneId: 'z-1',
+          zoneName: 'example.com.',
+          recordType: 'A',
+          ttl: 300,
+          records: ['193.148.160.10'],
+          matchedServerName: 'api-server-prod',
+          matchedPublicIpId: 'ip-1'
+        }
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [recordSet],
+        totalCount: 1,
+        typeAggregations: [{ key: 'DNS Record Sets', count: 1 }],
+        regionAggregations: [{ key: 'global', count: 1 }],
+        statusAggregations: [{ key: 'ACTIVE', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const compiled = fixture.nativeElement as HTMLElement;
+
+      // Icon
+      expect(compiled.querySelector('.dns-record-icon')).toBeTruthy();
+
+      // Badges
+      const typeBadge = compiled.querySelector('.dns-record-type-badge');
+      expect(typeBadge?.textContent).toContain('A');
+
+      const zoneBadge = compiled.querySelector('.dns-zone-link-badge');
+      expect(zoneBadge?.textContent).toContain('Zone: example.com.');
+
+      const ttlBadge = compiled.querySelector('.dns-ttl-badge');
+      expect(ttlBadge?.textContent).toContain('300s');
+
+      const vmBadge = compiled.querySelector('.vm-match');
+      expect(vmBadge?.textContent).toContain('VM: api-server-prod');
+
+      // Target row
+      const targetsRow = compiled.querySelector('.dns-record-targets');
+      expect(targetsRow?.textContent).toContain('193.148.160.10');
+    });
+
+    it('should render soft-deleted status and timestamp when a DNS record set has been deleted', () => {
+      const deletedRecord: StackitResource = {
+        id: 'rs-uuid-stale',
+        resourceId: 'rs-stale-01',
+        name: 'old.example.com.',
+        type: 'dns-record-set',
+        status: 'DELETED',
+        region: 'global',
+        projectId: 'proj-1',
+        deletedAt: '2026-10-02T16:00:00Z',
+        data: {
+          recordSetId: 'rs-stale-01',
+          zoneId: 'z-1',
+          zoneName: 'example.com.',
+          recordType: 'CNAME',
+          ttl: 600,
+          records: ['legacy.example.com.']
+        }
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [deletedRecord],
+        totalCount: 1,
+        typeAggregations: [{ key: 'DNS Record Sets', count: 1 }],
+        regionAggregations: [{ key: 'global', count: 1 }],
+        statusAggregations: [{ key: 'DELETED', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const compiled = fixture.nativeElement as HTMLElement;
+
+      // Card has deleted-card class
+      const card = compiled.querySelector('.resource-card');
+      expect(card?.classList.contains('deleted-card')).toBe(true);
+
+      // Status chip shows DELETED
+      const statusChip = compiled.querySelector('.status-chip.deleted-status');
+      expect(statusChip).toBeTruthy();
+      expect(statusChip?.textContent).toContain('DELETED');
+
+      // Deleted At detail row is shown
+      expect(compiled.textContent).toContain('Deleted At:');
+      expect(compiled.textContent).toContain('2026-10-02T16:00:00Z');
     });
   });
 });

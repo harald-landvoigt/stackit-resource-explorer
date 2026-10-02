@@ -36,6 +36,7 @@ services:
       - STACKIT_VMDISKS_SCHEDULE=1h
       - STACKIT_IAM_SCHEDULE=1h
       - STACKIT_BILLING_SCHEDULE=1h
+      - STACKIT_DNS_SCHEDULE=1h
     depends_on:
       database:
         condition: service_healthy

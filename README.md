@@ -158,25 +158,179 @@ While the Resource Explorer provides robust automated discovery and real-time se
 
 To crawl projects, services, and billing across an organization or project hierarchy, the scraper service account key (`scraper.json`) requires appropriate STACKIT IAM permissions.
 
+Access can be granted via **Predefined Roles** or by creating a single **Custom Scraper Role** containing the 133 permissions listed below.
+
 ### Recommended Roles
 * **Organization / Folder Level**:
   * `project.auditor` or `reader` / `viewer` across the organization or folder tree.
 * **Per-Service Roles (if using granular permissions)**:
 
-| Service Domain | Recommended Role | Required Permissions / Capabilities |
+| Service Domain | Recommended Role | Exact Permissions |
 | :--- | :--- | :--- |
-| **Resource Manager** | `resourcemanager.organization.viewer`, `resourcemanager.project.viewer` | Discovery of folders and child projects |
-| **Compute (VMs)** | `iaas.viewer` or `iaas.admin` | `iaas.server.read` to list servers |
-| **Public IPs (Network)** | `iaas.viewer` or `iaas.admin` | `iaas.public-ip.read` to list project public IPs |
-| **VM Disks (Storage)** | `iaas.viewer` or `iaas.admin` | `iaas.volume.read` to list block storage volumes |
-| **Network VPC** | `iaas.viewer` or `iaas.admin` | `iaas.network.read` to list VPC networks |
-| **Load Balancers** | `loadbalancer.auditor` or `loadbalancer.viewer` | `loadbalancer.loadbalancer.read` |
+| **Resource Manager** | `resourcemanager.organization.viewer`, `resourcemanager.project.viewer` | `resource-manager.organization.get`, `resource-manager.organization.direct.get`, `resource-manager.project.get`, `resource-manager.project.list`, `resource-manager.folder.get`, `resource-manager.folder.list`, `resource-manager.iam-policy.get` |
+| **Compute (VMs)** | `iaas.viewer` or `iaas.admin` | `iaas.server.get`, `iaas.server.list`, `iaas.server.metadata.get`, `iaas.server.nic.list`, `iaas.server.service-account.list`, `iaas.server.volume.get`, `iaas.server.volume.list`, `iaas.machine-type.get`, `iaas.machine-type.list`, `iaas.image.get`, `iaas.image.list`, `iaas.keypair.get`, `iaas.keypair.list`, `iaas.security-group.get`, `iaas.security-group.list`, `iaas.security-group.rule.get`, `iaas.security-group.rule.list`, `iaas.affinity-group.get`, `iaas.affinity-group.list` |
+| **VM Disks (Storage)** | `iaas.viewer` or `iaas.admin` | `iaas.volume.get`, `iaas.volume.list`, `iaas.server.volume.get`, `iaas.server.volume.list`, `iaas.snapshot.get`, `iaas.snapshot.list`, `iaas.backup.get`, `iaas.backup.list` |
+| **Public IPs & Virtual IPs** | `iaas.viewer` or `iaas.admin` | `iaas.public-ip.get`, `iaas.public-ip.list`, `iaas.virtual-ip.get`, `iaas.virtual-ip.list` |
+| **Networks & VPC** | `iaas.viewer` or `iaas.admin` | `iaas.network.get`, `iaas.network.list`, `iaas.nic.get`, `iaas.nic.list`, `iaas.network-area.*`, `vpc.get`, `vpc.list`, `vpc.network-range.*`, `vpc.region.*`, `vpc.role-binding.*`, `vpc.routing-table.*` |
+| **Load Balancers** | `loadbalancer.auditor` or `loadbalancer.viewer` | `alb.loadbalancer.get`, `alb.loadbalancer.list`, `nlb.loadbalancer.get`, `nlb.loadbalancer.list`, `lb-ip-lists.loadbalancer.get`, `lb-ip-lists.loadbalancer.list` |
 | **Object Storage (Basic Discovery)** | `objectstorage.auditor` or `objectstorage.viewer` | `object-storage.bucket.list`, `object-storage.service.list` (lists buckets; public exposure status will be UNKNOWN) |
 | **Object Storage (S3 Security Audit)** | `objectstorage.admin` or custom role | Full 10 scraper permissions (see details below) for JIT S3 key minting, compliance lock inspection, and ACL/policy scraping |
-| **S3 Access Keys (IAM)** | `objectstorage.auditor` or `objectstorage.viewer` | `object-storage.credentials-group.list`, `object-storage.access-key.list` (read-only inventory of credentials groups and S3 access keys across regions) |
-| **IAM Members** | `authorization.auditor` | `authorization.member.read` |
-| **Service Accounts & Credentials** | `service-account.viewer` or `service-account.auditor` | `serviceaccount.serviceaccount.read`, `serviceaccount.token.read`, `serviceaccount.key.read` |
-| **Billing / Cost** | `cost.viewer` or `billing.viewer` | Read access to STACKIT Cost API v3 |
+| **S3 Access Keys (IAM)** | `objectstorage.auditor` or `objectstorage.viewer` | `object-storage.credentials-group.list`, `object-storage.access-key.list`, `object-storage.service-account.list` (read-only inventory of credentials groups and S3 access keys across regions) |
+| **IAM Members & Roles** | `iam.viewer` or `authorization.auditor` | `iam.member.get`, `iam.role.get`, `iam.role.list` |
+| **Service Accounts & Credentials** | `service-account.viewer` or `service-account.auditor` | `iam.service-account.get`, `iam.service-account.list` |
+| **DNS Zones & Record Sets** | `dns.viewer` or `dns.auditor` | `dns.zone.get`, `dns.zone.list` |
+| **Billing / Cost** | `cost.viewer` or `billing.viewer` | `cost-management.billing.get`, `cost-management.cost-report.schedule.list`, `cost-management.pricing.savings-plan.get`, `cost-management.pricing.savings-plan.list` |
+| **Databases (SQL Server Flex)** | `sqlserver-flex.viewer` | `sqlserver-flex.instance.get`, `sqlserver-flex.instance.list`, `sqlserver-flex.database.get`, `sqlserver-flex.flavor.list`, `sqlserver-flex.storage.list`, `sqlserver-flex.backup.list`, `sqlserver-flex.user.list`, `sqlserver-flex.version.list`, `sqlserver-flex.metric.list`, `sqlserver-flex.restore.list`, `sqlserver-flex.role.list`, `sqlserver-flex.collation.list`, `sqlserver-flex.compatlevel.list` |
+| **Server Backup & Update** | `server-backup.viewer`, `server-update.viewer` | `server-backup.backup.*`, `server-backup.backup-schedule.*`, `server-backup.policy.list`, `server-backup.service.get`, `server-update.update.*`, `server-update.update-schedule.*`, `server-update.policy.list`, `server-update.service.get` |
+| **Private Endpoints & Security** | `private-endpoint.viewer`, `ufw.viewer` | `private-endpoint.instance.info.list`, `private-endpoint.network-range.*`, `ufw.folder.list`, `ufw.organization.list`, `audit-log.entry.get`, `container-registry.project.permission.view`, `run-command.*` |
+
+---
+
+### Custom Scraper Role: Complete Permissions List (133 Permissions)
+
+For simplified administration, you can create a single custom IAM role (e.g. `resource-explorer-scraper`) at the Organization or Project level containing the following **133 permissions**:
+
+<details open>
+<summary><strong>Alphabetical Permissions List (133 permissions)</strong></summary>
+
+```text
+alb.loadbalancer.get
+alb.loadbalancer.list
+audit-log.entry.get
+container-registry.project.permission.view
+cost-management.billing.get
+cost-management.cost-report.schedule.list
+cost-management.pricing.savings-plan.get
+cost-management.pricing.savings-plan.list
+dns.zone.get
+dns.zone.list
+iaas.affinity-group.get
+iaas.affinity-group.list
+iaas.backup.get
+iaas.backup.list
+iaas.image.get
+iaas.image.list
+iaas.keypair.get
+iaas.keypair.list
+iaas.machine-type.get
+iaas.machine-type.list
+iaas.network-area.get
+iaas.network-area.list
+iaas.network-area.project.list
+iaas.network-area.range.get
+iaas.network-area.range.list
+iaas.network-area.route.get
+iaas.network-area.route.list
+iaas.network-area.rt.get
+iaas.network-area.rt.list
+iaas.network-area.rt.route.get
+iaas.network-area.rt.route.list
+iaas.network.get
+iaas.network.list
+iaas.nic.get
+iaas.nic.list
+iaas.project.get
+iaas.public-ip.get
+iaas.public-ip.list
+iaas.quota.get
+iaas.regional-network-area.get
+iaas.regional-network-area.list
+iaas.request.get
+iaas.resource.request.get
+iaas.security-group.get
+iaas.security-group.list
+iaas.security-group.rule.get
+iaas.security-group.rule.list
+iaas.server.get
+iaas.server.list
+iaas.server.metadata.get
+iaas.server.nic.list
+iaas.server.service-account.list
+iaas.server.volume.get
+iaas.server.volume.list
+iaas.snapshot.get
+iaas.snapshot.list
+iaas.virtual-ip.get
+iaas.virtual-ip.list
+iaas.volume.get
+iaas.volume.list
+iam.member.get
+iam.role.get
+iam.role.list
+iam.service-account.get
+iam.service-account.list
+lb-ip-lists.loadbalancer.get
+lb-ip-lists.loadbalancer.list
+nlb.loadbalancer.get
+nlb.loadbalancer.list
+object-storage.access-key.create
+object-storage.access-key.delete
+object-storage.access-key.list
+object-storage.bucket.list
+object-storage.compliance-lock.list
+object-storage.credentials-group.create
+object-storage.credentials-group.delete
+object-storage.credentials-group.list
+object-storage.service-account.list
+object-storage.service.list
+private-endpoint.instance.info.list
+private-endpoint.network-range.get
+private-endpoint.network-range.list
+resource-manager.folder.get
+resource-manager.folder.list
+resource-manager.iam-policy.get
+resource-manager.organization.direct.get
+resource-manager.organization.get
+resource-manager.project.get
+resource-manager.project.list
+run-command.agent.get
+run-command.command-template.get
+run-command.command.get
+run-command.command.list
+server-backup.backup-schedule.get
+server-backup.backup-schedule.list
+server-backup.backup.get
+server-backup.backup.list
+server-backup.policy.list
+server-backup.service.get
+server-update.policy.list
+server-update.service.get
+server-update.update-schedule.get
+server-update.update-schedule.list
+server-update.update.get
+server-update.update.list
+sqlserver-flex.backup.list
+sqlserver-flex.collation.list
+sqlserver-flex.compatlevel.list
+sqlserver-flex.database.get
+sqlserver-flex.flavor.list
+sqlserver-flex.instance.get
+sqlserver-flex.instance.list
+sqlserver-flex.metric.list
+sqlserver-flex.restore.list
+sqlserver-flex.role.list
+sqlserver-flex.storage.list
+sqlserver-flex.user.list
+sqlserver-flex.version.list
+ufw.folder.list
+ufw.organization.list
+vpc.get
+vpc.list
+vpc.network-range.get
+vpc.network-range.list
+vpc.network-range.role-binding.get
+vpc.region.get
+vpc.region.list
+vpc.role-binding.get
+vpc.routing-table.get
+vpc.routing-table.list
+vpc.routing-table.role-binding.get
+vpc.routing-table.static-route.get
+vpc.routing-table.static-route.list
+```
+</details>
+
+---
 
 ### Object Storage Scraper Role & Granular IAM Permissions
 
