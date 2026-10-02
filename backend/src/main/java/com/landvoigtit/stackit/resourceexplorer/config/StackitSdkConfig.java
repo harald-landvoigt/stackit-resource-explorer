@@ -17,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import com.landvoigtit.stackit.resourceexplorer.billing.BillingApiClient;
+import com.landvoigtit.stackit.resourceexplorer.dns.DnsApiClient;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -41,6 +42,9 @@ public class StackitSdkConfig {
 
     @ConfigProperty(name = "stackit.service-account.api-url", defaultValue = StackitConstants.DEFAULT_SERVICE_ACCOUNT_API_URL)
     String serviceAccountApiUrl;
+
+    @ConfigProperty(name = "stackit.dns.api-url", defaultValue = StackitConstants.DEFAULT_DNS_API_URL)
+    String dnsApiUrl;
 
     @ConfigProperty(name = "stackit.regions", defaultValue = "eu01,eu02")
     List<String> regions;
@@ -123,6 +127,12 @@ public class StackitSdkConfig {
         return (serviceAccountApiUrl != null && !serviceAccountApiUrl.isBlank())
                 ? serviceAccountApiUrl
                 : StackitConstants.DEFAULT_SERVICE_ACCOUNT_API_URL;
+    }
+
+    public String getDnsApiUrl() {
+        return (dnsApiUrl != null && !dnsApiUrl.isBlank())
+                ? dnsApiUrl
+                : StackitConstants.DEFAULT_DNS_API_URL;
     }
 
     public List<String> getRegions() {
@@ -437,6 +447,13 @@ public class StackitSdkConfig {
     @Singleton
     public BillingApiClient billingApiClient(final OkHttpClient httpClient) {
         return new BillingApiClient(httpClient, getBillingApiUrl());
+    }
+
+    @Produces
+    @Singleton
+    public DnsApiClient dnsApiClient(final OkHttpClient httpClient, final CoreConfiguration config) {
+        final ResilientKeyFlowAuthenticator auth = resilientKeyFlowAuthenticator(config);
+        return new DnsApiClient(httpClient, auth, getDnsApiUrl());
     }
 }
 

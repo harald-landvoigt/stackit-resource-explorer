@@ -37,3 +37,18 @@ This file tracks all major tracks for the project. Each track has its own detail
 - [x] **Track: Scraper Log Cleanup, Error Classification & Project Discovery Caching**
   *Link: [./tracks/scraper_log_fixes_and_discovery_cache_20260927/](./tracks/scraper_log_fixes_and_discovery_cache_20260927/)*
 
+---
+
+- [ ] **Track: SKE (Kubernetes) Resource Scraper**
+  *Link: [./tracks/ske_resource_scraper_20260929/](./tracks/ske_resource_scraper_20260929/)*
+
+---
+
+- [ ] **Track: Managed Database Resources Scraper**
+  *Link: [./tracks/database_resources_scraper_20260929/](./tracks/database_resources_scraper_20260929/)*
+
+---
+
+- [x] **Track: DNS Zones & Record Sets Scraper**
+  *Link: [./tracks/dns_resources_scraper_20260929/](./tracks/dns_resources_scraper_20260929/)*
+

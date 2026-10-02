@@ -23,6 +23,7 @@ public class StackitConstantsTest {
         assertEquals("https://service-account.api.stackit.cloud", StackitConstants.DEFAULT_SERVICE_ACCOUNT_API_URL);
         assertEquals("https://cost.api.stackit.cloud", StackitConstants.DEFAULT_COST_API_URL);
         assertEquals("https://cost.api.stackit.cloud", StackitConstants.DEFAULT_BILLING_API_URL);
+        assertEquals("https://dns.api.stackit.cloud", StackitConstants.DEFAULT_DNS_API_URL);
 
         assertEquals("https://authorization.api.stackit.cloud/v2/project/p-123/members",
                 StackitConstants.formatMembersUrl("p-123"));
@@ -41,6 +42,13 @@ public class StackitConstantsTest {
         assertEquals("/v1/projects/p-123/invoices", StackitConstants.formatProjectInvoicesPath("p-123"));
         assertEquals("/v1/organizations/org-123/invoices", StackitConstants.formatOrgInvoicesPath("org-123"));
 
+        assertEquals("/v1/projects/p-123/zones", StackitConstants.formatDnsZonesPath("p-123"));
+        assertEquals("/v1/projects/p-123/zones/z-456/rrsets", StackitConstants.formatDnsRecordSetsPath("p-123", "z-456"));
+        assertEquals("https://dns.api.stackit.cloud/v1/projects/p-123/zones", StackitConstants.formatDnsZonesUrl("p-123"));
+        assertEquals("https://custom-dns.local/v1/projects/p-123/zones", StackitConstants.formatDnsZonesUrl("https://custom-dns.local", "p-123"));
+        assertEquals("https://dns.api.stackit.cloud/v1/projects/p-123/zones/z-456/rrsets", StackitConstants.formatDnsRecordSetsUrl("p-123", "z-456"));
+        assertEquals("https://custom-dns.local/v1/projects/p-123/zones/z-456/rrsets", StackitConstants.formatDnsRecordSetsUrl("https://custom-dns.local", "p-123", "z-456"));
+
         assertEquals("https://cost.api.stackit.cloud/v3/costs/org-123?from=2026-09-01&to=2026-09-30&granularity=daily&includeZeroCosts=true",
                 StackitConstants.formatCostsUrl("org-123", "2026-09-01", "2026-09-30"));
         assertEquals("https://custom-cost.local/v3/costs/org-123?from=2026-09-01&to=2026-09-30&granularity=daily&includeZeroCosts=true",
@@ -55,6 +63,8 @@ public class StackitConstantsTest {
         assertEquals("iam", StackitConstants.RESOURCE_TYPE_IAM);
         assertEquals("billing", StackitConstants.RESOURCE_TYPE_BILLING);
         assertEquals("billing-org", StackitConstants.RESOURCE_TYPE_BILLING_ORG);
+        assertEquals("dns-zone", StackitConstants.RESOURCE_TYPE_DNS_ZONE);
+        assertEquals("dns-record-set", StackitConstants.RESOURCE_TYPE_DNS_RECORD_SET);
 
         assertEquals("eu-central-1", StackitConstants.DEFAULT_REGION);
         assertEquals("global", StackitConstants.GLOBAL_REGION);

@@ -193,6 +193,17 @@ public class StackitResourceService {
             case "publicip":
             case "publicips":
                 return "Public IPs";
+            case "dns-zone":
+            case "dns":
+            case "dnszone":
+            case "dnszones":
+                return "DNS Zones";
+            case "dns-record-set":
+            case "dns-record":
+            case "dnsrecord":
+            case "dnsrecordset":
+            case "dnsrecordsets":
+                return "DNS Record Sets";
             default:
                 return Character.toUpperCase(type.charAt(0)) + type.substring(1) + "s";
         }

@@ -96,6 +96,14 @@
               <mat-icon class="filter-btn-icon">vpn_key</mat-icon>
               <span>S3 Keys</span>
             </button>
+            <button type="button" 
+                    class="filter-chip-btn dns-filter-btn" 
+                    [class.active-filter]="searchString() === 'dns-zone' || searchString() === 'DNS Zones'"
+                    (click)="filterDnsZones()"
+                    title="Filter DNS Zones and record sets">
+              <mat-icon class="filter-btn-icon">dns</mat-icon>
+              <span>DNS Zones</span>
+            </button>
           </div>
 
           <!-- Main Columns Layout -->
@@ -191,7 +199,11 @@
                     
                     <div *ngFor="let res of filteredResources()" class="resource-card border-orange" [class.deleted-card]="!!res.deletedAt">
                       <div class="resource-header">
-                        <span class="resource-name font-bold">{{ res.name }}</span>
+                        <span class="resource-name font-bold">
+                          <mat-icon *ngIf="isDnsZone(res)" class="dns-icon text-orange">dns</mat-icon>
+                          <mat-icon *ngIf="isDnsRecordSet(res)" class="dns-record-icon text-orange">tag</mat-icon>
+                          {{ res.name }}
+                        </span>
                         <mat-chip-set>
                           <mat-chip *ngIf="isTokenFlowDeprecated(res)" class="deprecated-chip" title="Uses deprecated Token Flow with static API secrets">
                             <mat-icon class="chip-warning-icon">warning</mat-icon>
@@ -257,6 +269,46 @@
                               Attached{{ res.data?.['serverName'] ? ': ' + res.data?.['serverName'] : '' }}
                             </mat-chip>
                           </ng-container>
+                          <ng-container *ngIf="isDnsZone(res)">
+                            <ng-container *ngIf="getDnsZoneData(res) as dnsData">
+                              <mat-chip *ngIf="dnsData.zoneType" class="dns-type-badge" [title]="'DNS Zone type: ' + dnsData.zoneType">
+                                <mat-icon class="chip-safe-icon">dns</mat-icon>
+                                {{ dnsData.zoneType | uppercase }}
+                              </mat-chip>
+                              <mat-chip *ngIf="dnsData.recordSets && dnsData.recordSets.length > 0" class="dns-records-badge" [title]="dnsData.recordSets.length + ' record sets configured'">
+                                <mat-icon class="chip-safe-icon">format_list_bulleted</mat-icon>
+                                {{ dnsData.recordSets.length }} Records
+                              </mat-chip>
+                              <mat-chip *ngIf="dnsData.visibility" class="dns-visibility-badge" [title]="'Visibility: ' + dnsData.visibility">
+                                <mat-icon class="chip-safe-icon">{{ dnsData.visibility === 'public' ? 'public' : 'visibility_off' }}</mat-icon>
+                                {{ dnsData.visibility | titlecase }}
+                              </mat-chip>
+                            </ng-container>
+                          </ng-container>
+                          <ng-container *ngIf="isDnsRecordSet(res)">
+                            <ng-container *ngIf="getDnsRecordSetData(res) as rsData">
+                              <mat-chip *ngIf="rsData.recordType" class="dns-record-type-badge" [title]="'Record Type: ' + rsData.recordType">
+                                <mat-icon class="chip-safe-icon">label</mat-icon>
+                                {{ rsData.recordType | uppercase }}
+                              </mat-chip>
+                              <mat-chip *ngIf="rsData.zoneName" class="dns-zone-link-badge" [title]="'Parent DNS Zone: ' + rsData.zoneName">
+                                <mat-icon class="chip-safe-icon">dns</mat-icon>
+                                Zone: {{ rsData.zoneName }}
+                              </mat-chip>
+                              <mat-chip *ngIf="rsData.ttl" class="dns-ttl-badge" [title]="'TTL: ' + rsData.ttl + 's'">
+                                <mat-icon class="chip-safe-icon">timer</mat-icon>
+                                {{ rsData.ttl }}s
+                              </mat-chip>
+                              <mat-chip *ngIf="rsData.matchedServerName" class="match-badge vm-match" [title]="'Matched VM: ' + rsData.matchedServerName">
+                                <mat-icon class="match-icon">computer</mat-icon>
+                                VM: {{ rsData.matchedServerName }}
+                              </mat-chip>
+                              <mat-chip *ngIf="rsData.matchedPublicIpId && !rsData.matchedServerName" class="match-badge ip-match" [title]="'Matched Public IP: ' + rsData.matchedPublicIpId">
+                                <mat-icon class="match-icon">sensors</mat-icon>
+                                Public IP
+                              </mat-chip>
+                            </ng-container>
+                          </ng-container>
                           <mat-chip class="type-chip">{{ res.type }}</mat-chip>
                           <mat-chip class="status-chip"
                                     [class.deleted-status]="!!res.deletedAt"
@@ -302,12 +354,18 @@
                           <span class="section-title text-orange font-medium">Metadata:</span>
                           <div class="metadata-grid">
                             <ng-container *ngFor="let key of getObjectKeys(res.data)">
-                              <div *ngIf="key !== 'amount' && key !== 'currency' && key !== 'bucketPolicy' && key !== 'acl' && key !== 'securityFindings' && key !== 'retention' && key !== 'publicIpHistory' && key !== 'publicIps' && res.data[key] !== '' && res.data[key] !== null" class="meta-item">
+                              <div *ngIf="key !== 'amount' && key !== 'currency' && key !== 'bucketPolicy' && key !== 'acl' && key !== 'securityFindings' && key !== 'retention' && key !== 'publicIpHistory' && key !== 'publicIps' && key !== 'recordSets' && res.data[key] !== '' && res.data[key] !== null" class="meta-item">
                                 <span class="meta-key">{{ key }}:</span>
                                 <span class="meta-val">{{ formatMetaValue(res.data[key]) }}</span>
                               </div>
                             </ng-container>
                           </div>
+                        </div>
+
+                        <!-- DNS Record Set Targets -->
+                        <div *ngIf="isDnsRecordSet(res)" class="detail-row dns-record-targets">
+                          <span class="detail-label text-orange font-medium">Record Targets:</span>
+                          <span class="detail-value font-bold">{{ formatRecordTargets(res.data) }}</span>
                         </div>
 
                         <!-- VM Public IP History -->
@@ -403,6 +461,53 @@
                             <ng-template #noPolicyTpl>
                               <div class="no-policy-text">No bucket policy configured.</div>
                             </ng-template>
+                          </div>
+                        </div>
+
+                        <!-- DNS Zone Record Sets Toggle -->
+                        <div *ngIf="isDnsZone(res) && hasDnsRecordSets(res)" class="dns-record-sets-toggle">
+                          <button mat-stroked-button class="toggle-records-btn border-orange" (click)="toggleDnsRecordSets(res.id)">
+                            <mat-icon>{{ isDnsZoneExpanded(res.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                            <span>{{ isDnsZoneExpanded(res.id) ? 'Hide Record Sets' : 'View Record Sets (' + getDnsRecordSets(res).length + ')' }}</span>
+                          </button>
+                        </div>
+
+                        <!-- Expandable DNS Record Sets Container -->
+                        <div *ngIf="isDnsZone(res) && isDnsZoneExpanded(res.id)" class="dns-records-details border-orange">
+                          <div class="section-title text-orange font-bold">Configured Record Sets:</div>
+                          <div class="records-table-container">
+                            <table class="records-table">
+                              <thead>
+                                <tr>
+                                  <th>Name</th>
+                                  <th>Type</th>
+                                  <th>TTL</th>
+                                  <th>Target</th>
+                                  <th>Infrastructure Link</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr *ngFor="let rs of getDnsRecordSets(res)">
+                                  <td class="rs-name font-bold">{{ rs.name }}</td>
+                                  <td><span class="rs-type-badge">{{ rs.type }}</span></td>
+                                  <td class="rs-ttl">{{ rs.ttl ? rs.ttl + 's' : '-' }}</td>
+                                  <td class="rs-target">{{ formatRecordTargets(rs) }}</td>
+                                  <td class="rs-match">
+                                    <span *ngIf="rs.matchedServerName" class="match-badge vm-match" [title]="'Matched VM: ' + rs.matchedServerName + ' (' + rs.matchedServerId + ')'">
+                                      <mat-icon class="match-icon">computer</mat-icon>
+                                      VM: {{ rs.matchedServerName }}
+                                    </span>
+                                    <span *ngIf="rs.matchedPublicIpId && !rs.matchedServerName" class="match-badge ip-match" [title]="'Matched Public IP: ' + rs.matchedPublicIpId">
+                                      <mat-icon class="match-icon">sensors</mat-icon>
+                                      Public IP
+                                    </span>
+                                    <span *ngIf="!rs.matchedServerName && !rs.matchedPublicIpId" class="rs-unmatched text-muted">
+                                      -
+                                    </span>
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
                           </div>
                         </div>
                       </div>

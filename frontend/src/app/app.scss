@@ -209,6 +209,16 @@
     &:hover { background-color: rgba(56, 189, 248, 0.25); border-color: #38bdf8; }
     &.active-filter { background-color: #38bdf8; color: #000000; border-color: #38bdf8; .filter-btn-icon { color: #000000; } }
   }
+
+  &.dns-filter-btn {
+    border: 1px solid #10b981;
+    background-color: rgba(16, 185, 129, 0.12);
+    color: #6ee7b7;
+
+    .filter-btn-icon { color: #10b981; }
+    &:hover { background-color: rgba(16, 185, 129, 0.25); border-color: #34d399; }
+    &.active-filter { background-color: #10b981; color: #000000; border-color: #10b981; .filter-btn-icon { color: #000000; } }
+  }
 }
 
 .columns-container {
@@ -367,7 +377,10 @@
 .unattached-badge,
 .boot-badge,
 .s3key-badge,
-.expired-badge {
+.expired-badge,
+.dns-type-badge,
+.dns-records-badge,
+.dns-visibility-badge {
   font-weight: 600 !important;
 }
 
@@ -451,6 +464,79 @@
   .chip-warning-icon {
     color: #ef4444;
   }
+}
+
+.dns-type-badge {
+  --mdc-chip-label-text-color: #a7f3d0 !important;
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  border: 1px solid #10b981 !important;
+
+  .chip-safe-icon {
+    color: #10b981;
+  }
+}
+
+.dns-records-badge {
+  --mdc-chip-label-text-color: #67e8f9 !important;
+  background-color: rgba(6, 182, 212, 0.15) !important;
+  border: 1px solid #06b6d4 !important;
+
+  .chip-safe-icon {
+    color: #06b6d4;
+  }
+}
+
+.dns-visibility-badge {
+  --mdc-chip-label-text-color: #fde047 !important;
+  background-color: rgba(234, 179, 8, 0.15) !important;
+  border: 1px solid #eab308 !important;
+
+  .chip-safe-icon {
+    color: #eab308;
+  }
+}
+
+.dns-record-icon {
+  font-size: 1.2rem;
+  width: 1.2rem;
+  height: 1.2rem;
+  vertical-align: middle;
+  margin-right: 0.25rem;
+}
+
+.dns-record-type-badge {
+  --mdc-chip-label-text-color: #c084fc !important;
+  background-color: rgba(168, 85, 247, 0.15) !important;
+  border: 1px solid #a855f7 !important;
+
+  .chip-safe-icon {
+    color: #a855f7;
+  }
+}
+
+.dns-zone-link-badge {
+  --mdc-chip-label-text-color: #93c5fd !important;
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  border: 1px solid #3b82f6 !important;
+
+  .chip-safe-icon {
+    color: #3b82f6;
+  }
+}
+
+.dns-ttl-badge {
+  --mdc-chip-label-text-color: #94a3b8 !important;
+  background-color: rgba(148, 163, 184, 0.12) !important;
+  border: 1px solid #64748b !important;
+
+  .chip-safe-icon {
+    color: #94a3b8;
+  }
+}
+
+.dns-record-targets {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
 }
 
 .type-chip {
@@ -729,6 +815,115 @@
     font-size: 0.85rem;
     color: #94a3b8;
     font-style: italic;
+  }
+}
+
+.dns-record-sets-toggle {
+  margin-top: 12px;
+
+  .toggle-records-btn {
+    border-color: #10b981 !important;
+    color: #6ee7b7 !important;
+
+    &:hover {
+      background-color: rgba(16, 185, 129, 0.15) !important;
+    }
+  }
+}
+
+.dns-records-details {
+  margin-top: 12px;
+  background-color: #141414;
+  border: 1px solid #10b981;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  .records-table-container {
+    overflow-x: auto;
+  }
+
+  .records-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+
+    th, td {
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 1px solid #2d2d2d;
+    }
+
+    th {
+      color: #10b981;
+      background-color: #1e1e1e;
+      font-weight: 600;
+      border-bottom: 1px solid #10b981;
+    }
+
+    td {
+      color: #cbd5e1;
+    }
+
+    .rs-name {
+      color: #e2e8f0;
+    }
+
+    .rs-type-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      background-color: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid #10b981;
+    }
+
+    .rs-ttl {
+      color: #94a3b8;
+    }
+
+    .rs-target {
+      color: #f1f5f9;
+      font-family: ui-monospace, monospace;
+    }
+
+    .match-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+
+      .match-icon {
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+      }
+
+      &.vm-match {
+        background-color: rgba(59, 130, 246, 0.2);
+        color: #93c5fd;
+        border: 1px solid #3b82f6;
+        .match-icon { color: #60a5fa; }
+      }
+
+      &.ip-match {
+        background-color: rgba(245, 158, 11, 0.2);
+        color: #fcd34d;
+        border: 1px solid #f59e0b;
+        .match-icon { color: #f59e0b; }
+      }
+    }
+
+    .rs-unmatched {
+      color: #64748b;
+    }
   }
 }
 

@@ -135,6 +135,56 @@ export interface ComputeResourceData {
   [key: string]: any;
 }
 
+export interface DnsRecordSet {
+  id?: string;
+  name?: string;
+  type?: string;
+  ttl?: number;
+  records?: string[];
+  comment?: string;
+  active?: boolean;
+  state?: string;
+  matchedPublicIpId?: string;
+  matchedServerId?: string;
+  matchedServerName?: string;
+  [key: string]: any;
+}
+
+export interface DnsZoneResourceData {
+  zoneId?: string;
+  name?: string;
+  dnsName?: string;
+  zoneType?: string;
+  visibility?: string;
+  isReverseZone?: boolean;
+  active?: boolean;
+  primaryNameServer?: string;
+  contactEmail?: string;
+  defaultTTL?: number;
+  recordCount?: number;
+  acl?: string;
+  description?: string;
+  recordSetsSummary?: Record<string, number>;
+  recordSets?: DnsRecordSet[];
+  [key: string]: any;
+}
+
+export interface DnsRecordSetResourceData {
+  recordSetId?: string;
+  zoneId?: string;
+  zoneName?: string;
+  recordType?: string;
+  ttl?: number;
+  records?: string[];
+  comment?: string;
+  active?: boolean;
+  state?: string;
+  matchedPublicIpId?: string;
+  matchedServerId?: string;
+  matchedServerName?: string;
+  [key: string]: any;
+}
+
 export type AccessStatus = 'ACCESSIBLE' | 'ACCESS_DENIED' | 'NOT_CHECKED';
 
 export interface AccessIssueRecord {

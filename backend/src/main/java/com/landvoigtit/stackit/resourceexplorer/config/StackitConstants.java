@@ -16,6 +16,7 @@ public final class StackitConstants {
     public static final String DEFAULT_SERVICE_ACCOUNT_API_URL = "https://service-account.api.stackit.cloud";
     public static final String DEFAULT_COST_API_URL = "https://cost.api.stackit.cloud";
     public static final String DEFAULT_BILLING_API_URL = DEFAULT_COST_API_URL;
+    public static final String DEFAULT_DNS_API_URL = "https://dns.api.stackit.cloud";
 
     // API Path Templates
     public static final String IAM_MEMBERS_PATH_TEMPLATE = "/v2/project/%s/members";
@@ -25,6 +26,8 @@ public final class StackitConstants {
     public static final String COST_PROJECTS_PATH_TEMPLATE = "/v3/costs/%s";
     public static final String BILLING_PROJECT_INVOICES_PATH_TEMPLATE = "/v1/projects/%s/invoices";
     public static final String BILLING_ORG_INVOICES_PATH_TEMPLATE = "/v1/organizations/%s/invoices";
+    public static final String DNS_ZONES_PATH_TEMPLATE = "/v1/projects/%s/zones";
+    public static final String DNS_RECORD_SETS_PATH_TEMPLATE = "/v1/projects/%s/zones/%s/rrsets";
 
     // Full URL Templates (using default base URLs)
     public static final String IAM_MEMBERS_URL_TEMPLATE = DEFAULT_AUTHORIZATION_API_URL + IAM_MEMBERS_PATH_TEMPLATE;
@@ -47,6 +50,8 @@ public final class StackitConstants {
     public static final String RESOURCE_TYPE_BILLING = "billing";
     public static final String RESOURCE_TYPE_BILLING_ORG = "billing-org";
     public static final String RESOURCE_TYPE_PUBLIC_IP = "public-ip";
+    public static final String RESOURCE_TYPE_DNS_ZONE = "dns-zone";
+    public static final String RESOURCE_TYPE_DNS_RECORD_SET = "dns-record-set";
 
     // Default Regions
     public static final String DEFAULT_REGION = "eu-central-1";
@@ -137,6 +142,73 @@ public final class StackitConstants {
      */
     public static String formatOrgInvoicesPath(final String orgId) {
         return String.format(BILLING_ORG_INVOICES_PATH_TEMPLATE, orgId);
+    }
+
+    /**
+     * Formats the relative endpoint path to fetch DNS zones for a given project ID.
+     *
+     * @param projectId the project UUID string
+     * @return the endpoint path
+     */
+    public static String formatDnsZonesPath(final String projectId) {
+        return String.format(DNS_ZONES_PATH_TEMPLATE, projectId);
+    }
+
+    /**
+     * Formats the relative endpoint path to fetch DNS record sets for a given project ID and zone ID.
+     *
+     * @param projectId the project UUID string
+     * @param zoneId the DNS zone UUID string
+     * @return the endpoint path
+     */
+    public static String formatDnsRecordSetsPath(final String projectId, final String zoneId) {
+        return String.format(DNS_RECORD_SETS_PATH_TEMPLATE, projectId, zoneId);
+    }
+
+    /**
+     * Formats the full URL to fetch DNS zones for a given project ID.
+     *
+     * @param baseUrl the DNS API base URL (or null for default)
+     * @param projectId the project UUID string
+     * @return the full URL
+     */
+    public static String formatDnsZonesUrl(final String baseUrl, final String projectId) {
+        final String base = (baseUrl != null && !baseUrl.isBlank()) ? baseUrl.replaceAll("/+$", "") : DEFAULT_DNS_API_URL;
+        return base + formatDnsZonesPath(projectId);
+    }
+
+    /**
+     * Formats the full URL to fetch DNS zones for a given project ID using the default DNS API base URL.
+     *
+     * @param projectId the project UUID string
+     * @return the full URL
+     */
+    public static String formatDnsZonesUrl(final String projectId) {
+        return formatDnsZonesUrl(DEFAULT_DNS_API_URL, projectId);
+    }
+
+    /**
+     * Formats the full URL to fetch DNS record sets for a given project ID and zone ID.
+     *
+     * @param baseUrl the DNS API base URL (or null for default)
+     * @param projectId the project UUID string
+     * @param zoneId the DNS zone UUID string
+     * @return the full URL
+     */
+    public static String formatDnsRecordSetsUrl(final String baseUrl, final String projectId, final String zoneId) {
+        final String base = (baseUrl != null && !baseUrl.isBlank()) ? baseUrl.replaceAll("/+$", "") : DEFAULT_DNS_API_URL;
+        return base + formatDnsRecordSetsPath(projectId, zoneId);
+    }
+
+    /**
+     * Formats the full URL to fetch DNS record sets for a given project ID and zone ID using the default DNS API base URL.
+     *
+     * @param projectId the project UUID string
+     * @param zoneId the DNS zone UUID string
+     * @return the full URL
+     */
+    public static String formatDnsRecordSetsUrl(final String projectId, final String zoneId) {
+        return formatDnsRecordSetsUrl(DEFAULT_DNS_API_URL, projectId, zoneId);
     }
 
     /**
