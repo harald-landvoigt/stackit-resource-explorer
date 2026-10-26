@@ -219,6 +219,16 @@
     &:hover { background-color: rgba(16, 185, 129, 0.25); border-color: #34d399; }
     &.active-filter { background-color: #10b981; color: #000000; border-color: #10b981; .filter-btn-icon { color: #000000; } }
   }
+
+  &.database-filter-btn {
+    border: 1px solid #06b6d4;
+    background-color: rgba(6, 182, 212, 0.12);
+    color: #67e8f9;
+
+    .filter-btn-icon { color: #06b6d4; }
+    &:hover { background-color: rgba(6, 182, 212, 0.25); border-color: #22d3ee; }
+    &.active-filter { background-color: #06b6d4; color: #000000; border-color: #06b6d4; .filter-btn-icon { color: #000000; } }
+  }
 }
 
 .columns-container {
@@ -537,6 +547,46 @@
 .dns-record-targets {
   margin-top: 0.5rem;
   font-size: 0.875rem;
+}
+
+.database-engine-badge {
+  --mdc-chip-label-text-color: #67e8f9 !important;
+  background-color: rgba(6, 182, 212, 0.15) !important;
+  border: 1px solid #06b6d4 !important;
+
+  .chip-safe-icon {
+    color: #06b6d4;
+  }
+}
+
+.database-flavor-badge {
+  --mdc-chip-label-text-color: #fde047 !important;
+  background-color: rgba(234, 179, 8, 0.15) !important;
+  border: 1px solid #eab308 !important;
+
+  .chip-safe-icon {
+    color: #eab308;
+  }
+}
+
+.database-storage-badge {
+  --mdc-chip-label-text-color: #cbd5e1 !important;
+  background-color: rgba(148, 163, 184, 0.15) !important;
+  border: 1px solid #94a3b8 !important;
+
+  .chip-safe-icon {
+    color: #cbd5e1;
+  }
+}
+
+.database-replicas-badge {
+  --mdc-chip-label-text-color: #c084fc !important;
+  background-color: rgba(168, 85, 247, 0.15) !important;
+  border: 1px solid #a855f7 !important;
+
+  .chip-safe-icon {
+    color: #a855f7;
+  }
 }
 
 .type-chip {

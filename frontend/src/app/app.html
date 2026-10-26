@@ -104,6 +104,14 @@
               <mat-icon class="filter-btn-icon">dns</mat-icon>
               <span>DNS Zones</span>
             </button>
+            <button type="button" 
+                    class="filter-chip-btn database-filter-btn" 
+                    [class.active-filter]="searchString() === 'database' || searchString() === 'Databases'"
+                    (click)="filterDatabases()"
+                    title="Filter managed database instances">
+              <mat-icon class="filter-btn-icon">storage</mat-icon>
+              <span>Databases</span>
+            </button>
           </div>
 
           <!-- Main Columns Layout -->
@@ -306,6 +314,26 @@
                               <mat-chip *ngIf="rsData.matchedPublicIpId && !rsData.matchedServerName" class="match-badge ip-match" [title]="'Matched Public IP: ' + rsData.matchedPublicIpId">
                                 <mat-icon class="match-icon">sensors</mat-icon>
                                 Public IP
+                              </mat-chip>
+                            </ng-container>
+                          </ng-container>
+                          <ng-container *ngIf="isDatabase(res)">
+                            <ng-container *ngIf="getDatabaseData(res) as dbData">
+                              <mat-chip class="database-engine-badge" [title]="'Engine: ' + formatDatabaseEngine(dbData.engine)">
+                                <mat-icon class="chip-safe-icon">{{ getDatabaseEngineIcon(dbData.engine) }}</mat-icon>
+                                {{ formatDatabaseEngine(dbData.engine) }}{{ dbData.version ? ' ' + dbData.version : '' }}
+                              </mat-chip>
+                              <mat-chip *ngIf="dbData.flavor" class="database-flavor-badge" [title]="dbData.flavorDescription ? dbData.flavorDescription : ('Flavor: ' + dbData.flavor)">
+                                <mat-icon class="chip-safe-icon">memory</mat-icon>
+                                {{ dbData.flavor }}
+                              </mat-chip>
+                              <mat-chip *ngIf="dbData.storage" class="database-storage-badge" [title]="'Storage: ' + dbData.storage + ' GB'">
+                                <mat-icon class="chip-safe-icon">save</mat-icon>
+                                {{ dbData.storage }} GB
+                              </mat-chip>
+                              <mat-chip *ngIf="dbData.replicas && dbData.replicas > 1" class="database-replicas-badge" [title]="'Nodes: ' + dbData.replicas">
+                                <mat-icon class="chip-safe-icon">device_hub</mat-icon>
+                                {{ dbData.replicas }} Nodes
                               </mat-chip>
                             </ng-container>
                           </ng-container>

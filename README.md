@@ -72,6 +72,17 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
   - **Authentication Scheme & Deprecation Detection**:
     - Distinguishes modern asymmetric RSA/ECDSA key pairs (`Key Flow (RSA_2048)`), human SSO (`OIDC / Enterprise SSO`), persistent S3 credentials (`S3 HMAC Key`), and platform-managed identities.
     - Detects and tags legacy static API secrets (`Token Flow (Deprecated)` - *"The legacy model where a long-lived, static API secret acted directly as a bearer token."*), exposing active token counts and expiration dates.
+- **DNS Zones & Record Sets Scraper**:
+  - Scrapes DNS zones (`/v1/projects/{projectId}/zones`) as `dns-zone` entities and all configured record sets (A, AAAA, CNAME, MX, TXT, etc.) as standalone `dns-record-set` entities with automated pagination.
+  - Automatically correlates record target IPs with cataloged Public IPs and VM instances, presenting contextual infrastructure link badges (`[VM: <serverName>]`, `[Public IP]`).
+  - Implements granular soft-deletion tracking (`deletedAt`) when record sets are removed from zones.
+- **Managed Database Scraper**:
+  - Discovers and catalogs managed database and messaging instances across multiple STACKIT database engines:
+    - **Regional Engines**: PostgreSQL Flex and SQL Server Flex across configured regions (`eu01`, `eu02`).
+    - **Project-Scoped Engines**: MongoDB Flex, OpenSearch, and MariaDB (Redis is deprecated on STACKIT and excluded from scraping).
+  - Captures engine type, sizing flavors (CPU/RAM), storage size (GB), replicas, version, backup schedules, and ACL allowlists.
+  - Emits real-time operational `INFO` logs detailing the target project ID, project name, region, and database engine type being scraped.
+  - Fault-tolerant design: unactivated services (HTTP 404) trigger clean soft-deletion of decommissioned instances; permission restrictions (HTTP 403) are tracked in the Access Issue Registry.
 - **Cost & Consumption Scraper**: Periodically queries the **STACKIT Cost API v3** (`https://cost.api.stackit.cloud/v3/costs/{customerAccountId}`) for the current calendar month in UTC:
   - Catalogs expenses for each project (`billing`) and computes the aggregate organization total (`billing-org`).
   - Automatically converts amounts from cents to EUR.
@@ -124,7 +135,7 @@ While the Resource Explorer provides robust automated discovery and real-time se
 
 - **Expanded STACKIT Resource Coverage**:
   - **STACKIT Kubernetes Engine (SKE)**: Clusters, node pools, Kubernetes versions, maintenance schedules, and cluster health states.
-  - **Database as a Service (DaaS)**: Managed PostgreSQL, MariaDB, Redis, RabbitMQ, and OpenSearch service instances.
+  - **Database as a Service (DaaS)**: Managed PostgreSQL, MariaDB, RabbitMQ, and OpenSearch service instances (Redis has been deprecated on STACKIT and is excluded from scraping).
   - **DNS Engine**: Forward/reverse DNS zones, record sets, and routing policies.
   - **Secrets Manager**: Vault instances, active secrets status, and encryption key rotation states.
   - **Observability (Argus / LogMe)**: Centralized monitoring, alerting, and OpenSearch logging clusters.
@@ -377,7 +388,7 @@ object-storage.service.list
 All scrapers and backend services follow structured, non-blocking operational, complexity, and logging standards:
 - **Cognitive Complexity (< 15)**: Every method across backend services, utilities, and scrapers must maintain a Cognitive Complexity strictly `< 15` (enforcing SonarLint rule `java:S3776`). Workflows with nested branching, loops, or complex error handling are decomposed into focused, single-responsibility helper methods.
 - **Immutability & Final Modifiers**: All method parameters and local variables that are not reassigned must declare the `final` modifier.
-- **Operational Progress (`INFO`)**: Scraper run start and completion, project hierarchy traversal, and discovered resource counts are logged at `INFO` level.
+- **Operational Progress (`INFO`)**: Scraper run start and completion, project hierarchy traversal, per-database engine/region dispatch, and discovered resource counts are logged at `INFO` level.
 - **Permission Denials (`WARN`)**: When a service account lacks access to a specific service or project (HTTP 401/403, Unauthorized, Forbidden), a concise `WARN` log is issued detailing the project, region, and HTTP error body. The scraper does not fail or abort; it logs the warning and proceeds with the remaining projects and regions.
 - **Unactivated / Absent Services (`INFO`)**: When an optional service is not enabled for a project (HTTP 404 Not Found), it is logged as benign `INFO` without raising alerts.
 - **Data Validation & Resiliency (`WARN` / `ERROR`)**: Any schema anomalies, network timeouts, or unexpected API responses caught in exception blocks are strictly logged at `WARN` or `ERROR` level (never demoted to `INFO`) to guarantee visibility of suppressed issues.
@@ -490,7 +501,14 @@ The backend can be configured via `application.properties` or overridden with en
 | `stackit.network.schedule` | `STACKIT_NETWORK_SCHEDULE` | `1h` | Schedule for Load Balancer Scraper |
 | `stackit.network-vpc.schedule` | `STACKIT_NETWORK_VPC_SCHEDULE` | `1h` | Schedule for Network VPC Scraper |
 | `stackit.iam.schedule` | `STACKIT_IAM_SCHEDULE` | `1h` | Schedule for IAM Scraper |
+| `stackit.dns.schedule` | `STACKIT_DNS_SCHEDULE` | `1h` | Schedule for DNS Zones & Record Sets Scraper |
+| `stackit.database.schedule` | `STACKIT_DATABASE_SCHEDULE` | `1h` | Schedule for Managed Database Scraper (`1h`, cron, or `off`) |
 | `stackit.billing.schedule` | `STACKIT_BILLING_SCHEDULE` | `1h` | Schedule for Cost & Billing Scraper |
+| `stackit.database.postgres-url` | `STACKIT_DATABASE_POSTGRES_URL` | `https://postgres-flex-service.api.stackit.cloud` | Base URL for PostgreSQL Flex API |
+| `stackit.database.mongodb-url` | `STACKIT_DATABASE_MONGODB_URL` | `https://mongodb-flex-service.api.stackit.cloud` | Base URL for MongoDB Flex API |
+| `stackit.database.opensearch-url` | `STACKIT_DATABASE_OPENSEARCH_URL` | `https://opensearch.api.stackit.cloud` | Base URL for OpenSearch API |
+| `stackit.database.mariadb-url` | `STACKIT_DATABASE_MARIADB_URL` | `https://mariadb.api.stackit.cloud` | Base URL for MariaDB API |
+| `stackit.database.sqlserver-url` | `STACKIT_DATABASE_SQLSERVER_URL` | `https://mssql-flex-service.api.stackit.cloud` | Base URL for SQL Server Flex API |
 
 ---
 

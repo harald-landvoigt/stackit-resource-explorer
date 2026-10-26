@@ -185,6 +185,25 @@ export interface DnsRecordSetResourceData {
   [key: string]: any;
 }
 
+export interface DatabaseResourceData {
+  instanceId?: string;
+  name?: string;
+  engine?: string;
+  flavor?: string;
+  flavorDescription?: string;
+  version?: string;
+  storage?: number;
+  replicas?: number;
+  status?: string;
+  backupSchedule?: string;
+  acls?: string[];
+  created?: string;
+  updated?: string;
+  labels?: Record<string, string>;
+  options?: Record<string, any>;
+  [key: string]: any;
+}
+
 export type AccessStatus = 'ACCESSIBLE' | 'ACCESS_DENIED' | 'NOT_CHECKED';
 
 export interface AccessIssueRecord {

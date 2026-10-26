@@ -557,10 +557,50 @@ public class StackitSdkMockProducer {
                                     .message("OK")
                                     .body(ResponseBody.create(json, MediaType.parse("application/json")))
                                     .build();
+                        } else if (url.contains("/instances")) {
+                            return mockDatabaseResponse(chain, url);
                         }
                         return chain.proceed(chain.request());
                     }
                 })
+                .build();
+    }
+
+    private Response mockDatabaseResponse(final Interceptor.Chain chain, final String url) {
+        final String json;
+        if (url.contains("postgres") && url.contains("eu02")) {
+            json = "{\n" +
+                    "  \"items\": [\n" +
+                    "    {\n" +
+                    "      \"id\": \"mock-pg-eu02\",\n" +
+                    "      \"name\": \"mock-pg-eu02\",\n" +
+                    "      \"status\": \"Ready\",\n" +
+                    "      \"flavor\": \"c1.2\",\n" +
+                    "      \"storage\": 50\n" +
+                    "    }\n" +
+                    "  ]\n" +
+                    "}";
+        } else if (url.contains("postgres")) {
+            json = "{\n" +
+                    "  \"items\": [\n" +
+                    "    {\n" +
+                    "      \"id\": \"mock-pg-eu01\",\n" +
+                    "      \"name\": \"mock-pg-eu01\",\n" +
+                    "      \"status\": \"Ready\",\n" +
+                    "      \"flavor\": \"c1.2\",\n" +
+                    "      \"storage\": 50\n" +
+                    "    }\n" +
+                    "  ]\n" +
+                    "}";
+        } else {
+            json = "{\n  \"items\": []\n}";
+        }
+        return new Response.Builder()
+                .request(chain.request())
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body(ResponseBody.create(json, MediaType.parse("application/json")))
                 .build();
     }
 }

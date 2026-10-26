@@ -563,7 +563,7 @@ describe('App', () => {
       fixture.detectChanges();
       const compiled = fixture.nativeElement as HTMLElement;
       const buttons = compiled.querySelectorAll('.filter-chip-btn');
-      expect(buttons.length).toBe(7);
+      expect(buttons.length).toBe(8);
 
       // First button is Token Flow in red
       expect(buttons[0].classList).toContain('tokenflow-filter-btn');
@@ -592,6 +592,10 @@ describe('App', () => {
       // Seventh button is DNS Zones in purple
       expect(buttons[6].classList).toContain('dns-filter-btn');
       expect(buttons[6].textContent).toContain('DNS Zones');
+
+      // Eighth button is Databases in cyan
+      expect(buttons[7].classList).toContain('database-filter-btn');
+      expect(buttons[7].textContent).toContain('Databases');
     });
 
     it('should render deprecated warning chip on resources using Token Flow (Deprecated)', () => {
@@ -677,6 +681,21 @@ describe('App', () => {
 
       // Toggle off
       app.filterDnsZones();
+      expect(app.searchString()).toBe('');
+      expect(mockResourceService.getResources).toHaveBeenCalledWith('');
+    });
+
+    it('should toggle search query when filterDatabases is called', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+
+      expect(app.searchString()).toBe('');
+      app.filterDatabases();
+      expect(app.searchString()).toBe('database');
+      expect(mockResourceService.getResources).toHaveBeenCalledWith('database');
+
+      // Toggle off
+      app.filterDatabases();
       expect(app.searchString()).toBe('');
       expect(mockResourceService.getResources).toHaveBeenCalledWith('');
     });
@@ -1256,6 +1275,7 @@ describe('App', () => {
             'network-vpc': 'ACCESSIBLE',
             iam: 'ACCESS_DENIED',
             'dns-zone': 'ACCESSIBLE',
+            database: 'ACCESSIBLE',
             billing: 'NOT_CHECKED'
           },
           hasAccessIssues: true
@@ -1271,6 +1291,7 @@ describe('App', () => {
             'network-vpc': 'ACCESSIBLE',
             iam: 'ACCESSIBLE',
             'dns-zone': 'ACCESSIBLE',
+            database: 'ACCESSIBLE',
             billing: 'ACCESSIBLE'
           },
           hasAccessIssues: false
@@ -1388,7 +1409,7 @@ describe('App', () => {
       expect(deniedBadges[0].textContent?.trim()).toBe('DENIED');
 
       const accessibleBadges = rows[0].querySelectorAll('.status-accessible');
-      expect(accessibleBadges.length).toBe(5); // compute, vmdisks, network, network-vpc, dns-zone
+      expect(accessibleBadges.length).toBe(6); // compute, vmdisks, network, network-vpc, dns-zone, database
       expect(accessibleBadges[0].textContent?.trim()).toBe('OK');
 
       const notCheckedBadges = rows[0].querySelectorAll('.status-not-checked');
@@ -1998,6 +2019,94 @@ describe('App', () => {
       // Deleted At detail row is shown
       expect(compiled.textContent).toContain('Deleted At:');
       expect(compiled.textContent).toContain('2026-10-02T16:00:00Z');
+    });
+  });
+
+  describe('Managed Database Cards, Badges and Formatting', () => {
+    it('should identify database resources and extract database data correctly', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+      const dbRes: StackitResource = {
+        id: 'db-1',
+        resourceId: 'inst-1',
+        name: 'prod-postgres',
+        type: 'database',
+        status: 'Ready',
+        region: 'eu01',
+        projectId: 'proj-1',
+        data: {
+          engine: 'postgresql',
+          version: '16',
+          flavor: 'c1.2',
+          flavorDescription: '2 vCPU, 4GB RAM',
+          storage: 50,
+          replicas: 3
+        }
+      };
+
+      expect(app.isDatabase(dbRes)).toBe(true);
+      expect(app.isDatabase({ type: 'compute' } as StackitResource)).toBe(false);
+      expect(app.formatDatabaseEngine('postgresql')).toBe('PostgreSQL');
+      expect(app.formatDatabaseEngine('mongodb')).toBe('MongoDB');
+      expect(app.formatDatabaseEngine('redis')).toBe('Redis');
+      expect(app.formatDatabaseEngine('opensearch')).toBe('OpenSearch');
+      expect(app.formatDatabaseEngine('mariadb')).toBe('MariaDB');
+      expect(app.formatDatabaseEngine('sqlserver')).toBe('SQL Server');
+
+      const data = app.getDatabaseData(dbRes);
+      expect(data?.engine).toBe('postgresql');
+      expect(data?.storage).toBe(50);
+      expect(data?.replicas).toBe(3);
+      expect(app.getDatabaseEngineIcon('postgresql')).toBe('dataset');
+      expect(app.getDatabaseEngineIcon('redis')).toBe('bolt');
+    });
+
+    it('should render database engine, flavor, storage, and replicas chips in UI', () => {
+      const dbRes: StackitResource = {
+        id: 'db-test-01',
+        resourceId: 'db-test-01-res',
+        name: 'analytics-pg',
+        type: 'database',
+        status: 'Ready',
+        region: 'eu01',
+        projectId: 'proj-1',
+        data: {
+          engine: 'postgresql',
+          version: '16',
+          flavor: 'c1.2',
+          flavorDescription: '2 vCPU, 4GB RAM',
+          storage: 100,
+          replicas: 3
+        }
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [dbRes],
+        totalCount: 1,
+        typeAggregations: [{ key: 'Databases', count: 1 }],
+        regionAggregations: [{ key: 'eu01', count: 1 }],
+        statusAggregations: [{ key: 'Ready', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const compiled = fixture.nativeElement as HTMLElement;
+
+      const engineBadge = compiled.querySelector('.database-engine-badge');
+      expect(engineBadge).toBeTruthy();
+      expect(engineBadge?.textContent).toContain('PostgreSQL 16');
+
+      const flavorBadge = compiled.querySelector('.database-flavor-badge');
+      expect(flavorBadge).toBeTruthy();
+      expect(flavorBadge?.textContent).toContain('c1.2');
+
+      const storageBadge = compiled.querySelector('.database-storage-badge');
+      expect(storageBadge).toBeTruthy();
+      expect(storageBadge?.textContent).toContain('100 GB');
+
+      const replicasBadge = compiled.querySelector('.database-replicas-badge');
+      expect(replicasBadge).toBeTruthy();
+      expect(replicasBadge?.textContent).toContain('3 Nodes');
     });
   });
 });

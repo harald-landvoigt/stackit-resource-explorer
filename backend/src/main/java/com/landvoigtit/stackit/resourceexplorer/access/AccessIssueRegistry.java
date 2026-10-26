@@ -23,6 +23,7 @@ public class AccessIssueRegistry {
             StackitConstants.RESOURCE_TYPE_VMDISKS,
             StackitConstants.RESOURCE_TYPE_IAM,
             StackitConstants.RESOURCE_TYPE_DNS_ZONE,
+            StackitConstants.RESOURCE_TYPE_DATABASE,
             StackitConstants.RESOURCE_TYPE_BILLING
     );
 

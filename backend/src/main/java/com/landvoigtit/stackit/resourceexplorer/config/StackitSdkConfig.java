@@ -46,6 +46,21 @@ public class StackitSdkConfig {
     @ConfigProperty(name = "stackit.dns.api-url", defaultValue = StackitConstants.DEFAULT_DNS_API_URL)
     String dnsApiUrl;
 
+    @ConfigProperty(name = "stackit.database.postgres-url", defaultValue = com.landvoigtit.stackit.resourceexplorer.database.DatabaseApiClient.DEFAULT_POSTGRES_FLEX_API_URL)
+    String postgresFlexApiUrl;
+
+    @ConfigProperty(name = "stackit.database.mongodb-url", defaultValue = com.landvoigtit.stackit.resourceexplorer.database.DatabaseApiClient.DEFAULT_MONGODB_FLEX_API_URL)
+    String mongodbFlexApiUrl;
+
+    @ConfigProperty(name = "stackit.database.opensearch-url", defaultValue = com.landvoigtit.stackit.resourceexplorer.database.DatabaseApiClient.DEFAULT_OPENSEARCH_API_URL)
+    String opensearchApiUrl;
+
+    @ConfigProperty(name = "stackit.database.mariadb-url", defaultValue = com.landvoigtit.stackit.resourceexplorer.database.DatabaseApiClient.DEFAULT_MARIADB_API_URL)
+    String mariadbApiUrl;
+
+    @ConfigProperty(name = "stackit.database.sqlserver-url", defaultValue = com.landvoigtit.stackit.resourceexplorer.database.DatabaseApiClient.DEFAULT_SQLSERVER_FLEX_API_URL)
+    String sqlserverFlexApiUrl;
+
     @ConfigProperty(name = "stackit.regions", defaultValue = "eu01,eu02")
     List<String> regions;
 
@@ -133,6 +148,36 @@ public class StackitSdkConfig {
         return (dnsApiUrl != null && !dnsApiUrl.isBlank())
                 ? dnsApiUrl
                 : StackitConstants.DEFAULT_DNS_API_URL;
+    }
+
+    public String getPostgresFlexApiUrl() {
+        return (postgresFlexApiUrl != null && !postgresFlexApiUrl.isBlank())
+                ? postgresFlexApiUrl
+                : com.landvoigtit.stackit.resourceexplorer.database.DatabaseApiClient.DEFAULT_POSTGRES_FLEX_API_URL;
+    }
+
+    public String getMongodbFlexApiUrl() {
+        return (mongodbFlexApiUrl != null && !mongodbFlexApiUrl.isBlank())
+                ? mongodbFlexApiUrl
+                : com.landvoigtit.stackit.resourceexplorer.database.DatabaseApiClient.DEFAULT_MONGODB_FLEX_API_URL;
+    }
+
+    public String getOpensearchApiUrl() {
+        return (opensearchApiUrl != null && !opensearchApiUrl.isBlank())
+                ? opensearchApiUrl
+                : com.landvoigtit.stackit.resourceexplorer.database.DatabaseApiClient.DEFAULT_OPENSEARCH_API_URL;
+    }
+
+    public String getMariadbApiUrl() {
+        return (mariadbApiUrl != null && !mariadbApiUrl.isBlank())
+                ? mariadbApiUrl
+                : com.landvoigtit.stackit.resourceexplorer.database.DatabaseApiClient.DEFAULT_MARIADB_API_URL;
+    }
+
+    public String getSqlserverFlexApiUrl() {
+        return (sqlserverFlexApiUrl != null && !sqlserverFlexApiUrl.isBlank())
+                ? sqlserverFlexApiUrl
+                : com.landvoigtit.stackit.resourceexplorer.database.DatabaseApiClient.DEFAULT_SQLSERVER_FLEX_API_URL;
     }
 
     public List<String> getRegions() {
@@ -454,6 +499,31 @@ public class StackitSdkConfig {
     public DnsApiClient dnsApiClient(final OkHttpClient httpClient, final CoreConfiguration config) {
         final ResilientKeyFlowAuthenticator auth = resilientKeyFlowAuthenticator(config);
         return new DnsApiClient(httpClient, auth, getDnsApiUrl());
+    }
+
+    @Produces
+    @Singleton
+    public com.landvoigtit.stackit.resourceexplorer.database.DatabaseApiClient databaseApiClient(
+            final OkHttpClient httpClient,
+            final CoreConfiguration config) {
+        final ResilientKeyFlowAuthenticator auth = resilientKeyFlowAuthenticator(config);
+        final java.util.Map<String, String> customUrls = new java.util.HashMap<>();
+        if (postgresFlexApiUrl != null && !postgresFlexApiUrl.isBlank()) {
+            customUrls.put("postgresql", postgresFlexApiUrl);
+        }
+        if (mongodbFlexApiUrl != null && !mongodbFlexApiUrl.isBlank()) {
+            customUrls.put("mongodb", mongodbFlexApiUrl);
+        }
+        if (opensearchApiUrl != null && !opensearchApiUrl.isBlank()) {
+            customUrls.put("opensearch", opensearchApiUrl);
+        }
+        if (mariadbApiUrl != null && !mariadbApiUrl.isBlank()) {
+            customUrls.put("mariadb", mariadbApiUrl);
+        }
+        if (sqlserverFlexApiUrl != null && !sqlserverFlexApiUrl.isBlank()) {
+            customUrls.put("sqlserver", sqlserverFlexApiUrl);
+        }
+        return new com.landvoigtit.stackit.resourceexplorer.database.DatabaseApiClient(httpClient, auth, customUrls);
     }
 }
 
