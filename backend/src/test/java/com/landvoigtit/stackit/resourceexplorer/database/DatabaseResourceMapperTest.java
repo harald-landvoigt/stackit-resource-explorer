@@ -135,4 +135,124 @@ public class DatabaseResourceMapperTest {
         assertNull(DatabaseResourceMapper.mapToEntity((DatabaseResourceDto) null, "proj", "eu01"));
         assertNull(DatabaseResourceMapper.mapToEntity((Map<String, Object>) null, "engine", "proj", "eu01"));
     }
+
+    @Test
+    public void testMapToEntityPostgresqlNetworkSettingsAndCustomLabels() {
+        final Map<String, Object> json = Map.of(
+                "id", "e81e1e10-27b2-47df-9654-dc1388461787",
+                "name", "postgres-dvqco116br3j",
+                "state", "READY",
+                "version", "17",
+                "flavorId", "2.4",
+                "storage", Map.of("size", 5, "class", "premium-perf2-stackit"),
+                "backupSchedule", "15 10 * * *",
+                "connectionInfo", Map.of(
+                        "write", Map.of(
+                                "host", "e81e1e10-27b2-47df-9654-dc1388461787.postgresql.eu02.onstackit.cloud",
+                                "port", 5432
+                        )
+                ),
+                "network", Map.of(
+                        "accessScope", "PUBLIC",
+                        "acl", List.of("193.148.160.0/19", "45.129.40.0/21")
+                ),
+                "labels", Map.of(
+                        "cost_center", "4711",
+                        "owner", "harald.landvoigt"
+                )
+        );
+
+        final StackitEntity entity = DatabaseResourceMapper.mapToEntity(
+                json,
+                "postgresql",
+                "c2cc46ae-e432-4e4a-b4df-42a4066c344b",
+                "eu02"
+        );
+
+        assertNotNull(entity);
+        assertEquals("e81e1e10-27b2-47df-9654-dc1388461787", entity.getResourceId());
+        assertEquals("READY", entity.getStatus());
+        assertEquals("2.4", entity.getData().get("flavor"));
+        assertEquals(5, entity.getData().get("storage"));
+        assertEquals("premium-perf2-stackit", entity.getData().get("storageClass"));
+        assertEquals(
+                "e81e1e10-27b2-47df-9654-dc1388461787.postgresql.eu02.onstackit.cloud",
+                entity.getData().get("host")
+        );
+        assertEquals(5432, entity.getData().get("port"));
+        assertEquals("PUBLIC", entity.getData().get("accessScope"));
+        assertEquals(List.of("193.148.160.0/19", "45.129.40.0/21"), entity.getData().get("acls"));
+
+        // Verify custom labels in both tags and data
+        assertEquals("4711", entity.getTags().get("cost_center"));
+        assertEquals("harald.landvoigt", entity.getTags().get("owner"));
+        assertEquals(
+                "e81e1e10-27b2-47df-9654-dc1388461787.postgresql.eu02.onstackit.cloud",
+                entity.getTags().get("host")
+        );
+        assertEquals("5432", entity.getTags().get("port"));
+        assertEquals(Map.of("cost_center", "4711", "owner", "harald.landvoigt"), entity.getData().get("labels"));
+    }
+
+    @Test
+    public void testMapToEntityMariaDbInstanceFields() {
+        final Map<String, Object> json = Map.ofEntries(
+                Map.entry("instanceId", "mariadb-inst-789"),
+                Map.entry("name", "prod-mariadb"),
+                Map.entry("planName", "stackit-mariadb-1.2.10-single"),
+                Map.entry("planId", "plan-uuid-001"),
+                Map.entry("version", "10.11"),
+                Map.entry("lastOperation", Map.of("state", "succeeded", "type", "create")),
+                Map.entry("cfGuid", "cf-guid-123"),
+                Map.entry("cfSpaceGuid", "cf-space-456"),
+                Map.entry("cfOrganizationGuid", "cf-org-789"),
+                Map.entry("dashboardUrl", "https://dashboard.mariadb.stackit.cloud/inst-789"),
+                Map.entry("parameters", Map.of(
+                        "sgw_acl", "193.148.160.0/19, 45.129.40.0/21",
+                        "max_disk_threshold", 80,
+                        "enable_monitoring", true
+                ))
+        );
+
+        final StackitEntity entity = DatabaseResourceMapper.mapToEntity(json, "mariadb", "proj-maria", "eu01");
+        assertNotNull(entity);
+        assertEquals("mariadb-inst-789", entity.getResourceId());
+        assertEquals("prod-mariadb", entity.getName());
+        assertEquals("succeeded", entity.getStatus());
+        assertEquals("stackit-mariadb-1.2.10-single", entity.getData().get("flavor"));
+        assertEquals("plan-uuid-001", entity.getData().get("planId"));
+        assertEquals(80, entity.getData().get("storage"));
+        assertEquals("cf-guid-123", entity.getData().get("cfGuid"));
+        assertEquals("cf-space-456", entity.getData().get("cfSpaceGuid"));
+        assertEquals("cf-org-789", entity.getData().get("cfOrganizationGuid"));
+        assertEquals("https://dashboard.mariadb.stackit.cloud/inst-789", entity.getData().get("dashboardUrl"));
+        assertEquals(List.of("193.148.160.0/19", "45.129.40.0/21"), entity.getData().get("acls"));
+        assertEquals("plan-uuid-001", entity.getTags().get("plan-id"));
+    }
+
+    @Test
+    public void testMapToEntityMongoDbCpuAndRamExtraction() {
+        final Map<String, Object> json = Map.of(
+                "id", "mongo-inst-999",
+                "name", "mongo-replica-set",
+                "status", "Ready",
+                "version", "7.0",
+                "flavor", Map.of("cpu", 4, "ram", 16, "description", "Standard Replica"),
+                "storage", Map.of("size", 100, "class", "premium-perf2-mongodb"),
+                "replicas", 3,
+                "acl", Map.of("items", List.of("10.0.0.0/8")),
+                "options", Map.of("type", "Replica", "pointInTimeWindowHours", 30)
+        );
+
+        final StackitEntity entity = DatabaseResourceMapper.mapToEntity(json, "mongodb", "proj-mongo", "eu02");
+        assertNotNull(entity);
+        assertEquals("mongo-inst-999", entity.getResourceId());
+        assertEquals("4 vCPU / 16 GB", entity.getData().get("flavor"));
+        assertEquals(4, entity.getData().get("cpu"));
+        assertEquals(16, entity.getData().get("memory"));
+        assertEquals("4", entity.getTags().get("cpu"));
+        assertEquals("16", entity.getTags().get("memory-gb"));
+        assertEquals("premium-perf2-mongodb", entity.getData().get("storageClass"));
+        assertEquals(List.of("10.0.0.0/8"), entity.getData().get("acls"));
+    }
 }

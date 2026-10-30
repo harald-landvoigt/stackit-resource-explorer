@@ -14,6 +14,7 @@ import jakarta.validation.Validator;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -25,8 +26,8 @@ import java.util.Map;
 @Slf4j
 public class DatabaseResourceScraper {
 
-    public static final List<String> REGIONAL_ENGINES = List.of("postgresql", "sqlserver");
-    public static final List<String> PROJECT_ENGINES = List.of("mongodb", "opensearch", "mariadb");
+    public static final List<String> REGIONAL_ENGINES = List.of("postgresql", "sqlserver", "mongodb");
+    public static final List<String> PROJECT_ENGINES = List.of("opensearch", "mariadb");
 
     @Inject
     DatabaseApiClient databaseApiClient;
@@ -144,7 +145,11 @@ public class DatabaseResourceScraper {
                                     final String projectIdStr,
                                     final String region,
                                     final List<String> currentResourceIds) {
-        final StackitEntity entity = DatabaseResourceMapper.mapToEntity(json, engine, projectIdStr, region);
+        if (json == null) {
+            return;
+        }
+        final Map<String, Object> effectiveJson = enrichWithInstanceDetails(json, engine, projectIdStr, region);
+        final StackitEntity entity = DatabaseResourceMapper.mapToEntity(effectiveJson, engine, projectIdStr, region);
         if (entity == null || entity.getResourceId() == null) {
             return;
         }
@@ -156,6 +161,36 @@ public class DatabaseResourceScraper {
 
         repository.persistOrUpdate(entity);
         currentResourceIds.add(entity.getResourceId());
+    }
+
+    private Map<String, Object> enrichWithInstanceDetails(final Map<String, Object> summaryJson,
+                                                          final String engine,
+                                                          final String projectIdStr,
+                                                          final String region) {
+        final Object idObj = summaryJson.get("id") != null
+                ? summaryJson.get("id")
+                : summaryJson.get("instanceId");
+        if (idObj == null || idObj.toString().isBlank()) {
+            return summaryJson;
+        }
+        final String instanceId = idObj.toString();
+        try {
+            final Map<String, Object> detailJson = databaseApiClient.getInstance(engine, projectIdStr, region, instanceId);
+            if (detailJson == null || detailJson.isEmpty()) {
+                return summaryJson;
+            }
+            final Map<String, Object> merged = new LinkedHashMap<>(summaryJson);
+            detailJson.forEach((key, value) -> {
+                if (value != null) {
+                    merged.put(key, value);
+                }
+            });
+            return merged;
+        } catch (final Exception e) {
+            log.warn("Failed to fetch details for database '{}' instance {} in project {} / region {}: {}",
+                    engine, instanceId, projectIdStr, region, StackitConstants.cleanErrorMessage(e));
+            return summaryJson;
+        }
     }
 
     private void handleEngineError(final String engine,

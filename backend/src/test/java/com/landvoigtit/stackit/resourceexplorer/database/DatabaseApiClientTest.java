@@ -153,4 +153,146 @@ public class DatabaseApiClientTest {
         assertNotNull(client);
         assertEquals("https://custom-opensearch.local", client.resolveBaseUrl("opensearch"));
     }
+
+    @Test
+    public void testGetInstancePostgresqlMergesV2AndV3Details() throws IOException {
+        final List<String> requestedUrls = new ArrayList<>();
+
+        final OkHttpClient client = new OkHttpClient.Builder()
+                .addInterceptor(new Interceptor() {
+                    @Override
+                    public Response intercept(final Chain chain) {
+                        final Request request = chain.request();
+                        final String url = request.url().toString();
+                        requestedUrls.add(url);
+
+                        final String json;
+                        if (url.contains("/v2/projects/")) {
+                            json = "{\n" +
+                                    "  \"item\": {\n" +
+                                    "    \"id\": \"e81e1e10-27b2-47df-9654-dc1388461787\",\n" +
+                                    "    \"name\": \"postgres-dvqco116br3j\",\n" +
+                                    "    \"version\": \"17\",\n" +
+                                    "    \"replicas\": 1,\n" +
+                                    "    \"flavor\": {\n" +
+                                    "      \"id\": \"2.4\",\n" +
+                                    "      \"cpu\": 2,\n" +
+                                    "      \"memory\": 4,\n" +
+                                    "      \"description\": \"Small, Compute optimized\"\n" +
+                                    "    },\n" +
+                                    "    \"status\": \"Ready\"\n" +
+                                    "  }\n" +
+                                    "}";
+                        } else {
+                            json = "{\n" +
+                                    "  \"id\": \"e81e1e10-27b2-47df-9654-dc1388461787\",\n" +
+                                    "  \"name\": \"postgres-dvqco116br3j\",\n" +
+                                    "  \"state\": \"READY\",\n" +
+                                    "  \"flavorId\": \"2.4\",\n" +
+                                    "  \"connectionInfo\": {\n" +
+                                    "    \"write\": {\n" +
+                                    "      \"host\": \"e81e1e10-27b2-47df-9654-dc1388461787.postgresql.eu02.onstackit.cloud\",\n" +
+                                    "      \"port\": 5432\n" +
+                                    "    }\n" +
+                                    "  },\n" +
+                                    "  \"network\": {\n" +
+                                    "    \"accessScope\": \"PUBLIC\",\n" +
+                                    "    \"acl\": [\"193.148.160.0/19\", \"45.129.40.0/21\"]\n" +
+                                    "  },\n" +
+                                    "  \"labels\": {\n" +
+                                    "    \"cost_center\": \"4711\",\n" +
+                                    "    \"owner\": \"harald.landvoigt\"\n" +
+                                    "  }\n" +
+                                    "}";
+                        }
+
+                        return new Response.Builder()
+                                .request(request)
+                                .protocol(Protocol.HTTP_1_1)
+                                .code(200)
+                                .message("OK")
+                                .body(ResponseBody.create(json, MediaType.parse("application/json")))
+                                .build();
+                    }
+                })
+                .build();
+
+        final DatabaseApiClient apiClient = new DatabaseApiClient(client);
+        final Map<String, Object> detail = apiClient.getInstance(
+                "postgresql",
+                "c2cc46ae-e432-4e4a-b4df-42a4066c344b",
+                "eu02",
+                "e81e1e10-27b2-47df-9654-dc1388461787"
+        );
+
+        assertNotNull(detail);
+        assertEquals(2, requestedUrls.size());
+        assertEquals("e81e1e10-27b2-47df-9654-dc1388461787", detail.get("id"));
+        assertEquals(1, detail.get("replicas"));
+        assertTrue(detail.containsKey("connectionInfo"));
+        assertTrue(detail.containsKey("network"));
+        assertTrue(detail.containsKey("labels"));
+        assertTrue(detail.containsKey("flavor"));
+    }
+
+    @Test
+    public void testGetInstanceSqlServerMergesV2AndV3Details() throws IOException {
+        final List<String> requestedUrls = new ArrayList<>();
+
+        final OkHttpClient client = new OkHttpClient.Builder()
+                .addInterceptor(new Interceptor() {
+                    @Override
+                    public Response intercept(final Chain chain) {
+                        final Request request = chain.request();
+                        final String url = request.url().toString();
+                        requestedUrls.add(url);
+
+                        final String json;
+                        if (url.contains("/v2/projects/")) {
+                            json = "{\n" +
+                                    "  \"item\": {\n" +
+                                    "    \"id\": \"sql-inst-1\",\n" +
+                                    "    \"name\": \"mssql-prod\",\n" +
+                                    "    \"version\": \"2022\",\n" +
+                                    "    \"replicas\": 2,\n" +
+                                    "    \"flavor\": {\"id\": \"4.16-Single\", \"cpu\": 4, \"memory\": 16, \"description\": \"Standard\"},\n" +
+                                    "    \"status\": \"Ready\"\n" +
+                                    "  }\n" +
+                                    "}";
+                        } else {
+                            json = "{\n" +
+                                    "  \"id\": \"sql-inst-1\",\n" +
+                                    "  \"name\": \"mssql-prod\",\n" +
+                                    "  \"state\": \"READY\",\n" +
+                                    "  \"flavorId\": \"4.16-Single\",\n" +
+                                    "  \"retentionDays\": 14,\n" +
+                                    "  \"connectionInfo\": {\"write\": {\"host\": \"sql-inst-1.mssql.eu01.onstackit.cloud\", \"port\": 1433}},\n" +
+                                    "  \"network\": {\"accessScope\": \"PUBLIC\", \"acl\": [\"10.10.0.0/16\"]},\n" +
+                                    "  \"labels\": {\"team\": \"erp\"}\n" +
+                                    "}";
+                        }
+
+                        return new Response.Builder()
+                                .request(request)
+                                .protocol(Protocol.HTTP_1_1)
+                                .code(200)
+                                .message("OK")
+                                .body(ResponseBody.create(json, MediaType.parse("application/json")))
+                                .build();
+                    }
+                })
+                .build();
+
+        final DatabaseApiClient apiClient = new DatabaseApiClient(client);
+        final Map<String, Object> detail = apiClient.getInstance("sqlserver", "proj-sql", "eu01", "sql-inst-1");
+
+        assertNotNull(detail);
+        assertEquals(2, requestedUrls.size());
+        assertEquals("sql-inst-1", detail.get("id"));
+        assertEquals(2, detail.get("replicas"));
+        assertEquals(14, detail.get("retentionDays"));
+        assertTrue(detail.containsKey("connectionInfo"));
+        assertTrue(detail.containsKey("network"));
+        assertTrue(detail.containsKey("labels"));
+    }
 }

@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -99,6 +100,55 @@ public class DatabaseApiClient {
         return allInstances;
     }
 
+    public Map<String, Object> getInstance(final String engine,
+                                           final String projectId,
+                                           final String region,
+                                           final String instanceId) throws IOException {
+        if (engine == null || engine.isBlank()) {
+            throw new IllegalArgumentException("engine must not be null or blank");
+        }
+        if (projectId == null || projectId.isBlank()) {
+            throw new IllegalArgumentException("projectId must not be null or blank");
+        }
+        if (instanceId == null || instanceId.isBlank()) {
+            throw new IllegalArgumentException("instanceId must not be null or blank");
+        }
+
+        final String normalized = normalizeEngine(engine);
+        final String baseUrl = resolveBaseUrl(engine);
+        final String primaryPath = formatInstanceDetailPath(engine, projectId, region, instanceId);
+        final HttpUrl primaryUrl = HttpUrl.parse(baseUrl + primaryPath);
+
+        Map<String, Object> primaryDetail = Collections.emptyMap();
+        IOException primaryException = null;
+        try {
+            final Object responseObj = executeGetAndParse(primaryUrl, engine + " instance " + instanceId);
+            primaryDetail = extractInstanceDetail(responseObj, instanceId);
+        } catch (final IOException e) {
+            primaryException = e;
+        }
+
+        if ("postgresql".equals(normalized) || "sqlserver".equals(normalized)) {
+            final String reg = (region != null && !region.isBlank()) ? region : "eu01";
+            final String v3Path = String.format("/v3/projects/%s/regions/%s/instances/%s", projectId, reg, instanceId);
+            final HttpUrl v3Url = HttpUrl.parse(baseUrl + v3Path);
+            try {
+                final Object v3ResponseObj = executeGetAndParse(v3Url, engine + " v3 instance " + instanceId);
+                final Map<String, Object> v3Detail = extractInstanceDetail(v3ResponseObj, instanceId);
+                return mergeDetailMaps(primaryDetail, v3Detail);
+            } catch (final IOException v3Ex) {
+                if (primaryException != null) {
+                    throw primaryException;
+                }
+                log.debug("{} v3 instance detail endpoint unavailable for {}: {}", engine, instanceId, v3Ex.getMessage());
+            }
+        } else if (primaryException != null) {
+            throw primaryException;
+        }
+
+        return primaryDetail;
+    }
+
     public String resolveBaseUrl(final String engine) {
         if (engine == null) {
             return DEFAULT_POSTGRES_FLEX_API_URL;
@@ -109,11 +159,18 @@ public class DatabaseApiClient {
 
     public String formatEndpointPath(final String engine, final String projectId, final String region) {
         final String normalized = normalizeEngine(engine);
-        if ("postgresql".equals(normalized) || "sqlserver".equals(normalized)) {
+        if ("postgresql".equals(normalized) || "sqlserver".equals(normalized) || "mongodb".equals(normalized)) {
             final String reg = (region != null && !region.isBlank()) ? region : "eu01";
             return String.format("/v2/projects/%s/regions/%s/instances", projectId, reg);
         }
         return String.format("/v1/projects/%s/instances", projectId);
+    }
+
+    public String formatInstanceDetailPath(final String engine,
+                                           final String projectId,
+                                           final String region,
+                                           final String instanceId) {
+        return formatEndpointPath(engine, projectId, region) + "/" + instanceId;
     }
 
     private HttpUrl buildUrl(final String engine,
@@ -135,7 +192,7 @@ public class DatabaseApiClient {
 
     private boolean isPagedEngine(final String engine) {
         final String normalized = normalizeEngine(engine);
-        return "postgresql".equals(normalized) || "sqlserver".equals(normalized);
+        return "postgresql".equals(normalized) || "sqlserver".equals(normalized) || "mongodb".equals(normalized);
     }
 
     private Object executeGetAndParse(final HttpUrl url, final String resourceDescription) throws IOException {
@@ -178,6 +235,48 @@ public class DatabaseApiClient {
             }
         }
         return Collections.emptyList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> extractInstanceDetail(final Object responseObj, final String instanceId) {
+        if (responseObj instanceof Map<?, ?> rawMap) {
+            final Map<String, Object> map = (Map<String, Object>) rawMap;
+            if (map.get("item") instanceof Map<?, ?> itemMap) {
+                return (Map<String, Object>) itemMap;
+            }
+            if (map.containsKey("items") || map.containsKey("instances")) {
+                final List<Map<String, Object>> list = extractInstances(responseObj);
+                for (final Map<String, Object> candidate : list) {
+                    if (candidate != null) {
+                        final Object candidateId = candidate.get("id") != null
+                                ? candidate.get("id")
+                                : candidate.get("instanceId");
+                        if (instanceId.equals(String.valueOf(candidateId))) {
+                            return candidate;
+                        }
+                    }
+                }
+                return Collections.emptyMap();
+            }
+            return map;
+        }
+        return Collections.emptyMap();
+    }
+
+    private Map<String, Object> mergeDetailMaps(final Map<String, Object> primary, final Map<String, Object> secondary) {
+        if (primary == null || primary.isEmpty()) {
+            return secondary != null ? secondary : Collections.emptyMap();
+        }
+        if (secondary == null || secondary.isEmpty()) {
+            return primary;
+        }
+        final Map<String, Object> merged = new LinkedHashMap<>(primary);
+        secondary.forEach((key, value) -> {
+            if (value != null) {
+                merged.put(key, value);
+            }
+        });
+        return merged;
     }
 
     private int extractTotalPages(final Map<String, Object> map, final int currentTotal) {

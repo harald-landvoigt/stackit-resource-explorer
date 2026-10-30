@@ -201,4 +201,67 @@ public class DatabaseResourceScraperTest {
                 argThat(ids -> ids.contains("pg-eu01-1") && ids.contains("pg-eu02-1") && ids.contains("mongo-global-1"))
         );
     }
+
+    @Test
+    public void testScrapeEnrichesInstancesWithNetworkAndLabelDetailsFromGetInstance() throws IOException {
+        when(sdkConfigMock.getRegions()).thenReturn(List.of("eu02"));
+
+        final Project project = new Project();
+        project.setProjectId(UUID.fromString("c2cc46ae-e432-4e4a-b4df-42a4066c344b"));
+        project.setName("sandbox-2");
+        when(discoveryMock.discoverProjects()).thenReturn(List.of(project));
+
+        when(apiClientMock.listInstances(eq("postgresql"), eq("c2cc46ae-e432-4e4a-b4df-42a4066c344b"), eq("eu02")))
+                .thenReturn(List.of(Map.of(
+                        "id", "e81e1e10-27b2-47df-9654-dc1388461787",
+                        "name", "postgres-dvqco116br3j",
+                        "status", "Ready"
+                )));
+        when(apiClientMock.getInstance(
+                eq("postgresql"),
+                eq("c2cc46ae-e432-4e4a-b4df-42a4066c344b"),
+                eq("eu02"),
+                eq("e81e1e10-27b2-47df-9654-dc1388461787")
+        )).thenReturn(Map.of(
+                "id", "e81e1e10-27b2-47df-9654-dc1388461787",
+                "name", "postgres-dvqco116br3j",
+                "version", "17",
+                "flavor", Map.of("id", "2.4", "description", "Small, Compute optimized"),
+                "storage", Map.of("size", 5, "class", "premium-perf2-stackit"),
+                "connectionInfo", Map.of(
+                        "write", Map.of(
+                                "host", "e81e1e10-27b2-47df-9654-dc1388461787.postgresql.eu02.onstackit.cloud",
+                                "port", 5432
+                        )
+                ),
+                "network", Map.of(
+                        "accessScope", "PUBLIC",
+                        "acl", List.of("193.148.160.0/19", "45.129.40.0/21")
+                ),
+                "labels", Map.of(
+                        "cost_center", "4711",
+                        "owner", "harald.landvoigt"
+                )
+        ));
+        when(apiClientMock.listInstances(argThat(e -> !"postgresql".equals(e)), anyString(), any()))
+                .thenReturn(List.of());
+
+        scraper.scrape();
+
+        final ArgumentCaptor<StackitEntity> entityCaptor = ArgumentCaptor.forClass(StackitEntity.class);
+        verify(repoMock, times(1)).persistOrUpdate(entityCaptor.capture());
+
+        final StackitEntity saved = entityCaptor.getValue();
+        assertEquals("e81e1e10-27b2-47df-9654-dc1388461787", saved.getResourceId());
+        assertEquals(
+                "e81e1e10-27b2-47df-9654-dc1388461787.postgresql.eu02.onstackit.cloud",
+                saved.getData().get("host")
+        );
+        assertEquals(5432, saved.getData().get("port"));
+        assertEquals("PUBLIC", saved.getData().get("accessScope"));
+        assertEquals(List.of("193.148.160.0/19", "45.129.40.0/21"), saved.getData().get("acls"));
+        assertEquals("4711", saved.getTags().get("cost_center"));
+        assertEquals("harald.landvoigt", saved.getTags().get("owner"));
+        assertEquals(Map.of("cost_center", "4711", "owner", "harald.landvoigt"), saved.getData().get("labels"));
+    }
 }

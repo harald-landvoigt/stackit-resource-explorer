@@ -656,6 +656,12 @@ export class App implements OnInit {
       return val.join(', ');
     }
     if (typeof val === 'object') {
+      const entries = Object.entries(val);
+      if (entries.length === 0) return 'none';
+      const isFlat = entries.every(([, v]) => v === null || typeof v !== 'object');
+      if (isFlat) {
+        return entries.map(([k, v]) => `${k}=${v}`).join(', ');
+      }
       return JSON.stringify(val);
     }
     return String(val);

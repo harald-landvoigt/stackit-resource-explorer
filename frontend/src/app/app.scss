@@ -663,25 +663,32 @@
 
 .metadata-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px 16px;
   background-color: #0c0c0c;
-  padding: 8px;
+  padding: 10px 12px;
   border-radius: 4px;
 }
 
 .meta-item {
   display: flex;
+  align-items: flex-start;
   gap: 6px;
   font-size: 0.8rem;
+  min-width: 0;
 }
 
 .meta-key {
   color: #888888;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .meta-val {
   color: #ffffff;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .tags-container {

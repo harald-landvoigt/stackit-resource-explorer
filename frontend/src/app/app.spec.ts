@@ -2108,6 +2108,64 @@ describe('App', () => {
       expect(replicasBadge).toBeTruthy();
       expect(replicasBadge?.textContent).toContain('3 Nodes');
     });
+
+    it('should render database network settings (host, port, acls) and custom labels in UI', () => {
+      const dbRes: StackitResource = {
+        id: 'e81e1e10-27b2-47df-9654-dc1388461787',
+        resourceId: 'e81e1e10-27b2-47df-9654-dc1388461787',
+        name: 'postgres-dvqco116br3j',
+        type: 'database',
+        status: 'Ready',
+        region: 'eu02',
+        projectId: 'c2cc46ae-e432-4e4a-b4df-42a4066c344b',
+        tags: {
+          engine: 'postgresql',
+          version: '17',
+          flavor: '2.4',
+          'storage-gb': '5',
+          host: 'e81e1e10-27b2-47df-9654-dc1388461787.postgresql.eu02.onstackit.cloud',
+          port: '5432',
+          cost_center: '4711',
+          owner: 'harald.landvoigt'
+        },
+        data: {
+          instanceId: 'e81e1e10-27b2-47df-9654-dc1388461787',
+          name: 'postgres-dvqco116br3j',
+          engine: 'postgresql',
+          version: '17',
+          flavor: '2.4',
+          storage: 5,
+          storageClass: 'premium-perf2-stackit',
+          host: 'e81e1e10-27b2-47df-9654-dc1388461787.postgresql.eu02.onstackit.cloud',
+          port: 5432,
+          accessScope: 'PUBLIC',
+          acls: ['193.148.160.0/19', '45.129.40.0/21'],
+          labels: {
+            cost_center: '4711',
+            owner: 'harald.landvoigt'
+          }
+        }
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [dbRes],
+        totalCount: 1,
+        typeAggregations: [{ key: 'Databases', count: 1 }],
+        regionAggregations: [{ key: 'eu02', count: 1 }],
+        statusAggregations: [{ key: 'Ready', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const compiled = fixture.nativeElement as HTMLElement;
+
+      expect(compiled.textContent).toContain('e81e1e10-27b2-47df-9654-dc1388461787.postgresql.eu02.onstackit.cloud');
+      expect(compiled.textContent).toContain('5432');
+      expect(compiled.textContent).toContain('193.148.160.0/19, 45.129.40.0/21');
+      expect(compiled.textContent).toContain('cost_center: 4711');
+      expect(compiled.textContent).toContain('owner: harald.landvoigt');
+      expect(compiled.textContent).toContain('cost_center=4711, owner=harald.landvoigt');
+    });
   });
 });
 
