@@ -77,10 +77,10 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
   - Automatically correlates record target IPs with cataloged Public IPs and VM instances, presenting contextual infrastructure link badges (`[VM: <serverName>]`, `[Public IP]`).
   - Implements granular soft-deletion tracking (`deletedAt`) when record sets are removed from zones.
 - **Managed Database Scraper**:
-  - Discovers and catalogs managed database and messaging instances across multiple STACKIT database engines:
-    - **Regional Engines**: PostgreSQL Flex and SQL Server Flex across configured regions (`eu01`, `eu02`).
-    - **Project-Scoped Engines**: MongoDB Flex, OpenSearch, and MariaDB (Redis is deprecated on STACKIT and excluded from scraping).
-  - Captures engine type, sizing flavors (CPU/RAM), storage size (GB), replicas, version, backup schedules, and ACL allowlists.
+  - Discovers and catalogs managed database instances across multiple STACKIT database engines:
+    - **Regional Engines**: PostgreSQL Flex, SQL Server Flex, and MongoDB Flex across configured regions (`eu01`, `eu02`).
+    - **Project-Scoped Engines**: OpenSearch and MariaDB (Redis is deprecated on STACKIT and excluded from scraping; Key-Value Store / Valkey is not currently scraped).
+  - Performs per-instance detail enrichment (including `/v2` + `/v3` endpoint merging for PostgreSQL Flex and SQL Server Flex) to capture engine type, sizing flavors (`flavor`, `cpu`, `memory`, `planId`), storage capacity (GB) and `storageClass`, replicas, version, backup schedules, connection endpoints (`host`, `port`), network access scope (`accessScope`), ACL IP allowlists (`network.acl`, `acl.items`, `parameters.sgw_acl`), custom `labels` (mapped to both resource tags and metadata), and Cloud Foundry / OSB attributes (`cfGuid`, `cfSpaceGuid`, `cfOrganizationGuid`, `dashboardUrl`).
   - Emits real-time operational `INFO` logs detailing the target project ID, project name, region, and database engine type being scraped.
   - Fault-tolerant design: unactivated services (HTTP 404) trigger clean soft-deletion of decommissioned instances; permission restrictions (HTTP 403) are tracked in the Access Issue Registry.
 - **Cost & Consumption Scraper**: Periodically queries the **STACKIT Cost API v3** (`https://cost.api.stackit.cloud/v3/costs/{customerAccountId}`) for the current calendar month in UTC:
@@ -95,22 +95,25 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
     - **Token Flow (Red)**: Filters service accounts and users utilizing deprecated static API tokens (`"Token Flow"`).
     - **Key Flow (Orange)**: Filters service accounts utilizing modern asymmetric RSA key pairs (`"Key Flow"`).
     - **S3 Keys (Sky Blue)**: 1-click filter for Object Storage S3 access keys (`"S3 Access Key"`).
+    - **DNS Zones (Purple)**: 1-click filter for DNS zones and their associated record sets (`"dns-zone"`).
+    - **Databases (Teal)**: 1-click filter for managed database instances across all engines (`"database"`).
     - Prominent warning chips on resource cards utilizing deprecated static token credentials (searchable anytime via `"Token Flow"`).
   - **Resource Explorer**: Search and filter discovered resources in real time via PostgreSQL Full-Text Search. Returns results capped at 100 elements for ultra-fast rendering while displaying a `"Showing X of Y items"` indicator.
   - **Resource Details, Badges & UUIDs**:
-    - Displays the exact **Resource UUID** alongside any distinct human-readable **Resource ID** (such as bucket names or IAM accounts). Cleanly formats complex metadata (arrays of IPs or volumes) and excludes blank fields.
+    - Displays the exact **Resource UUID** alongside any distinct human-readable **Resource ID** (such as bucket names or IAM accounts). Cleanly formats complex metadata (arrays of IPs/ACLs or flat key-value objects like `labels` and `options` as `key=value, ...`) with responsive text wrapping and excludes blank fields.
     - **Disk Attachment Badges**: VM disks display clear color-coded badges: 🟡 **`[Unattached]`** (amber warning for idle/orphan volumes), 🟢 **`[Attached: <serverName>]`** (green badge with parent VM name), and 🔵 **`[Boot Disk]`** (blue badge for OS root volumes).
+    - **Database Badges**: Managed databases display engine-specific badges: 🗄️ **`[Engine: <engine>]`** (PostgreSQL, MongoDB, OpenSearch, MariaDB, SQL Server), ⚡ **`[Flavor: <flavor>]`**, 💾 **`[Storage: <size> GB]`**, and 🔄 **`[Replicas: <count>]`**.
     - **Public IP Badges**: Public IPs display dedicated badges: 🟢 **`[Attached (VM: <serverName>)]`** (green badge with parent VM name) or 🟣 **`[Unattached / Floating]`** (purple badge for idle/unassigned public IPs).
     - **S3 Access Key Badges**: Persistent S3 access keys display color-coded identity chips: 🔷 **`[S3 Key: <groupName>]`** (sky-blue badge with credentials group name) and 🔴 **`[EXPIRED]`** (red warning for expired keys).
     - **Soft-Deleted Resources & Lifecycle Tracking**: Decommissioned resources retain their discovery record with `deletedAt` timestamps. Soft-deleted resources are included in both unfiltered catalog views and text searches, styled with a red `.deleted-card` accent, a distinct `DELETED` status badge (`.deleted-status`) with a `delete_outline` icon, and a `Deleted At: <timestamp>` detail row. Multi-dimensional aggregations consistently tally all active and deleted resources.
   - **Multi-Dimensional Summary Aggregations**: Backend-calculated exact counts stacked across four distinct dimensions with a responsive scrollable container (`max-height: 70vh`) and custom orange scrollbar matching the resource explorer:
-    - **By Resource Type** (*VMs*, *Public IPs*, *Buckets*, *VM Disks*, *Invoices*, *Networks*, *IAM Policies*)
+    - **By Resource Type** (*VMs*, *Public IPs*, *Buckets*, *VM Disks*, *Databases*, *DNS Zones*, *Invoices*, *Networks*, *IAM Policies*)
     - **By Project** (e.g. *resource-explorer*, *sandbox-1*, *sandbox-2*, or *Global / No Project* with automatic project ID-to-name resolution)
-    - **By Region** (e.g. *eu01*, *eu01-1*, *eu01-3*, *global*)
-    - **By State** (e.g. *ACTIVE*, *RUNNING*, *AVAILABLE*, and *DELETED* with warning accents)
+    - **By Region** (e.g. *eu01*, *eu02*, *eu01-1*, *eu01-3*, *global*)
+    - **By State** (e.g. *ACTIVE*, *RUNNING*, *AVAILABLE*, *Ready*, and *DELETED* with warning accents)
   - **Billing Summary**: Aggregated project and organization consumption for the current calendar month in UTC with currency conversions. The Organization total is pinned to the first row, followed by projects ordered descending by costs.
   - **Access Issues View & Project Status Matrix**:
-    - Automatically monitors and records scraper permission results (`ACCESSIBLE`, `ACCESS_DENIED`, `NOT_CHECKED`) across all discovered projects and services (`compute`, `storage`, `network`, `network-vpc`, `public-ip`, `vmdisks`, `iam`, `billing`) in a thread-safe registry.
+    - Automatically monitors and records scraper permission results (`ACCESSIBLE`, `ACCESS_DENIED`, `NOT_CHECKED`) across all discovered projects and services (`compute`, `storage`, `network`, `network-vpc`, `public-ip`, `vmdisks`, `iam`, `dns-zone`, `database`, `billing`) in a thread-safe registry.
     - Exposes `GET /resources/access-issues` providing a consolidated summary, project-by-service matrix, and active issues detail list.
     - Dedicated **"Access Issues"** tab with live counter badge, KPI summary cards (Total Projects Checked, Affected Projects, Total Issues), Project × Resource Type status matrix with visual status chips (🟢 `OK`, 🔴 `DENIED`, ⚪ `N/A`), and an active issues diagnostic table with error logs, HTTP status codes, and search filters.
 - **Production-Ready Persistence & Flyway Migrations**:
@@ -135,8 +138,7 @@ While the Resource Explorer provides robust automated discovery and real-time se
 
 - **Expanded STACKIT Resource Coverage**:
   - **STACKIT Kubernetes Engine (SKE)**: Clusters, node pools, Kubernetes versions, maintenance schedules, and cluster health states.
-  - **Database as a Service (DaaS)**: Managed PostgreSQL, MariaDB, RabbitMQ, and OpenSearch service instances (Redis has been deprecated on STACKIT and is excluded from scraping).
-  - **DNS Engine**: Forward/reverse DNS zones, record sets, and routing policies.
+  - **Messaging & Caching Services**: STACKIT Key-Value Store (Valkey) and RabbitMQ service instances (note: PostgreSQL Flex, SQL Server Flex, MongoDB Flex, MariaDB, and OpenSearch are already supported; legacy Redis has been deprecated on STACKIT).
   - **Secrets Manager**: Vault instances, active secrets status, and encryption key rotation states.
   - **Observability (Argus / LogMe)**: Centralized monitoring, alerting, and OpenSearch logging clusters.
 

@@ -59,6 +59,8 @@ Each scraper implements independent schedules (configurable via `application.pro
 | `NetworkResourceScraper` | `network` | Load Balancer API | `1h` |
 | `StorageResourceScraper` | `storage` | Object Storage API (`/v1/projects/{projectId}/buckets`) | `1h` |
 | `IamResourceScraper` | `iam` | Authorization API (`/v2/project/.../members`) & Service Account API | `1h` |
+| `DnsResourceScraper` | `dns-zone` / `dns-record-set` | DNS API (`/v1/projects/{projectId}/zones`) | `1h` |
+| `DatabaseResourceScraper` | `database` | PostgreSQL Flex, SQL Server Flex, MongoDB Flex, OpenSearch & MariaDB APIs | `1h` |
 | `BillingResourceScraper` | `billing` / `billing-org` | Cost API v3 (`/v3/costs/{customerAccountId}`) | `1h` |
 
 #### Public IP Scraper Details
@@ -165,13 +167,22 @@ Each scraper implements independent schedules (configurable via `application.pro
 - Correlates record set target IPs to cataloged VMs and Public IPs, producing bidirectional infrastructure references.
 
 #### Managed Database Scraper Details
-- Catalogs STACKIT Managed Database and messaging instances across multiple database engines:
-  - **Regional Engines**: PostgreSQL Flex and SQL Server Flex across configured regions (`eu01`, `eu02`).
-  - **Project-Scoped Engines**: MongoDB Flex, OpenSearch, and MariaDB (Redis has been deprecated on STACKIT and is excluded from scraping).
-- Captures engine type, flavor sizing (CPU/RAM), storage capacity (GB), replicas, version, backup schedules, and ACL allowlists.
+- Catalogs STACKIT Managed Database instances across multiple database engines:
+  - **Regional Engines**: PostgreSQL Flex, SQL Server Flex, and MongoDB Flex across configured regions (`eu01`, `eu02`).
+  - **Project-Scoped Engines**: OpenSearch and MariaDB (Redis has been deprecated on STACKIT and is excluded from scraping; Key-Value Store / Valkey is not currently scraped).
+- **Per-Instance Detail Enrichment**:
+  - For each discovered instance (`id` or `instanceId`), fetches the full instance detail payload via `DatabaseApiClient.getInstance(...)` and merges it onto the summary payload.
+  - For `postgresql` and `sqlserver`, merges both `/v2/projects/{projectId}/regions/{region}/instances/{instanceId}` (providing `acl.items`, `storage.class`, `backupSchedule`, `options.retentionDays`) and `/v3/projects/{projectId}/regions/{region}/instances/{instanceId}` (providing `connectionInfo.write` with `host`/`port`, `network.accessScope`, `network.acl`, and custom `labels`).
+- **Captured Metadata & Tags**:
+  - Engine type, version, replica count, and operational status (`status`, `state`, or `lastOperation.state` / `lastOperation.type`).
+  - Sizing & plans: `flavor`, `flavorDescription`, `cpu`, `memory` (synthesizing `<cpu> vCPU / <memory> GB` when `flavor.id` is absent, e.g. SQL Server Flex), and `planId` / `planName` (MariaDB / OpenSearch).
+  - Storage: `storage` (GB, including fallback to `parameters.max_disk_threshold`) and `storageClass`.
+  - Network & connection settings: `host`, `port`, `accessScope` (`PUBLIC` / `PRIVATE`), and `acls` (extracted from `network.acl`, `acl.items`, `acls`, or comma-separated `parameters.sgw_acl`).
+  - Custom `labels`: mapped both to `StackitEntity.tags` and `StackitEntity.data["labels"]`.
+  - Cloud Foundry / OSB attributes (MariaDB & OpenSearch): `cfGuid`, `cfSpaceGuid`, `cfOrganizationGuid`, `dashboardUrl`, `imageUrl`, and `parameters` merged into `options`.
 - **Structured Operational Logging**: Emits real-time `INFO` logs detailing the target project ID, project name, region, and database engine (`Scraping database type '<engine>' for project <projectId> in region <region>`), alongside counts of discovered instances.
 - Robust fault isolation: projects without activated database services (HTTP 404) trigger clean soft-deletion of missing instances without noise; permission restrictions (HTTP 403) are recorded in the `AccessIssueRegistry`.
-- Cognitive Complexity (< 15) maintained across pagination and engine dispatch routines.
+- Cognitive Complexity (< 15) maintained across pagination, detail merging, and engine dispatch routines.
 
 ### 3. Resilient Scraping & Code Quality Standards
 All scraper jobs and backend domain services adhere to uniform coding, quality, and fault-isolation standards:

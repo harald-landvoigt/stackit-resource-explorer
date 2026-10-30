@@ -35,17 +35,24 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
   - **Unattached Disks (Amber)**: Filters unattached / orphan VM block storage disks (`"unattached vmdisks"`). Styled with `.unattached-filter-btn` and amber accent (`#f59e0b`).
   - **Unattached IPs (Purple)**: Filters unattached / floating public IP allocations (`"unattached public-ip"`). Styled with `.unattached-ip-filter-btn` and purple accent (`#c084fc`).
   - **S3 Keys (Sky Blue)**: Filters persistent S3 Object Storage access keys (`"S3 Access Key"`). Styled with `.s3key-filter-btn` and sky-blue accent (`#38bdf8`).
+  - **DNS Zones (Purple)**: Filters DNS zones and record sets (`"dns-zone"`). Styled with `.dns-filter-btn`.
+  - **Databases (Teal)**: Filters managed database instances across all engines (`"database"`). Styled with `.database-filter-btn`.
   - All quick filter buttons toggle on/off with a single click.
 - **Summary Aggregations Card (Left Column)**: Stacked sections displaying exact backend-computed breakdowns across the full dataset. Features a responsive height constraint (`max-height: 70vh` on desktop, `45vh` on mobile) with a custom orange scrollbar matching the resource explorer:
-  - **By Resource Type**: Counts for *VMs*, *Public IPs*, *Buckets*, *VM Disks*, *Invoices*, *Networks*, *IAM Policies*.
+  - **By Resource Type**: Counts for *VMs*, *Public IPs*, *Buckets*, *VM Disks*, *Databases*, *DNS Zones*, *Invoices*, *Networks*, *IAM Policies*.
   - **By Project**: Counts partitioned per STACKIT project (e.g. *resource-explorer*, *sandbox-1*, *sandbox-2*, or *Global / No Project*).
-  - **By Region**: Counts by region / availability zone (e.g. *eu01*, *eu01-3*, *global*).
-  - **By State**: Counts by status and lifecycle (*ACTIVE*, *RUNNING*, *AVAILABLE*, and *DELETED* with red accent).
+  - **By Region**: Counts by region / availability zone (e.g. *eu01*, *eu02*, *eu01-3*, *global*).
+  - **By State**: Counts by status and lifecycle (*ACTIVE*, *RUNNING*, *AVAILABLE*, *Ready*, and *DELETED* with red accent).
 - **Discovered Resources Card (Right Column)**: Scrollable list of resource cards capped at 100 elements for optimal browser performance, showing `"Showing X of Y items"` subtitle when capped:
   - **Disk Attachment Badges**: VM disks render color-coded attachment chips:
     - 🟡 **`[Unattached]`** (`.unattached-badge`): Warning badge for orphan/idle disks.
     - 🟢 **`[Attached: <serverName>]`** (`.attached-badge`): Safe green badge displaying the parent VM name.
     - 🔵 **`[Boot Disk]`** (`.boot-badge`): Blue badge designating root operating system boot volumes.
+  - **Database Badges**: Managed databases render engine-specific badges:
+    - 🗄️ **`[<Engine> <Version>]`** (`.db-engine-badge` with per-engine color variants for PostgreSQL, MongoDB, OpenSearch, MariaDB, and SQL Server).
+    - ⚡ **`[<flavor>]`** (`.db-flavor-badge`): Sizing flavor or CPU/RAM specification.
+    - 💾 **`[<storage> GB]`** (`.db-storage-badge`): Provisioned storage capacity.
+    - 🔄 **`[<replicas> Replicas]`** (`.db-replica-badge`): High-availability replica count (when > 1).
   - **Public IP Badges**: Public IPs render dedicated color-coded chips:
     - 🟢 **`[Attached (VM: <serverName>)]`** (`.attached-badge`): Green badge indicating binding to a VM instance.
     - 🟣 **`[Unattached / Floating]`** (`.unattached-ip-badge`): Purple badge identifying idle/floating IP allocations.
@@ -60,7 +67,7 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
   - **Region & Project ID**: Location details (including availability zone for VMs).
   - **Deleted At Timestamp**: Rendered in the detail grid whenever a resource has been soft-deleted (`res.deletedAt`).
   - **Highlighted Billing Details**: Highlighted amount and currency for billing items.
-  - **Rich Metadata Grid**: Clean key-value grid excluding empty or null values; complex objects and arrays (such as attached volume IDs or IP lists) are neatly formatted as comma-separated values via `formatMetaValue()`. For S3 access keys, clearly formats expiration details (`expires: "Never"` or formatted timestamp), credentials group URN, and HMAC key ID.
+  - **Rich Metadata Grid**: Clean key-value grid excluding empty or null values; arrays (such as attached volume IDs, IP lists, or ACL CIDRs) are formatted as comma-separated values, and flat key-value objects (such as custom `labels` or database `options`) are formatted as readable `key=value, ...` strings via `formatMetaValue()`. Grid items enforce `min-width: 0` and `overflow-wrap: anywhere` so long hostnames or label lists wrap cleanly within their column without overlapping adjacent fields. For S3 access keys, clearly formats expiration details (`expires: "Never"` or formatted timestamp), credentials group URN, and HMAC key ID.
   - **Tags**: Rendered as stylized badge chips for quick visual inspection.
 
 ### 4. Billing Summary Tab
@@ -71,7 +78,7 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
 ### 5. Access Issues Tab
 - **Access KPI Cards**: Live counters for Total Projects Checked, Affected Projects, and Total Issues.
 - **Access Controls & Filter Bar**: Search input for filtering projects and error messages, a 1-click toggle for "Projects with Issues Only", and an on-demand refresh button.
-- **Project Access Matrix**: Real-time project-by-service permission matrix (`Compute`, `Storage`, `VM Disks`, `Load Balancers`, `VPCs`, `IAM`, `Billing`) with color-coded status badges:
+- **Project Access Matrix**: Real-time project-by-service permission matrix (`Compute`, `Storage`, `VM Disks`, `Public IPs`, `Load Balancers`, `VPCs`, `IAM`, `DNS Zones`, `Databases`, `Billing`) with color-coded status badges:
   - 🟢 **`OK`** (`.status-accessible`): Service accessible and verified.
   - 🔴 **`DENIED`** (`.status-access-denied`): HTTP 401/403 or permission denied error.
   - ⚪ **`N/A`** (`.status-not-checked`): Service not yet checked.
