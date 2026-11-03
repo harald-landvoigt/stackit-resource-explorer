@@ -603,4 +603,26 @@ public class StackitResourceRepositoryTest {
         assertNotNull(byProject);
         assertTrue(byProject.stream().anyMatch(a -> "proj-agg-test".equalsIgnoreCase(a.getKey())));
     }
+
+    @Test
+    public void testPerformanceBTreeIndexesExist() {
+        @SuppressWarnings("unchecked")
+        final List<String> indexes = repository.getEntityManager()
+                .createNativeQuery("SELECT indexname FROM pg_indexes WHERE tablename = 'stackit_resources'")
+                .getResultList();
+
+        assertNotNull(indexes);
+        assertTrue(indexes.contains("idx_stackit_resources_created_at_desc"),
+                "Expected idx_stackit_resources_created_at_desc to be present, but was: " + indexes);
+        assertTrue(indexes.contains("idx_stackit_resources_updated_at_desc"),
+                "Expected idx_stackit_resources_updated_at_desc to be present, but was: " + indexes);
+        assertTrue(indexes.contains("idx_stackit_resources_type_active"),
+                "Expected idx_stackit_resources_type_active to be present, but was: " + indexes);
+        assertTrue(indexes.contains("idx_stackit_resources_region_active"),
+                "Expected idx_stackit_resources_region_active to be present, but was: " + indexes);
+        assertTrue(indexes.contains("idx_stackit_resources_status_active"),
+                "Expected idx_stackit_resources_status_active to be present, but was: " + indexes);
+        assertTrue(indexes.contains("idx_stackit_resources_project_id_active"),
+                "Expected idx_stackit_resources_project_id_active to be present, but was: " + indexes);
+    }
 }

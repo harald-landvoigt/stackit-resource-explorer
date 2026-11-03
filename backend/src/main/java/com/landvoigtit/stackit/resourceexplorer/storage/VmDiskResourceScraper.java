@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 
 @ApplicationScoped
@@ -40,8 +41,14 @@ public class VmDiskResourceScraper {
     @Inject
     com.landvoigtit.stackit.resourceexplorer.access.AccessIssueRegistry accessIssueRegistry;
 
-    @Scheduled(every = "${stackit.vmdisks.schedule:1h}")
+    private final AtomicBoolean isScraping = new AtomicBoolean(false);
+
+    @Scheduled(every = "${stackit.vmdisks.schedule:1h}", delayed = "${stackit.vmdisks.delay:30s}", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void scrape() {
+        if (!isScraping.compareAndSet(false, true)) {
+            log.warn("VM Disks scrape is already running, skipping overlapping execution.");
+            return;
+        }
         log.info("Starting VM Disks resource scrape...");
         try {
             final List<Project> projects = projectDiscoveryService.discoverProjects();
@@ -65,6 +72,8 @@ public class VmDiskResourceScraper {
             log.info("VM Disks resource scrape completed successfully.");
         } catch (final Exception e) {
             log.error("Failed to scrape VM Disks resources", e);
+        } finally {
+            isScraping.set(false);
         }
     }
 

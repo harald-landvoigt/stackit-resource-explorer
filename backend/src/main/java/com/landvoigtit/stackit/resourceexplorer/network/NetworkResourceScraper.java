@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import io.quarkus.scheduler.Scheduled;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import java.util.Optional;
@@ -42,8 +43,14 @@ public class NetworkResourceScraper {
     @Inject
     com.landvoigtit.stackit.resourceexplorer.access.AccessIssueRegistry accessIssueRegistry;
 
-    @Scheduled(every = "${stackit.network.schedule:1h}")
+    private final AtomicBoolean isScraping = new AtomicBoolean(false);
+
+    @Scheduled(every = "${stackit.network.schedule:1h}", delayed = "${stackit.network.delay:1m30s}", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void scrape() {
+        if (!isScraping.compareAndSet(false, true)) {
+            log.warn("Network scrape is already running, skipping overlapping execution.");
+            return;
+        }
         log.info("Starting Network resource scrape...");
         try {
             final List<Project> projects = projectDiscoveryService.discoverProjects();
@@ -67,6 +74,8 @@ public class NetworkResourceScraper {
             log.info("Network resource scrape completed successfully.");
         } catch (final Exception e) {
             log.error("Failed to scrape Network resources", e);
+        } finally {
+            isScraping.set(false);
         }
     }
 

@@ -47,7 +47,7 @@ public class BillingResourceScraper {
 
     private final AtomicBoolean isScraping = new AtomicBoolean(false);
 
-    @Scheduled(every = "${stackit.billing.schedule:12h}", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
+    @Scheduled(every = "${stackit.billing.schedule:1h}", delayed = "${stackit.billing.delay:4m30s}", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void scrape() {
         if (!isScraping.compareAndSet(false, true)) {
             log.warn("Billing/Cost scrape is already running, skipping overlapping execution.");

@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @ApplicationScoped
 @Slf4j
@@ -55,8 +56,14 @@ public class IamResourceScraper {
     @Inject
     com.landvoigtit.stackit.resourceexplorer.access.AccessIssueRegistry accessIssueRegistry;
 
-    @Scheduled(every = "${stackit.iam.schedule:off}")
+    private final AtomicBoolean isScraping = new AtomicBoolean(false);
+
+    @Scheduled(every = "${stackit.iam.schedule:1h}", delayed = "${stackit.iam.delay:3m30s}", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void scrape() {
+        if (!isScraping.compareAndSet(false, true)) {
+            log.warn("IAM scrape is already running, skipping overlapping execution.");
+            return;
+        }
         log.info("Starting IAM resource scrape...");
         try {
             final List<Project> projects = projectDiscoveryService.discoverProjects();
@@ -80,6 +87,8 @@ public class IamResourceScraper {
             log.info("Finished IAM resource scrape successfully.");
         } catch (final Exception e) {
             log.error("Failed to scrape IAM resources", e);
+        } finally {
+            isScraping.set(false);
         }
     }
 
