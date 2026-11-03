@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @ApplicationScoped
 @Slf4j
@@ -44,8 +45,14 @@ public class BillingResourceScraper {
     private static final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule());
 
-    @Scheduled(every = "${stackit.billing.schedule:12h}")
+    private final AtomicBoolean isScraping = new AtomicBoolean(false);
+
+    @Scheduled(every = "${stackit.billing.schedule:12h}", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void scrape() {
+        if (!isScraping.compareAndSet(false, true)) {
+            log.warn("Billing/Cost scrape is already running, skipping overlapping execution.");
+            return;
+        }
         log.info("Starting Billing/Cost resource scrape...");
         try {
             final String orgId = projectDiscoveryService.discoverOrganizationId();
@@ -69,6 +76,8 @@ public class BillingResourceScraper {
         } catch (final Exception e) {
             log.error("Failed to scrape Billing/Cost resources", e);
             recordBillingFailure(e);
+        } finally {
+            isScraping.set(false);
         }
     }
 

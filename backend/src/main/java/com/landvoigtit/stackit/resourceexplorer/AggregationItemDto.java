@@ -8,10 +8,22 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-@AllArgsConstructor
 public class AggregationItemDto {
     private String key;
     private long count;
+    private String rawKey;
+
+    public AggregationItemDto(final String key, final long count) {
+        this.key = key;
+        this.count = count;
+        this.rawKey = key;
+    }
+
+    public AggregationItemDto(final String key, final long count, final String rawKey) {
+        this.key = key;
+        this.count = count;
+        this.rawKey = rawKey;
+    }
 
     public String getType() {
         return key;

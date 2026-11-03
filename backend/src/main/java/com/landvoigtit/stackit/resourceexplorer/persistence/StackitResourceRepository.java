@@ -195,27 +195,26 @@ public class StackitResourceRepository implements PanacheRepositoryBase<StackitE
     }
 
     public List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> aggregateByType(final String query) {
-        return executeAggregation("type", query, false);
+        return executeAggregation(AggregationDimension.TYPE, query, false);
     }
 
     public List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> aggregateByRegion(final String query) {
-        return executeAggregation("coalesce(region, 'global')", query, false);
+        return executeAggregation(AggregationDimension.REGION, query, false);
     }
 
     public List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> aggregateByStatus(final String query) {
-        final String columnExpr = "CASE WHEN deleted_at IS NOT NULL THEN 'DELETED' ELSE UPPER(coalesce(status, 'UNKNOWN')) END";
-        return executeAggregation(columnExpr, query, false);
+        return executeAggregation(AggregationDimension.STATUS, query, false);
     }
 
     public List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> aggregateByProject(final String query) {
-        final String columnExpr = "CASE WHEN project_id IS NULL OR project_id = '' OR LOWER(project_id) = 'unknown' THEN 'Global / No Project' ELSE project_id END";
-        return executeAggregation(columnExpr, query, false);
+        return executeAggregation(AggregationDimension.PROJECT, query, false);
     }
 
     private List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> executeAggregation(
-            final String columnExpr,
+            final AggregationDimension dimension,
             final String query,
             final boolean excludeDeleted) {
+        final String columnExpr = java.util.Objects.requireNonNull(dimension, "Dimension must not be null").getExpression();
         final String trimmed = query != null ? query.trim() : "";
         final String prefixQuery = !trimmed.isBlank() ? buildPrefixQuery(trimmed) : null;
         final String deletedClause = excludeDeleted ? "deleted_at IS NULL" : "1=1";

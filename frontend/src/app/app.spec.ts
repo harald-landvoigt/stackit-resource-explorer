@@ -2168,6 +2168,69 @@ describe('App', () => {
       expect(compiled.textContent).toContain('owner: harald.landvoigt');
       expect(compiled.textContent).toContain('cost_center=4711, owner=harald.landvoigt');
     });
+
+    it('should filter resources when clicking on aggregation facet chips', () => {
+      const res1: StackitResource = {
+        id: '11111111-1111-1111-1111-111111111111',
+        resourceId: 'vol-1',
+        name: 'vol-unattached-test',
+        type: 'vmdisks',
+        status: 'available',
+        region: 'eu01-1',
+        projectId: 'f58b4f27-68d7-4bd6-b0f3-2e36a783ad1a',
+        projectName: 'sandbox-1'
+      };
+      const res2: StackitResource = {
+        id: '22222222-2222-2222-2222-222222222222',
+        resourceId: 'vm-1',
+        name: 'test-vm',
+        type: 'compute',
+        status: 'RUNNING',
+        region: 'eu01-2',
+        projectId: 'other-proj-id',
+        projectName: 'production-crm'
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [res1, res2],
+        totalCount: 2,
+        typeAggregations: [{ key: 'VM Disks', count: 1 }, { key: 'VMs', count: 1 }],
+        projectAggregations: [{ key: 'sandbox-1', count: 1 }, { key: 'production-crm', count: 1 }],
+        regionAggregations: [{ key: 'eu01-1', count: 1 }, { key: 'eu01-2', count: 1 }],
+        statusAggregations: [{ key: 'AVAILABLE', count: 1 }, { key: 'RUNNING', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const app = fixture.componentInstance;
+
+      expect(app.filteredResources().length).toBe(2);
+
+      // Filter by project "sandbox-1"
+      app.toggleProjectFilter('sandbox-1');
+      fixture.detectChanges();
+      expect(app.selectedProjectFilter()).toBe('sandbox-1');
+      expect(app.filteredResources().length).toBe(1);
+      expect(app.filteredResources()[0].name).toBe('vol-unattached-test');
+
+      // Clear filter by toggling again
+      app.toggleProjectFilter('sandbox-1');
+      fixture.detectChanges();
+      expect(app.selectedProjectFilter()).toBeNull();
+      expect(app.filteredResources().length).toBe(2);
+
+      // Filter by type "VMs"
+      app.toggleTypeFilter('VMs');
+      fixture.detectChanges();
+      expect(app.filteredResources().length).toBe(1);
+      expect(app.filteredResources()[0].name).toBe('test-vm');
+
+      // Clear all filters
+      app.clearAllFacetFilters();
+      fixture.detectChanges();
+      expect(app.hasActiveFacetFilters()).toBe(false);
+      expect(app.filteredResources().length).toBe(2);
+    });
   });
 });
 

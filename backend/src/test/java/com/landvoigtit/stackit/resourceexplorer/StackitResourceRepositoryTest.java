@@ -569,4 +569,38 @@ public class StackitResourceRepositoryTest {
         assertEquals(1, hist.size());
         assertEquals(false, hist.get(0).get("active"));
     }
+
+    @Test
+    @Transactional
+    public void testAggregationsWithTypeSafeDimensions() {
+        final UUID id = UUID.randomUUID();
+        final StackitEntity entity = new StackitEntity();
+        entity.setId(id);
+        entity.setResourceId("agg-test-vm-" + id);
+        entity.setName("agg-test-server");
+        entity.setType("virtual-machine");
+        entity.setStatus("RUNNING");
+        entity.setRegion("eu01-agg");
+        entity.setProjectId("proj-agg-test");
+        entity.setCreatedAt(Instant.now());
+        entity.setUpdatedAt(Instant.now());
+        repository.persist(entity);
+        repository.flush();
+
+        final List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> byType = repository.aggregateByType("");
+        assertNotNull(byType);
+        assertTrue(byType.stream().anyMatch(a -> "virtual-machine".equalsIgnoreCase(a.getKey())));
+
+        final List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> byRegion = repository.aggregateByRegion("");
+        assertNotNull(byRegion);
+        assertTrue(byRegion.stream().anyMatch(a -> "eu01-agg".equalsIgnoreCase(a.getKey())));
+
+        final List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> byStatus = repository.aggregateByStatus("");
+        assertNotNull(byStatus);
+        assertTrue(byStatus.stream().anyMatch(a -> "RUNNING".equalsIgnoreCase(a.getKey())));
+
+        final List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> byProject = repository.aggregateByProject("");
+        assertNotNull(byProject);
+        assertTrue(byProject.stream().anyMatch(a -> "proj-agg-test".equalsIgnoreCase(a.getKey())));
+    }
 }

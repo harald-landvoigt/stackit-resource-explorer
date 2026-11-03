@@ -344,6 +344,30 @@ public class StackitResourceServiceTest {
     }
 
     @Test
+    public void testGetBillingSummaryWhenEmptyDoesNotInvokeScraper() {
+        final StackitResourceRepository repoFake = new StackitResourceRepository() {
+            @Override
+            public java.util.List<StackitEntity> list(String query, Object... params) {
+                return java.util.Collections.emptyList();
+            }
+        };
+
+        final StackitProjectDiscoveryService discoveryMock = org.mockito.Mockito.mock(StackitProjectDiscoveryService.class);
+        final com.landvoigtit.stackit.resourceexplorer.billing.BillingResourceScraper scraperMock =
+                org.mockito.Mockito.mock(com.landvoigtit.stackit.resourceexplorer.billing.BillingResourceScraper.class);
+
+        final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+        final StackitResourceService svc = new StackitResourceService(repoFake, validator, discoveryMock, scraperMock, null);
+
+        final java.util.List<BillingSummaryDto> summaries = svc.getBillingSummary();
+        assertNotNull(summaries);
+        assertTrue(summaries.isEmpty(), "Should return empty list when no billing entities exist");
+
+        // Crucial security check: Billing scraper should NEVER be synchronously invoked on GET request
+        org.mockito.Mockito.verify(scraperMock, org.mockito.Mockito.never()).scrape();
+    }
+
+    @Test
     public void testGetAccessIssuesUsesProjectNamesMap() {
         final com.landvoigtit.stackit.resourceexplorer.access.AccessIssueRegistry registry = new com.landvoigtit.stackit.resourceexplorer.access.AccessIssueRegistry();
         final StackitProjectDiscoveryService discoveryMock = org.mockito.Mockito.mock(StackitProjectDiscoveryService.class);

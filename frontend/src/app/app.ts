@@ -56,8 +56,68 @@ export class App implements OnInit {
   // Active search query (submitted on "Search" button click or press enter)
   readonly activeSearchQuery = signal<string>('');
 
-  // Filtered resources list based on the active search query
-  readonly filteredResources = computed(() => this.resources());
+  // Active facet filters from sidebar aggregation chips
+  readonly selectedTypeFilter = signal<string | null>(null);
+  readonly selectedProjectFilter = signal<string | null>(null);
+  readonly selectedRegionFilter = signal<string | null>(null);
+  readonly selectedStatusFilter = signal<string | null>(null);
+
+  readonly hasActiveFacetFilters = computed(() =>
+    !!this.selectedTypeFilter() ||
+    !!this.selectedProjectFilter() ||
+    !!this.selectedRegionFilter() ||
+    !!this.selectedStatusFilter()
+  );
+
+  // Filtered resources list based on the active search query and selected aggregation facet filters
+  readonly filteredResources = computed(() => {
+    const all = this.resources();
+    const typeFilter = this.selectedTypeFilter();
+    const projectFilter = this.selectedProjectFilter();
+    const regionFilter = this.selectedRegionFilter();
+    const statusFilter = this.selectedStatusFilter();
+
+    if (!typeFilter && !projectFilter && !regionFilter && !statusFilter) {
+      return all;
+    }
+
+    return all.filter((res) => {
+      if (typeFilter) {
+        const typeLabel = this.formatTypeLabel(res.type);
+        if (typeLabel !== typeFilter && res.type !== typeFilter) {
+          return false;
+        }
+      }
+      if (projectFilter) {
+        if (res.projectName) {
+          if (res.projectName !== projectFilter && res.projectId !== projectFilter) {
+            return false;
+          }
+        } else if (res.projectId !== projectFilter) {
+          return false;
+        }
+      }
+      if (regionFilter) {
+        const resRegion = res.region || 'global';
+        if (resRegion.toLowerCase() !== regionFilter.toLowerCase()) {
+          return false;
+        }
+      }
+      if (statusFilter) {
+        const isDeleted = !!res.deletedAt;
+        if (statusFilter.toUpperCase() === 'DELETED') {
+          if (!isDeleted) return false;
+        } else {
+          if (isDeleted) return false;
+          const resStatus = (res.status || 'UNKNOWN').toUpperCase();
+          if (resStatus !== statusFilter.toUpperCase()) {
+            return false;
+          }
+        }
+      }
+      return true;
+    });
+  });
 
   // Exact type aggregations calculated by the backend across the full query dataset
   readonly typeAggregations = signal<AggregationItem[]>([]);
@@ -367,6 +427,33 @@ export class App implements OnInit {
       this.searchString.set('database');
     }
     this.onSearch();
+  }
+
+  toggleTypeFilter(key?: string): void {
+    if (!key) return;
+    this.selectedTypeFilter.update((curr) => (curr === key ? null : key));
+  }
+
+  toggleProjectFilter(key?: string): void {
+    if (!key) return;
+    this.selectedProjectFilter.update((curr) => (curr === key ? null : key));
+  }
+
+  toggleRegionFilter(key?: string): void {
+    if (!key) return;
+    this.selectedRegionFilter.update((curr) => (curr === key ? null : key));
+  }
+
+  toggleStatusFilter(key?: string): void {
+    if (!key) return;
+    this.selectedStatusFilter.update((curr) => (curr === key ? null : key));
+  }
+
+  clearAllFacetFilters(): void {
+    this.selectedTypeFilter.set(null);
+    this.selectedProjectFilter.set(null);
+    this.selectedRegionFilter.set(null);
+    this.selectedStatusFilter.set(null);
   }
 
   isDatabase(res: StackitResource): boolean {

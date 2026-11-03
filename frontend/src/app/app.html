@@ -133,7 +133,11 @@
                       <div *ngIf="typeAggregations().length === 0" class="no-data">
                         No resources found.
                       </div>
-                      <div *ngFor="let agg of typeAggregations()" class="agg-item border-orange">
+                      <div *ngFor="let agg of typeAggregations()" 
+                           class="agg-item border-orange clickable-agg-item"
+                           [class.active-agg-item]="selectedTypeFilter() === (agg.key || agg.type)"
+                           (click)="toggleTypeFilter(agg.key || agg.type)"
+                           [title]="'Filter by type: ' + (agg.key || agg.type)">
                         <span class="agg-type text-orange font-medium">{{ agg.key || agg.type }}</span>
                         <span class="agg-count bg-orange text-black font-bold">{{ agg.count }}</span>
                       </div>
@@ -149,7 +153,11 @@
                       <div *ngIf="projectAggregations().length === 0" class="no-data">
                         No projects found.
                       </div>
-                      <div *ngFor="let agg of projectAggregations()" class="agg-item border-orange">
+                      <div *ngFor="let agg of projectAggregations()" 
+                           class="agg-item border-orange clickable-agg-item"
+                           [class.active-agg-item]="selectedProjectFilter() === (agg.key || agg.type)"
+                           (click)="toggleProjectFilter(agg.key || agg.type)"
+                           [title]="'Filter by project: ' + (agg.key || agg.type)">
                         <span class="agg-type text-orange font-medium">{{ agg.key || agg.type }}</span>
                         <span class="agg-count bg-orange text-black font-bold">{{ agg.count }}</span>
                       </div>
@@ -165,7 +173,11 @@
                       <div *ngIf="regionAggregations().length === 0" class="no-data">
                         No regions found.
                       </div>
-                      <div *ngFor="let agg of regionAggregations()" class="agg-item border-orange">
+                      <div *ngFor="let agg of regionAggregations()" 
+                           class="agg-item border-orange clickable-agg-item"
+                           [class.active-agg-item]="selectedRegionFilter() === (agg.key || agg.type)"
+                           (click)="toggleRegionFilter(agg.key || agg.type)"
+                           [title]="'Filter by region: ' + (agg.key || agg.type)">
                         <span class="agg-type text-orange font-medium">{{ agg.key || agg.type }}</span>
                         <span class="agg-count bg-orange text-black font-bold">{{ agg.count }}</span>
                       </div>
@@ -181,7 +193,11 @@
                       <div *ngIf="statusAggregations().length === 0" class="no-data">
                         No states found.
                       </div>
-                      <div *ngFor="let agg of statusAggregations()" class="agg-item border-orange">
+                      <div *ngFor="let agg of statusAggregations()" 
+                           class="agg-item border-orange clickable-agg-item"
+                           [class.active-agg-item]="selectedStatusFilter() === (agg.key || agg.type)"
+                           (click)="toggleStatusFilter(agg.key || agg.type)"
+                           [title]="'Filter by state: ' + (agg.key || agg.type)">
                         <span class="agg-type text-orange font-medium">{{ agg.key || agg.type }}</span>
                         <span class="agg-count bg-orange text-black font-bold" [class.bg-deleted]="(agg.key || agg.type)?.toUpperCase() === 'DELETED'">{{ agg.count }}</span>
                       </div>
@@ -200,6 +216,30 @@
                   <mat-card-subtitle *ngIf="totalCount() <= filteredResources().length">Showing {{ filteredResources().length }} items</mat-card-subtitle>
                 </mat-card-header>
                 <mat-card-content class="list-content">
+                  <!-- Active Facet Filters Bar -->
+                  <div class="active-facet-filters-bar" *ngIf="hasActiveFacetFilters()">
+                    <span class="active-facet-label text-orange font-medium">Active Filters:</span>
+                    <mat-chip *ngIf="selectedTypeFilter() as type" class="active-facet-chip" (click)="toggleTypeFilter(type)" title="Click to remove filter">
+                      Type: {{ type }}
+                      <mat-icon class="facet-remove-icon">cancel</mat-icon>
+                    </mat-chip>
+                    <mat-chip *ngIf="selectedProjectFilter() as proj" class="active-facet-chip" (click)="toggleProjectFilter(proj)" title="Click to remove filter">
+                      Project: {{ proj }}
+                      <mat-icon class="facet-remove-icon">cancel</mat-icon>
+                    </mat-chip>
+                    <mat-chip *ngIf="selectedRegionFilter() as reg" class="active-facet-chip" (click)="toggleRegionFilter(reg)" title="Click to remove filter">
+                      Region: {{ reg }}
+                      <mat-icon class="facet-remove-icon">cancel</mat-icon>
+                    </mat-chip>
+                    <mat-chip *ngIf="selectedStatusFilter() as st" class="active-facet-chip" (click)="toggleStatusFilter(st)" title="Click to remove filter">
+                      State: {{ st }}
+                      <mat-icon class="facet-remove-icon">cancel</mat-icon>
+                    </mat-chip>
+                    <button type="button" class="clear-all-facets-btn text-orange font-medium" (click)="clearAllFacetFilters()">
+                      Clear all
+                    </button>
+                  </div>
+
                   <div class="resources-list">
                     <div *ngIf="filteredResources().length === 0" class="no-data">
                       No resources match your search query.
@@ -348,6 +388,10 @@
                       </div>
                       
                       <div class="resource-details">
+                        <div class="detail-row" *ngIf="res.projectName">
+                          <span class="detail-label text-orange">Project Name:</span>
+                          <span class="detail-value font-bold text-orange">{{ res.projectName }}</span>
+                        </div>
                         <div class="detail-row">
                           <span class="detail-label text-orange">Region:</span>
                           <span class="detail-value">{{ res.region }}</span>
