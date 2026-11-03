@@ -382,7 +382,7 @@
                           <span class="section-title text-orange font-medium">Metadata:</span>
                           <div class="metadata-grid">
                             <ng-container *ngFor="let key of getObjectKeys(res.data)">
-                              <div *ngIf="key !== 'amount' && key !== 'currency' && key !== 'bucketPolicy' && key !== 'acl' && key !== 'securityFindings' && key !== 'retention' && key !== 'publicIpHistory' && key !== 'publicIps' && key !== 'recordSets' && res.data[key] !== '' && res.data[key] !== null" class="meta-item">
+                              <div *ngIf="key !== 'amount' && key !== 'currency' && key !== 'bucketPolicy' && key !== 'acl' && key !== 'securityFindings' && key !== 'retention' && key !== 'publicIpHistory' && key !== 'publicIps' && key !== 'recordSets' && key !== 'imageUrl' && res.data[key] !== '' && res.data[key] !== null" class="meta-item">
                                 <span class="meta-key">{{ key }}:</span>
                                 <span class="meta-val">{{ formatMetaValue(res.data[key]) }}</span>
                               </div>

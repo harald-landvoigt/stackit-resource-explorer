@@ -264,4 +264,86 @@ public class DatabaseResourceScraperTest {
         assertEquals("harald.landvoigt", saved.getTags().get("owner"));
         assertEquals(Map.of("cost_center", "4711", "owner", "harald.landvoigt"), saved.getData().get("labels"));
     }
+
+    @Test
+    public void testScrapeDiscoversMariaDbInEu02() throws IOException {
+        when(sdkConfigMock.getRegions()).thenReturn(List.of("eu01", "eu02"));
+
+        final Project project = new Project();
+        project.setProjectId(UUID.fromString("55555555-5555-5555-5555-555555555555"));
+        project.setName("MariaDB EU02 Project");
+        when(discoveryMock.discoverProjects()).thenReturn(List.of(project));
+
+        when(apiClientMock.listInstances(eq("mariadb"), eq("55555555-5555-5555-5555-555555555555"), eq("eu02")))
+                .thenReturn(List.of(Map.of(
+                        "instanceId", "mariadb-uqtx53pmtvhq",
+                        "name", "mariadb-uqtx53pmtvhq",
+                        "status", "succeeded",
+                        "planName", "MariaDB-4.16.100-Replica-EU02"
+                )));
+        when(apiClientMock.listInstances(argThat(e -> !"mariadb".equals(e)), anyString(), anyString()))
+                .thenReturn(List.of());
+        when(apiClientMock.listInstances(eq("mariadb"), anyString(), eq("eu01")))
+                .thenReturn(List.of());
+
+        scraper.scrape();
+
+        final ArgumentCaptor<StackitEntity> entityCaptor = ArgumentCaptor.forClass(StackitEntity.class);
+        verify(repoMock, times(1)).persistOrUpdate(entityCaptor.capture());
+
+        final StackitEntity entity = entityCaptor.getValue();
+        assertEquals("mariadb-uqtx53pmtvhq", entity.getResourceId());
+        assertEquals("eu02", entity.getRegion());
+        assertEquals("mariadb", entity.getTags().get("engine"));
+        assertEquals("MariaDB-4.16.100-Replica-EU02", entity.getData().get("flavor"));
+        assertEquals("55555555-5555-5555-5555-555555555555", entity.getProjectId());
+    }
+
+    @Test
+    public void testScrapeDiscoversValkeyInstancesInEu01AndEu02() throws IOException {
+        when(sdkConfigMock.getRegions()).thenReturn(List.of("eu01", "eu02"));
+
+        final Project project = new Project();
+        project.setProjectId(UUID.fromString("66666666-6666-6666-6666-666666666666"));
+        project.setName("Valkey Project");
+        when(discoveryMock.discoverProjects()).thenReturn(List.of(project));
+
+        when(apiClientMock.listInstances(eq("valkey"), eq("66666666-6666-6666-6666-666666666666"), eq("eu01")))
+                .thenReturn(List.of(Map.of(
+                        "instanceId", "valkey-eu01",
+                        "name", "valkey-cache-eu01",
+                        "status", "succeeded",
+                        "planName", "Valkey-1.2.10-Single"
+                )));
+        when(apiClientMock.listInstances(eq("valkey"), eq("66666666-6666-6666-6666-666666666666"), eq("eu02")))
+                .thenReturn(List.of(Map.of(
+                        "instanceId", "valkey-eu02",
+                        "name", "valkey-cache-eu02",
+                        "status", "succeeded",
+                        "planName", "Valkey-2.4.20-Replica"
+                )));
+        when(apiClientMock.listInstances(argThat(e -> !"valkey".equals(e)), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        scraper.scrape();
+
+        final ArgumentCaptor<StackitEntity> entityCaptor = ArgumentCaptor.forClass(StackitEntity.class);
+        verify(repoMock, times(2)).persistOrUpdate(entityCaptor.capture());
+
+        final List<StackitEntity> entities = entityCaptor.getAllValues();
+        assertEquals(2, entities.size());
+
+        final StackitEntity eu01 = entities.stream().filter(e -> "valkey-eu01".equals(e.getResourceId())).findFirst().orElse(null);
+        final StackitEntity eu02 = entities.stream().filter(e -> "valkey-eu02".equals(e.getResourceId())).findFirst().orElse(null);
+
+        assertNotNull(eu01);
+        assertEquals("eu01", eu01.getRegion());
+        assertEquals("valkey", eu01.getTags().get("engine"));
+        assertEquals("Valkey-1.2.10-Single", eu01.getData().get("flavor"));
+
+        assertNotNull(eu02);
+        assertEquals("eu02", eu02.getRegion());
+        assertEquals("valkey", eu02.getTags().get("engine"));
+        assertEquals("Valkey-2.4.20-Replica", eu02.getData().get("flavor"));
+    }
 }

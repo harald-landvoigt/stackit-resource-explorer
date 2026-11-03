@@ -29,6 +29,7 @@ public class DatabaseApiClient {
     public static final String DEFAULT_OPENSEARCH_API_URL = "https://opensearch.api.stackit.cloud";
     public static final String DEFAULT_MARIADB_API_URL = "https://mariadb.api.stackit.cloud";
     public static final String DEFAULT_SQLSERVER_FLEX_API_URL = "https://mssql-flex-service.api.stackit.cloud";
+    public static final String DEFAULT_VALKEY_API_URL = "https://valkey.api.stackit.cloud";
 
     private static final int DEFAULT_PAGE_SIZE = 100;
     private static final int DEFAULT_INITIAL_PAGE = 1;
@@ -159,7 +160,8 @@ public class DatabaseApiClient {
 
     public String formatEndpointPath(final String engine, final String projectId, final String region) {
         final String normalized = normalizeEngine(engine);
-        if ("postgresql".equals(normalized) || "sqlserver".equals(normalized) || "mongodb".equals(normalized)) {
+        if ("postgresql".equals(normalized) || "sqlserver".equals(normalized) || "mongodb".equals(normalized)
+                || "mariadb".equals(normalized) || "opensearch".equals(normalized) || "valkey".equals(normalized)) {
             final String reg = (region != null && !region.isBlank()) ? region : "eu01";
             return String.format("/v2/projects/%s/regions/%s/instances", projectId, reg);
         }
@@ -306,6 +308,7 @@ public class DatabaseApiClient {
         urls.put("opensearch", DEFAULT_OPENSEARCH_API_URL);
         urls.put("mariadb", DEFAULT_MARIADB_API_URL);
         urls.put("sqlserver", DEFAULT_SQLSERVER_FLEX_API_URL);
+        urls.put("valkey", DEFAULT_VALKEY_API_URL);
 
         if (custom != null) {
             custom.forEach((k, v) -> {
@@ -330,6 +333,9 @@ public class DatabaseApiClient {
         }
         if (lower.startsWith("sqlserver")) {
             return "sqlserver";
+        }
+        if (lower.startsWith("valkey") || lower.startsWith("key-value") || lower.startsWith("keyvalue")) {
+            return "valkey";
         }
         return lower;
     }

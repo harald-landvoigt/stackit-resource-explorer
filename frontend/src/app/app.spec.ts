@@ -2049,6 +2049,7 @@ describe('App', () => {
       expect(app.formatDatabaseEngine('postgresql')).toBe('PostgreSQL');
       expect(app.formatDatabaseEngine('mongodb')).toBe('MongoDB');
       expect(app.formatDatabaseEngine('redis')).toBe('Redis');
+      expect(app.formatDatabaseEngine('valkey')).toBe('Key-Value Store (Valkey)');
       expect(app.formatDatabaseEngine('opensearch')).toBe('OpenSearch');
       expect(app.formatDatabaseEngine('mariadb')).toBe('MariaDB');
       expect(app.formatDatabaseEngine('sqlserver')).toBe('SQL Server');
@@ -2059,6 +2060,7 @@ describe('App', () => {
       expect(data?.replicas).toBe(3);
       expect(app.getDatabaseEngineIcon('postgresql')).toBe('dataset');
       expect(app.getDatabaseEngineIcon('redis')).toBe('bolt');
+      expect(app.getDatabaseEngineIcon('valkey')).toBe('bolt');
     });
 
     it('should render database engine, flavor, storage, and replicas chips in UI', () => {

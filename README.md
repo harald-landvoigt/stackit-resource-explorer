@@ -78,9 +78,8 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
   - Implements granular soft-deletion tracking (`deletedAt`) when record sets are removed from zones.
 - **Managed Database Scraper**:
   - Discovers and catalogs managed database instances across multiple STACKIT database engines:
-    - **Regional Engines**: PostgreSQL Flex, SQL Server Flex, and MongoDB Flex across configured regions (`eu01`, `eu02`).
-    - **Project-Scoped Engines**: OpenSearch and MariaDB (Redis is deprecated on STACKIT and excluded from scraping; Key-Value Store / Valkey is not currently scraped).
-  - Performs per-instance detail enrichment (including `/v2` + `/v3` endpoint merging for PostgreSQL Flex and SQL Server Flex) to capture engine type, sizing flavors (`flavor`, `cpu`, `memory`, `planId`), storage capacity (GB) and `storageClass`, replicas, version, backup schedules, connection endpoints (`host`, `port`), network access scope (`accessScope`), ACL IP allowlists (`network.acl`, `acl.items`, `parameters.sgw_acl`), custom `labels` (mapped to both resource tags and metadata), and Cloud Foundry / OSB attributes (`cfGuid`, `cfSpaceGuid`, `cfOrganizationGuid`, `dashboardUrl`).
+    - **Regional Engines**: PostgreSQL Flex, SQL Server Flex, MongoDB Flex, MariaDB, OpenSearch, and Key-Value Store (Valkey) across configured regions (`eu01`, `eu02`). Redis has been deprecated on STACKIT and is excluded from scraping.
+  - Performs per-instance detail enrichment (including `/v2` + `/v3` endpoint merging for PostgreSQL Flex and SQL Server Flex) to capture engine type, sizing flavors (`flavor`, `cpu`, `memory`, `planId`), storage capacity (GB) and `storageClass`, replicas, version, backup schedules, connection endpoints (`host`, `port`), network access scope (`accessScope`), ACL IP allowlists (`network.acl`, `acl.items`, `parameters.sgw_acl`), custom `labels` (mapped to both resource tags and metadata), and Cloud Foundry / OSB attributes (`cfGuid`, `cfSpaceGuid`, `cfOrganizationGuid`, `dashboardUrl`, suppressing raw base64 `imageUrl` data).
   - Emits real-time operational `INFO` logs detailing the target project ID, project name, region, and database engine type being scraped.
   - Fault-tolerant design: unactivated services (HTTP 404) trigger clean soft-deletion of decommissioned instances; permission restrictions (HTTP 403) are tracked in the Access Issue Registry.
 - **Cost & Consumption Scraper**: Periodically queries the **STACKIT Cost API v3** (`https://cost.api.stackit.cloud/v3/costs/{customerAccountId}`) for the current calendar month in UTC:
@@ -102,7 +101,7 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
   - **Resource Details, Badges & UUIDs**:
     - Displays the exact **Resource UUID** alongside any distinct human-readable **Resource ID** (such as bucket names or IAM accounts). Cleanly formats complex metadata (arrays of IPs/ACLs or flat key-value objects like `labels` and `options` as `key=value, ...`) with responsive text wrapping and excludes blank fields.
     - **Disk Attachment Badges**: VM disks display clear color-coded badges: 🟡 **`[Unattached]`** (amber warning for idle/orphan volumes), 🟢 **`[Attached: <serverName>]`** (green badge with parent VM name), and 🔵 **`[Boot Disk]`** (blue badge for OS root volumes).
-    - **Database Badges**: Managed databases display engine-specific badges: 🗄️ **`[Engine: <engine>]`** (PostgreSQL, MongoDB, OpenSearch, MariaDB, SQL Server), ⚡ **`[Flavor: <flavor>]`**, 💾 **`[Storage: <size> GB]`**, and 🔄 **`[Replicas: <count>]`**.
+    - **Database Badges**: Managed databases display engine-specific badges: 🗄️ **`[Engine: <engine>]`** (PostgreSQL, MongoDB, OpenSearch, MariaDB, SQL Server, Key-Value Store / Valkey), ⚡ **`[Flavor: <flavor>]`**, 💾 **`[Storage: <size> GB]`**, and 🔄 **`[Replicas: <count>]`**.
     - **Public IP Badges**: Public IPs display dedicated badges: 🟢 **`[Attached (VM: <serverName>)]`** (green badge with parent VM name) or 🟣 **`[Unattached / Floating]`** (purple badge for idle/unassigned public IPs).
     - **S3 Access Key Badges**: Persistent S3 access keys display color-coded identity chips: 🔷 **`[S3 Key: <groupName>]`** (sky-blue badge with credentials group name) and 🔴 **`[EXPIRED]`** (red warning for expired keys).
     - **Soft-Deleted Resources & Lifecycle Tracking**: Decommissioned resources retain their discovery record with `deletedAt` timestamps. Soft-deleted resources are included in both unfiltered catalog views and text searches, styled with a red `.deleted-card` accent, a distinct `DELETED` status badge (`.deleted-status`) with a `delete_outline` icon, and a `Deleted At: <timestamp>` detail row. Multi-dimensional aggregations consistently tally all active and deleted resources.
@@ -138,7 +137,7 @@ While the Resource Explorer provides robust automated discovery and real-time se
 
 - **Expanded STACKIT Resource Coverage**:
   - **STACKIT Kubernetes Engine (SKE)**: Clusters, node pools, Kubernetes versions, maintenance schedules, and cluster health states.
-  - **Messaging & Caching Services**: STACKIT Key-Value Store (Valkey) and RabbitMQ service instances (note: PostgreSQL Flex, SQL Server Flex, MongoDB Flex, MariaDB, and OpenSearch are already supported; legacy Redis has been deprecated on STACKIT).
+  - **Messaging Services**: RabbitMQ service instances (note: PostgreSQL Flex, SQL Server Flex, MongoDB Flex, MariaDB, OpenSearch, and Key-Value Store / Valkey are already supported; legacy Redis has been deprecated on STACKIT).
   - **Secrets Manager**: Vault instances, active secrets status, and encryption key rotation states.
   - **Observability (Argus / LogMe)**: Centralized monitoring, alerting, and OpenSearch logging clusters.
 
@@ -511,6 +510,7 @@ The backend can be configured via `application.properties` or overridden with en
 | `stackit.database.opensearch-url` | `STACKIT_DATABASE_OPENSEARCH_URL` | `https://opensearch.api.stackit.cloud` | Base URL for OpenSearch API |
 | `stackit.database.mariadb-url` | `STACKIT_DATABASE_MARIADB_URL` | `https://mariadb.api.stackit.cloud` | Base URL for MariaDB API |
 | `stackit.database.sqlserver-url` | `STACKIT_DATABASE_SQLSERVER_URL` | `https://mssql-flex-service.api.stackit.cloud` | Base URL for SQL Server Flex API |
+| `stackit.database.valkey-url` | `STACKIT_DATABASE_VALKEY_URL` | `https://valkey.api.stackit.cloud` | Base URL for Key-Value Store (Valkey) API |
 
 ---
 

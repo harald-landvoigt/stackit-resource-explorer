@@ -47,7 +47,6 @@ public final class DatabaseResourceMapper {
         dto.setCfSpaceGuid(asString(json.get("cfSpaceGuid") != null ? json.get("cfSpaceGuid") : json.get("cf_space_guid")));
         dto.setCfOrganizationGuid(asString(json.get("cfOrganizationGuid") != null ? json.get("cfOrganizationGuid") : json.get("cf_organization_guid")));
         dto.setDashboardUrl(asString(json.get("dashboardUrl") != null ? json.get("dashboardUrl") : json.get("dashboard_url")));
-        dto.setImageUrl(asString(json.get("imageUrl") != null ? json.get("imageUrl") : json.get("image_url")));
         dto.setCreated(asString(json.get("created")));
         dto.setUpdated(asString(json.get("updated")));
         dto.setLabels(extractLabels(json.get("labels")));
@@ -188,9 +187,6 @@ public final class DatabaseResourceMapper {
         }
         if (dto.getDashboardUrl() != null) {
             data.put("dashboardUrl", dto.getDashboardUrl());
-        }
-        if (dto.getImageUrl() != null) {
-            data.put("imageUrl", dto.getImageUrl());
         }
         data.put("created", dto.getCreated());
         data.put("updated", dto.getUpdated());

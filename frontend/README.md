@@ -49,7 +49,7 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
     - 🟢 **`[Attached: <serverName>]`** (`.attached-badge`): Safe green badge displaying the parent VM name.
     - 🔵 **`[Boot Disk]`** (`.boot-badge`): Blue badge designating root operating system boot volumes.
   - **Database Badges**: Managed databases render engine-specific badges:
-    - 🗄️ **`[<Engine> <Version>]`** (`.db-engine-badge` with per-engine color variants for PostgreSQL, MongoDB, OpenSearch, MariaDB, and SQL Server).
+    - 🗄️ **`[<Engine> <Version>]`** (`.db-engine-badge` with per-engine color variants and icons for PostgreSQL, MongoDB, OpenSearch, MariaDB, SQL Server, and Key-Value Store / Valkey).
     - ⚡ **`[<flavor>]`** (`.db-flavor-badge`): Sizing flavor or CPU/RAM specification.
     - 💾 **`[<storage> GB]`** (`.db-storage-badge`): Provisioned storage capacity.
     - 🔄 **`[<replicas> Replicas]`** (`.db-replica-badge`): High-availability replica count (when > 1).

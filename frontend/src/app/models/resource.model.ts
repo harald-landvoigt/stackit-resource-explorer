@@ -208,7 +208,6 @@ export interface DatabaseResourceData {
   cfSpaceGuid?: string;
   cfOrganizationGuid?: string;
   dashboardUrl?: string;
-  imageUrl?: string;
   created?: string;
   updated?: string;
   labels?: Record<string, string>;

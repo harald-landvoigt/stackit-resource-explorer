@@ -255,4 +255,38 @@ public class DatabaseResourceMapperTest {
         assertEquals("premium-perf2-mongodb", entity.getData().get("storageClass"));
         assertEquals(List.of("10.0.0.0/8"), entity.getData().get("acls"));
     }
+
+    @Test
+    public void testMapToEntityValkeyInstanceFields() {
+        final Map<String, Object> json = Map.ofEntries(
+                Map.entry("instanceId", "valkey-inst-123"),
+                Map.entry("name", "app-cache"),
+                Map.entry("planName", "Valkey-1.2.10-Single"),
+                Map.entry("planId", "plan-valkey-001"),
+                Map.entry("version", "8.0"),
+                Map.entry("lastOperation", Map.of("state", "succeeded", "type", "create")),
+                Map.entry("cfGuid", "cf-guid-valkey"),
+                Map.entry("cfSpaceGuid", "cf-space-valkey"),
+                Map.entry("cfOrganizationGuid", "cf-org-valkey"),
+                Map.entry("dashboardUrl", "https://dashboard.valkey.stackit.cloud/inst-123"),
+                Map.entry("parameters", Map.of(
+                        "sgw_acl", "10.0.0.0/16",
+                        "max_disk_threshold", 80,
+                        "maxmemory-policy", "volatile-lru"
+                ))
+        );
+
+        final StackitEntity entity = DatabaseResourceMapper.mapToEntity(json, "valkey", "proj-valkey", "eu01");
+        assertNotNull(entity);
+        assertEquals("valkey-inst-123", entity.getResourceId());
+        assertEquals("app-cache", entity.getName());
+        assertEquals("succeeded", entity.getStatus());
+        assertEquals("valkey", entity.getTags().get("engine"));
+        assertEquals("Valkey-1.2.10-Single", entity.getData().get("flavor"));
+        assertEquals("plan-valkey-001", entity.getData().get("planId"));
+        assertEquals(80, entity.getData().get("storage"));
+        assertEquals("https://dashboard.valkey.stackit.cloud/inst-123", entity.getData().get("dashboardUrl"));
+        assertEquals(List.of("10.0.0.0/16"), entity.getData().get("acls"));
+        assertEquals("volatile-lru", ((Map<?, ?>) entity.getData().get("options")).get("maxmemory-policy"));
+    }
 }

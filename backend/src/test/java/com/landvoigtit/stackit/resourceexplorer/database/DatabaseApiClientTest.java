@@ -58,7 +58,83 @@ public class DatabaseApiClientTest {
         assertEquals("os-1", instances.get(0).get("id"));
         assertEquals("os-2", instances.get(1).get("id"));
         assertEquals(1, requestedUrls.size());
-        assertTrue(requestedUrls.get(0).contains("/v1/projects/proj-123/instances"));
+        assertTrue(requestedUrls.get(0).contains("/v2/projects/proj-123/regions/eu01/instances"));
+    }
+
+    @Test
+    public void testListMariaDbInstancesRegionalEu02Payload() throws IOException {
+        final List<String> requestedUrls = new ArrayList<>();
+
+        final OkHttpClient client = new OkHttpClient.Builder()
+                .addInterceptor(new Interceptor() {
+                    @Override
+                    public Response intercept(final Chain chain) {
+                        final Request request = chain.request();
+                        requestedUrls.add(request.url().toString());
+
+                        final String json = "{\n" +
+                                "  \"instances\": [\n" +
+                                "    {\"instanceId\": \"mariadb-uqtx53pmtvhq\", \"name\": \"mariadb-uqtx53pmtvhq\", \"planName\": \"MariaDB-4.16.100-Replica-EU02\", \"status\": \"succeeded\"}\n" +
+                                "  ]\n" +
+                                "}";
+
+                        return new Response.Builder()
+                                .request(request)
+                                .protocol(Protocol.HTTP_1_1)
+                                .code(200)
+                                .message("OK")
+                                .body(ResponseBody.create(json, MediaType.parse("application/json")))
+                                .build();
+                    }
+                })
+                .build();
+
+        final DatabaseApiClient apiClient = new DatabaseApiClient(client);
+        final List<Map<String, Object>> instances = apiClient.listInstances("mariadb", "proj-eu02", "eu02");
+
+        assertNotNull(instances);
+        assertEquals(1, instances.size());
+        assertEquals("mariadb-uqtx53pmtvhq", instances.get(0).get("instanceId"));
+        assertEquals(1, requestedUrls.size());
+        assertTrue(requestedUrls.get(0).contains("/v2/projects/proj-eu02/regions/eu02/instances"));
+    }
+
+    @Test
+    public void testListValkeyInstancesRegional() throws IOException {
+        final List<String> requestedUrls = new ArrayList<>();
+
+        final OkHttpClient client = new OkHttpClient.Builder()
+                .addInterceptor(new Interceptor() {
+                    @Override
+                    public Response intercept(final Chain chain) {
+                        final Request request = chain.request();
+                        requestedUrls.add(request.url().toString());
+
+                        final String json = "{\n" +
+                                "  \"instances\": [\n" +
+                                "    {\"instanceId\": \"valkey-inst-01\", \"name\": \"cache-valkey\", \"planName\": \"Valkey-1.2.10-Single\", \"status\": \"succeeded\"}\n" +
+                                "  ]\n" +
+                                "}";
+
+                        return new Response.Builder()
+                                .request(request)
+                                .protocol(Protocol.HTTP_1_1)
+                                .code(200)
+                                .message("OK")
+                                .body(ResponseBody.create(json, MediaType.parse("application/json")))
+                                .build();
+                    }
+                })
+                .build();
+
+        final DatabaseApiClient apiClient = new DatabaseApiClient(client);
+        final List<Map<String, Object>> instances = apiClient.listInstances("valkey", "proj-valkey", "eu01");
+
+        assertNotNull(instances);
+        assertEquals(1, instances.size());
+        assertEquals("valkey-inst-01", instances.get(0).get("instanceId"));
+        assertEquals(1, requestedUrls.size());
+        assertTrue(requestedUrls.get(0).contains("https://valkey.api.stackit.cloud/v2/projects/proj-valkey/regions/eu01/instances"));
     }
 
     @Test
@@ -152,6 +228,8 @@ public class DatabaseApiClientTest {
         final DatabaseApiClient client = new DatabaseApiClient(baseClient, authenticator, Map.of("opensearch", "https://custom-opensearch.local"));
         assertNotNull(client);
         assertEquals("https://custom-opensearch.local", client.resolveBaseUrl("opensearch"));
+        assertEquals("https://valkey.api.stackit.cloud", client.resolveBaseUrl("valkey"));
+        assertEquals("https://valkey.api.stackit.cloud", client.resolveBaseUrl("key-value"));
     }
 
     @Test

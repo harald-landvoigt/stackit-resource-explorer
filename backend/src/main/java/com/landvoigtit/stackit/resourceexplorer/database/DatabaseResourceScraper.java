@@ -26,8 +26,8 @@ import java.util.Map;
 @Slf4j
 public class DatabaseResourceScraper {
 
-    public static final List<String> REGIONAL_ENGINES = List.of("postgresql", "sqlserver", "mongodb");
-    public static final List<String> PROJECT_ENGINES = List.of("opensearch", "mariadb");
+    public static final List<String> REGIONAL_ENGINES = List.of("postgresql", "sqlserver", "mongodb", "mariadb", "opensearch", "valkey");
+    public static final List<String> PROJECT_ENGINES = List.of();
 
     @Inject
     DatabaseApiClient databaseApiClient;

@@ -43,7 +43,6 @@ public class DatabaseResourceDto {
     private String cfSpaceGuid;
     private String cfOrganizationGuid;
     private String dashboardUrl;
-    private String imageUrl;
     private String created;
     private String updated;
     private Map<String, String> labels;

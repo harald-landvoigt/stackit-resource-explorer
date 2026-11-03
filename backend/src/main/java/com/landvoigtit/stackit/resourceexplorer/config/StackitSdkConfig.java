@@ -61,6 +61,9 @@ public class StackitSdkConfig {
     @ConfigProperty(name = "stackit.database.sqlserver-url", defaultValue = com.landvoigtit.stackit.resourceexplorer.database.DatabaseApiClient.DEFAULT_SQLSERVER_FLEX_API_URL)
     String sqlserverFlexApiUrl;
 
+    @ConfigProperty(name = "stackit.database.valkey-url", defaultValue = com.landvoigtit.stackit.resourceexplorer.database.DatabaseApiClient.DEFAULT_VALKEY_API_URL)
+    String valkeyApiUrl;
+
     @ConfigProperty(name = "stackit.regions", defaultValue = "eu01,eu02")
     List<String> regions;
 
@@ -178,6 +181,12 @@ public class StackitSdkConfig {
         return (sqlserverFlexApiUrl != null && !sqlserverFlexApiUrl.isBlank())
                 ? sqlserverFlexApiUrl
                 : com.landvoigtit.stackit.resourceexplorer.database.DatabaseApiClient.DEFAULT_SQLSERVER_FLEX_API_URL;
+    }
+
+    public String getValkeyApiUrl() {
+        return (valkeyApiUrl != null && !valkeyApiUrl.isBlank())
+                ? valkeyApiUrl
+                : com.landvoigtit.stackit.resourceexplorer.database.DatabaseApiClient.DEFAULT_VALKEY_API_URL;
     }
 
     public List<String> getRegions() {
@@ -522,6 +531,9 @@ public class StackitSdkConfig {
         }
         if (sqlserverFlexApiUrl != null && !sqlserverFlexApiUrl.isBlank()) {
             customUrls.put("sqlserver", sqlserverFlexApiUrl);
+        }
+        if (valkeyApiUrl != null && !valkeyApiUrl.isBlank()) {
+            customUrls.put("valkey", valkeyApiUrl);
         }
         return new com.landvoigtit.stackit.resourceexplorer.database.DatabaseApiClient(httpClient, auth, customUrls);
     }

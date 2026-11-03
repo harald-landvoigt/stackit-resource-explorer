@@ -167,9 +167,8 @@ Each scraper implements independent schedules (configurable via `application.pro
 - Correlates record set target IPs to cataloged VMs and Public IPs, producing bidirectional infrastructure references.
 
 #### Managed Database Scraper Details
-- Catalogs STACKIT Managed Database instances across multiple database engines:
-  - **Regional Engines**: PostgreSQL Flex, SQL Server Flex, and MongoDB Flex across configured regions (`eu01`, `eu02`).
-  - **Project-Scoped Engines**: OpenSearch and MariaDB (Redis has been deprecated on STACKIT and is excluded from scraping; Key-Value Store / Valkey is not currently scraped).
+- Catalogs STACKIT Managed Database and caching instances across multiple engines:
+  - **Regional Engines**: PostgreSQL Flex, SQL Server Flex, MongoDB Flex, MariaDB, OpenSearch, and Key-Value Store (Valkey) across configured regions (`eu01`, `eu02`). Redis has been deprecated on STACKIT and is excluded from scraping.
 - **Per-Instance Detail Enrichment**:
   - For each discovered instance (`id` or `instanceId`), fetches the full instance detail payload via `DatabaseApiClient.getInstance(...)` and merges it onto the summary payload.
   - For `postgresql` and `sqlserver`, merges both `/v2/projects/{projectId}/regions/{region}/instances/{instanceId}` (providing `acl.items`, `storage.class`, `backupSchedule`, `options.retentionDays`) and `/v3/projects/{projectId}/regions/{region}/instances/{instanceId}` (providing `connectionInfo.write` with `host`/`port`, `network.accessScope`, `network.acl`, and custom `labels`).
@@ -179,7 +178,7 @@ Each scraper implements independent schedules (configurable via `application.pro
   - Storage: `storage` (GB, including fallback to `parameters.max_disk_threshold`) and `storageClass`.
   - Network & connection settings: `host`, `port`, `accessScope` (`PUBLIC` / `PRIVATE`), and `acls` (extracted from `network.acl`, `acl.items`, `acls`, or comma-separated `parameters.sgw_acl`).
   - Custom `labels`: mapped both to `StackitEntity.tags` and `StackitEntity.data["labels"]`.
-  - Cloud Foundry / OSB attributes (MariaDB & OpenSearch): `cfGuid`, `cfSpaceGuid`, `cfOrganizationGuid`, `dashboardUrl`, `imageUrl`, and `parameters` merged into `options`.
+  - Cloud Foundry / OSB attributes (MariaDB, OpenSearch & Valkey): `cfGuid`, `cfSpaceGuid`, `cfOrganizationGuid`, `dashboardUrl`, and `parameters` merged into `options` (excluding raw base64 `imageUrl` icons).
 - **Structured Operational Logging**: Emits real-time `INFO` logs detailing the target project ID, project name, region, and database engine (`Scraping database type '<engine>' for project <projectId> in region <region>`), alongside counts of discovered instances.
 - Robust fault isolation: projects without activated database services (HTTP 404) trigger clean soft-deletion of missing instances without noise; permission restrictions (HTTP 403) are recorded in the `AccessIssueRegistry`.
 - Cognitive Complexity (< 15) maintained across pagination, detail merging, and engine dispatch routines.
@@ -216,6 +215,7 @@ All scraper jobs and backend domain services adhere to uniform coding, quality, 
 | `stackit.database.opensearch-url` | `STACKIT_DATABASE_OPENSEARCH_URL` | `https://opensearch.api.stackit.cloud` | Base URL for OpenSearch API |
 | `stackit.database.mariadb-url` | `STACKIT_DATABASE_MARIADB_URL` | `https://mariadb.api.stackit.cloud` | Base URL for MariaDB API |
 | `stackit.database.sqlserver-url` | `STACKIT_DATABASE_SQLSERVER_URL` | `https://mssql-flex-service.api.stackit.cloud` | Base URL for SQL Server Flex API |
+| `stackit.database.valkey-url` | `STACKIT_DATABASE_VALKEY_URL` | `https://valkey.api.stackit.cloud` | Base URL for Key-Value Store (Valkey) API |
 
 Schedules accept standard Quarkus interval strings (`1h`, `30m`), standard cron expressions, or `off` to disable.
 

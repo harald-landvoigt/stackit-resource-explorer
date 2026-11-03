@@ -385,6 +385,7 @@ export class App implements OnInit {
     if (norm === 'mongodb' || norm === 'mongo') return 'MongoDB';
     if (norm === 'opensearch') return 'OpenSearch';
     if (norm === 'redis') return 'Redis';
+    if (norm === 'valkey' || norm.includes('valkey') || norm.includes('key-value') || norm.includes('keyvalue')) return 'Key-Value Store (Valkey)';
     if (norm === 'mariadb') return 'MariaDB';
     if (norm === 'sqlserver') return 'SQL Server';
     return engine.charAt(0).toUpperCase() + engine.slice(1);
@@ -395,7 +396,7 @@ export class App implements OnInit {
     const norm = engine.toLowerCase();
     if (norm.includes('postgres') || norm.includes('sql')) return 'dataset';
     if (norm.includes('mongo')) return 'folder_special';
-    if (norm.includes('redis')) return 'bolt';
+    if (norm.includes('redis') || norm.includes('valkey') || norm.includes('key-value') || norm.includes('keyvalue')) return 'bolt';
     if (norm.includes('search')) return 'search';
     return 'storage';
   }
