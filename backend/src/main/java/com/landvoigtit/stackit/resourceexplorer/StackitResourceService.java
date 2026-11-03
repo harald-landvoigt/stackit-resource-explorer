@@ -204,6 +204,11 @@ public class StackitResourceService {
             case "dnsrecordset":
             case "dnsrecordsets":
                 return "DNS Record Sets";
+            case "database":
+            case "databases":
+            case "db":
+            case "dbs":
+                return "Databases";
             default:
                 return Character.toUpperCase(type.charAt(0)) + type.substring(1) + "s";
         }

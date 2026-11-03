@@ -185,6 +185,36 @@ export interface DnsRecordSetResourceData {
   [key: string]: any;
 }
 
+export interface DatabaseResourceData {
+  instanceId?: string;
+  name?: string;
+  engine?: string;
+  flavor?: string;
+  flavorDescription?: string;
+  cpu?: number;
+  memory?: number;
+  planId?: string;
+  version?: string;
+  storage?: number;
+  storageClass?: string;
+  replicas?: number;
+  status?: string;
+  host?: string;
+  port?: number;
+  accessScope?: string;
+  backupSchedule?: string;
+  acls?: string[];
+  cfGuid?: string;
+  cfSpaceGuid?: string;
+  cfOrganizationGuid?: string;
+  dashboardUrl?: string;
+  created?: string;
+  updated?: string;
+  labels?: Record<string, string>;
+  options?: Record<string, any>;
+  [key: string]: any;
+}
+
 export type AccessStatus = 'ACCESSIBLE' | 'ACCESS_DENIED' | 'NOT_CHECKED';
 
 export interface AccessIssueRecord {

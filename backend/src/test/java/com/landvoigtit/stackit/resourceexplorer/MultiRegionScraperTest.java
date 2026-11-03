@@ -3,6 +3,7 @@ package com.landvoigtit.stackit.resourceexplorer;
 import com.landvoigtit.stackit.resourceexplorer.compute.ComputeResourceScraper;
 import com.landvoigtit.stackit.resourceexplorer.config.StackitConstants;
 import com.landvoigtit.stackit.resourceexplorer.config.StackitSdkConfig;
+import com.landvoigtit.stackit.resourceexplorer.database.DatabaseResourceScraper;
 import com.landvoigtit.stackit.resourceexplorer.network.NetworkResourceScraper;
 import com.landvoigtit.stackit.resourceexplorer.network.NetworkVpcResourceScraper;
 import com.landvoigtit.stackit.resourceexplorer.persistence.StackitEntity;
@@ -37,6 +38,9 @@ public class MultiRegionScraperTest {
 
     @Inject
     NetworkVpcResourceScraper vpcScraper;
+
+    @Inject
+    DatabaseResourceScraper databaseScraper;
 
     @Inject
     StackitResourceRepository repository;
@@ -207,6 +211,32 @@ public class MultiRegionScraperTest {
         final List<StackitEntity> activeBuckets = repository.find("type = ?1 and projectId = ?2 and deletedAt is null",
                 StackitConstants.RESOURCE_TYPE_STORAGE, MOCK_PROJECT_ID).list();
         assertEquals(2, activeBuckets.size(), "Both eu01 and eu02 active buckets must remain active");
+    }
+
+    @Test
+    public void testDatabaseScraperMultiRegion() {
+        databaseScraper.scrape();
+
+        final List<StackitEntity> dbs = repository.find("type = ?1 and projectId = ?2",
+                StackitConstants.RESOURCE_TYPE_DATABASE, MOCK_PROJECT_ID).list();
+
+        assertFalse(dbs.isEmpty(), "Databases should be scraped");
+        assertEquals(2, dbs.size(), "Should have scraped databases across 2 regions");
+
+        final StackitEntity eu01Db = dbs.stream()
+                .filter(d -> StackitConstants.REGION_EU01.equalsIgnoreCase(d.getRegion()))
+                .findFirst()
+                .orElse(null);
+        final StackitEntity eu02Db = dbs.stream()
+                .filter(d -> StackitConstants.REGION_EU02.equalsIgnoreCase(d.getRegion()))
+                .findFirst()
+                .orElse(null);
+
+        assertNotNull(eu01Db, "Database in eu01 should exist");
+        assertNotNull(eu02Db, "Database in eu02 should exist");
+        assertNotEquals(eu01Db.getId(), eu02Db.getId(), "Entity UUIDs must be distinct across regions");
+        assertNull(eu01Db.getDeletedAt(), "eu01 database should not be soft-deleted");
+        assertNull(eu02Db.getDeletedAt(), "eu02 database should not be soft-deleted");
     }
 }
 

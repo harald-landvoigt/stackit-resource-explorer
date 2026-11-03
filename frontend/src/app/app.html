@@ -104,6 +104,14 @@
               <mat-icon class="filter-btn-icon">dns</mat-icon>
               <span>DNS Zones</span>
             </button>
+            <button type="button" 
+                    class="filter-chip-btn database-filter-btn" 
+                    [class.active-filter]="searchString() === 'database' || searchString() === 'Databases'"
+                    (click)="filterDatabases()"
+                    title="Filter managed database instances">
+              <mat-icon class="filter-btn-icon">storage</mat-icon>
+              <span>Databases</span>
+            </button>
           </div>
 
           <!-- Main Columns Layout -->
@@ -309,6 +317,26 @@
                               </mat-chip>
                             </ng-container>
                           </ng-container>
+                          <ng-container *ngIf="isDatabase(res)">
+                            <ng-container *ngIf="getDatabaseData(res) as dbData">
+                              <mat-chip class="database-engine-badge" [title]="'Engine: ' + formatDatabaseEngine(dbData.engine)">
+                                <mat-icon class="chip-safe-icon">{{ getDatabaseEngineIcon(dbData.engine) }}</mat-icon>
+                                {{ formatDatabaseEngine(dbData.engine) }}{{ dbData.version ? ' ' + dbData.version : '' }}
+                              </mat-chip>
+                              <mat-chip *ngIf="dbData.flavor" class="database-flavor-badge" [title]="dbData.flavorDescription ? dbData.flavorDescription : ('Flavor: ' + dbData.flavor)">
+                                <mat-icon class="chip-safe-icon">memory</mat-icon>
+                                {{ dbData.flavor }}
+                              </mat-chip>
+                              <mat-chip *ngIf="dbData.storage" class="database-storage-badge" [title]="'Storage: ' + dbData.storage + ' GB'">
+                                <mat-icon class="chip-safe-icon">save</mat-icon>
+                                {{ dbData.storage }} GB
+                              </mat-chip>
+                              <mat-chip *ngIf="dbData.replicas && dbData.replicas > 1" class="database-replicas-badge" [title]="'Nodes: ' + dbData.replicas">
+                                <mat-icon class="chip-safe-icon">device_hub</mat-icon>
+                                {{ dbData.replicas }} Nodes
+                              </mat-chip>
+                            </ng-container>
+                          </ng-container>
                           <mat-chip class="type-chip">{{ res.type }}</mat-chip>
                           <mat-chip class="status-chip"
                                     [class.deleted-status]="!!res.deletedAt"
@@ -354,7 +382,7 @@
                           <span class="section-title text-orange font-medium">Metadata:</span>
                           <div class="metadata-grid">
                             <ng-container *ngFor="let key of getObjectKeys(res.data)">
-                              <div *ngIf="key !== 'amount' && key !== 'currency' && key !== 'bucketPolicy' && key !== 'acl' && key !== 'securityFindings' && key !== 'retention' && key !== 'publicIpHistory' && key !== 'publicIps' && key !== 'recordSets' && res.data[key] !== '' && res.data[key] !== null" class="meta-item">
+                              <div *ngIf="key !== 'amount' && key !== 'currency' && key !== 'bucketPolicy' && key !== 'acl' && key !== 'securityFindings' && key !== 'retention' && key !== 'publicIpHistory' && key !== 'publicIps' && key !== 'recordSets' && key !== 'imageUrl' && res.data[key] !== '' && res.data[key] !== null" class="meta-item">
                                 <span class="meta-key">{{ key }}:</span>
                                 <span class="meta-val">{{ formatMetaValue(res.data[key]) }}</span>
                               </div>

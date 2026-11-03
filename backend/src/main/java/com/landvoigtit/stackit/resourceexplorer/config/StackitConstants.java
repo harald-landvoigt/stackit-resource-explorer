@@ -52,6 +52,7 @@ public final class StackitConstants {
     public static final String RESOURCE_TYPE_PUBLIC_IP = "public-ip";
     public static final String RESOURCE_TYPE_DNS_ZONE = "dns-zone";
     public static final String RESOURCE_TYPE_DNS_RECORD_SET = "dns-record-set";
+    public static final String RESOURCE_TYPE_DATABASE = "database";
 
     // Default Regions
     public static final String DEFAULT_REGION = "eu-central-1";

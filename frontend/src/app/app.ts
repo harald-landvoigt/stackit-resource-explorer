@@ -11,7 +11,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTabsModule } from '@angular/material/tabs';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ResourceService } from './services/resource.service';
-import { StackitResource, BillingSummary, AggregationItem, StorageResourceData, VmDiskResourceData, S3AccessKeyResourceData, PublicIpHistoryRecord, ComputeResourceData, AccessIssuesSummary, AccessIssueRecord, ProjectAccessMatrixRow, AccessStatus, PublicIpResourceData, DnsZoneResourceData, DnsRecordSet, DnsRecordSetResourceData } from './models/resource.model';
+import { StackitResource, BillingSummary, AggregationItem, StorageResourceData, VmDiskResourceData, S3AccessKeyResourceData, PublicIpHistoryRecord, ComputeResourceData, AccessIssuesSummary, AccessIssueRecord, ProjectAccessMatrixRow, AccessStatus, PublicIpResourceData, DnsZoneResourceData, DnsRecordSet, DnsRecordSetResourceData, DatabaseResourceData } from './models/resource.model';
 
 @Component({
   selector: 'app-root',
@@ -93,7 +93,8 @@ export class App implements OnInit {
     { key: 'network-vpc', label: 'VPCs' },
     { key: 'iam', label: 'IAM' },
     { key: 'billing', label: 'Billing' },
-    { key: 'dns-zone', label: 'DNS Zones' }
+    { key: 'dns-zone', label: 'DNS Zones' },
+    { key: 'database', label: 'Databases' }
   ];
 
   // Filtered matrix rows based on search query and issues-only mode
@@ -359,6 +360,47 @@ export class App implements OnInit {
     this.onSearch();
   }
 
+  filterDatabases(): void {
+    if (this.searchString() === 'database' || this.searchString() === 'Databases') {
+      this.searchString.set('');
+    } else {
+      this.searchString.set('database');
+    }
+    this.onSearch();
+  }
+
+  isDatabase(res: StackitResource): boolean {
+    if (!res) return false;
+    return res.type === 'database' || res.type === 'databases' || res.type === 'db' || res.type === 'dbs';
+  }
+
+  getDatabaseData(res: StackitResource): DatabaseResourceData | undefined {
+    return res.data as DatabaseResourceData | undefined;
+  }
+
+  formatDatabaseEngine(engine?: string): string {
+    if (!engine) return 'Database';
+    const norm = engine.toLowerCase();
+    if (norm === 'postgresql' || norm === 'postgres') return 'PostgreSQL';
+    if (norm === 'mongodb' || norm === 'mongo') return 'MongoDB';
+    if (norm === 'opensearch') return 'OpenSearch';
+    if (norm === 'redis') return 'Redis';
+    if (norm === 'valkey' || norm.includes('valkey') || norm.includes('key-value') || norm.includes('keyvalue')) return 'Key-Value Store (Valkey)';
+    if (norm === 'mariadb') return 'MariaDB';
+    if (norm === 'sqlserver') return 'SQL Server';
+    return engine.charAt(0).toUpperCase() + engine.slice(1);
+  }
+
+  getDatabaseEngineIcon(engine?: string): string {
+    if (!engine) return 'storage';
+    const norm = engine.toLowerCase();
+    if (norm.includes('postgres') || norm.includes('sql')) return 'dataset';
+    if (norm.includes('mongo')) return 'folder_special';
+    if (norm.includes('redis') || norm.includes('valkey') || norm.includes('key-value') || norm.includes('keyvalue')) return 'bolt';
+    if (norm.includes('search')) return 'search';
+    return 'storage';
+  }
+
   isDnsZone(res: StackitResource): boolean {
     if (!res) return false;
     return res.type === 'dns-zone' || res.type === 'dns' || res.type === 'dnszone' || res.type === 'dnszones';
@@ -584,6 +626,11 @@ export class App implements OnInit {
       case 'dnsrecordset':
       case 'dnsrecordsets':
         return 'DNS Record Sets';
+      case 'database':
+      case 'databases':
+      case 'db':
+      case 'dbs':
+        return 'Databases';
       default:
         return type.charAt(0).toUpperCase() + type.slice(1) + 's';
     }
@@ -610,6 +657,12 @@ export class App implements OnInit {
       return val.join(', ');
     }
     if (typeof val === 'object') {
+      const entries = Object.entries(val);
+      if (entries.length === 0) return 'none';
+      const isFlat = entries.every(([, v]) => v === null || typeof v !== 'object');
+      if (isFlat) {
+        return entries.map(([k, v]) => `${k}=${v}`).join(', ');
+      }
       return JSON.stringify(val);
     }
     return String(val);

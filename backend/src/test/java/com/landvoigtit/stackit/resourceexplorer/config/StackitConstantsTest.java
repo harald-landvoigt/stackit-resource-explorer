@@ -65,6 +65,7 @@ public class StackitConstantsTest {
         assertEquals("billing-org", StackitConstants.RESOURCE_TYPE_BILLING_ORG);
         assertEquals("dns-zone", StackitConstants.RESOURCE_TYPE_DNS_ZONE);
         assertEquals("dns-record-set", StackitConstants.RESOURCE_TYPE_DNS_RECORD_SET);
+        assertEquals("database", StackitConstants.RESOURCE_TYPE_DATABASE);
 
         assertEquals("eu-central-1", StackitConstants.DEFAULT_REGION);
         assertEquals("global", StackitConstants.GLOBAL_REGION);

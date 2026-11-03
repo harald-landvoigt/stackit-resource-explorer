@@ -59,6 +59,8 @@ Each scraper implements independent schedules (configurable via `application.pro
 | `NetworkResourceScraper` | `network` | Load Balancer API | `1h` |
 | `StorageResourceScraper` | `storage` | Object Storage API (`/v1/projects/{projectId}/buckets`) | `1h` |
 | `IamResourceScraper` | `iam` | Authorization API (`/v2/project/.../members`) & Service Account API | `1h` |
+| `DnsResourceScraper` | `dns-zone` / `dns-record-set` | DNS API (`/v1/projects/{projectId}/zones`) | `1h` |
+| `DatabaseResourceScraper` | `database` | PostgreSQL Flex, SQL Server Flex, MongoDB Flex, OpenSearch & MariaDB APIs | `1h` |
 | `BillingResourceScraper` | `billing` / `billing-org` | Cost API v3 (`/v3/costs/{customerAccountId}`) | `1h` |
 
 #### Public IP Scraper Details
@@ -159,10 +161,32 @@ Each scraper implements independent schedules (configurable via `application.pro
 - Features an on-demand fallback: when `/resources/billing-summary` is called, if the database has no billing records, an immediate scrape is triggered.
 - Summary ordering places the Organization total in the first row, followed by child projects sorted descending by cost.
 
+#### DNS Zones & Record Sets Scraper Details
+- Queries DNS zones (`/v1/projects/{projectId}/zones`) and all configured record sets (A, AAAA, CNAME, MX, TXT, etc.) with automatic pagination.
+- Generates standalone `dns-record-set` entities for each record, enabling dedicated searchability and independent soft-deletion tracking.
+- Correlates record set target IPs to cataloged VMs and Public IPs, producing bidirectional infrastructure references.
+
+#### Managed Database Scraper Details
+- Catalogs STACKIT Managed Database and caching instances across multiple engines:
+  - **Regional Engines**: PostgreSQL Flex, SQL Server Flex, MongoDB Flex, MariaDB, OpenSearch, and Key-Value Store (Valkey) across configured regions (`eu01`, `eu02`). Redis has been deprecated on STACKIT and is excluded from scraping.
+- **Per-Instance Detail Enrichment**:
+  - For each discovered instance (`id` or `instanceId`), fetches the full instance detail payload via `DatabaseApiClient.getInstance(...)` and merges it onto the summary payload.
+  - For `postgresql` and `sqlserver`, merges both `/v2/projects/{projectId}/regions/{region}/instances/{instanceId}` (providing `acl.items`, `storage.class`, `backupSchedule`, `options.retentionDays`) and `/v3/projects/{projectId}/regions/{region}/instances/{instanceId}` (providing `connectionInfo.write` with `host`/`port`, `network.accessScope`, `network.acl`, and custom `labels`).
+- **Captured Metadata & Tags**:
+  - Engine type, version, replica count, and operational status (`status`, `state`, or `lastOperation.state` / `lastOperation.type`).
+  - Sizing & plans: `flavor`, `flavorDescription`, `cpu`, `memory` (synthesizing `<cpu> vCPU / <memory> GB` when `flavor.id` is absent, e.g. SQL Server Flex), and `planId` / `planName` (MariaDB / OpenSearch).
+  - Storage: `storage` (GB, including fallback to `parameters.max_disk_threshold`) and `storageClass`.
+  - Network & connection settings: `host`, `port`, `accessScope` (`PUBLIC` / `PRIVATE`), and `acls` (extracted from `network.acl`, `acl.items`, `acls`, or comma-separated `parameters.sgw_acl`).
+  - Custom `labels`: mapped both to `StackitEntity.tags` and `StackitEntity.data["labels"]`.
+  - Cloud Foundry / OSB attributes (MariaDB, OpenSearch & Valkey): `cfGuid`, `cfSpaceGuid`, `cfOrganizationGuid`, `dashboardUrl`, and `parameters` merged into `options` (excluding raw base64 `imageUrl` icons).
+- **Structured Operational Logging**: Emits real-time `INFO` logs detailing the target project ID, project name, region, and database engine (`Scraping database type '<engine>' for project <projectId> in region <region>`), alongside counts of discovered instances.
+- Robust fault isolation: projects without activated database services (HTTP 404) trigger clean soft-deletion of missing instances without noise; permission restrictions (HTTP 403) are recorded in the `AccessIssueRegistry`.
+- Cognitive Complexity (< 15) maintained across pagination, detail merging, and engine dispatch routines.
+
 ### 3. Resilient Scraping & Code Quality Standards
 All scraper jobs and backend domain services adhere to uniform coding, quality, and fault-isolation standards:
 - **Cognitive Complexity (< 15)**: Every method must maintain a Cognitive Complexity strictly `< 15` (enforcing SonarLint rule `java:S3776`). Workflows with nested branching, loops, or complex error handling must be decomposed into cohesive single-responsibility helper methods.
-- **Operational Progress (`INFO`)**: Scraping phase transitions (start, project discovery, completion) and counts of scraped resources per service and project are logged at `INFO` level.
+- **Operational Progress (`INFO`)**: Scraping phase transitions (start, project discovery, completion), target database type and region dispatch, and counts of scraped resources per service and project are logged at `INFO` level.
 - **Permission Denials (`WARN`)**: When encountering HTTP `401` or `403` (Unauthorized, Forbidden) for any target project or region, scrapers log a structured warning including the project ID, region, and error payload. The failure is isolated—the scraper continues processing remaining projects.
 - **Absent / Unactivated Services (`INFO`)**: When a project does not have an optional service enabled (HTTP 404 Not Found), scrapers log the event as standard `INFO` without triggering warnings.
 - **Exception Catch Blocks (`WARN` / `ERROR`)**: All catch blocks across scrapers and SDK initialization strictly log at `WARN` or `ERROR` level (never `INFO`) to guarantee visibility of caught exceptions and fallback execution paths.
@@ -183,7 +207,15 @@ All scraper jobs and backend domain services adhere to uniform coding, quality, 
 | `stackit.network.schedule` | `STACKIT_NETWORK_SCHEDULE` | `1h` | Interval or cron for Load Balancer Scraper |
 | `stackit.network-vpc.schedule` | `STACKIT_NETWORK_VPC_SCHEDULE` | `1h` | Interval or cron for Network VPC Scraper |
 | `stackit.iam.schedule` | `STACKIT_IAM_SCHEDULE` | `1h` | Interval or cron for IAM Scraper |
+| `stackit.dns.schedule` | `STACKIT_DNS_SCHEDULE` | `1h` | Interval or cron for DNS Zones & Record Sets Scraper |
+| `stackit.database.schedule` | `STACKIT_DATABASE_SCHEDULE` | `1h` | Interval or cron for Managed Database Scraper (`1h`, cron, or `off`) |
 | `stackit.billing.schedule` | `STACKIT_BILLING_SCHEDULE` | `1h` | Interval or cron for Billing / Cost Scraper |
+| `stackit.database.postgres-url` | `STACKIT_DATABASE_POSTGRES_URL` | `https://postgres-flex-service.api.stackit.cloud` | Base URL for PostgreSQL Flex API |
+| `stackit.database.mongodb-url` | `STACKIT_DATABASE_MONGODB_URL` | `https://mongodb-flex-service.api.stackit.cloud` | Base URL for MongoDB Flex API |
+| `stackit.database.opensearch-url` | `STACKIT_DATABASE_OPENSEARCH_URL` | `https://opensearch.api.stackit.cloud` | Base URL for OpenSearch API |
+| `stackit.database.mariadb-url` | `STACKIT_DATABASE_MARIADB_URL` | `https://mariadb.api.stackit.cloud` | Base URL for MariaDB API |
+| `stackit.database.sqlserver-url` | `STACKIT_DATABASE_SQLSERVER_URL` | `https://mssql-flex-service.api.stackit.cloud` | Base URL for SQL Server Flex API |
+| `stackit.database.valkey-url` | `STACKIT_DATABASE_VALKEY_URL` | `https://valkey.api.stackit.cloud` | Base URL for Key-Value Store (Valkey) API |
 
 Schedules accept standard Quarkus interval strings (`1h`, `30m`), standard cron expressions, or `off` to disable.
 

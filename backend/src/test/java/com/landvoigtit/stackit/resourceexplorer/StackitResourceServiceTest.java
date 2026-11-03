@@ -304,6 +304,9 @@ public class StackitResourceServiceTest {
         assertEquals("Unknown", service.formatTypeLabel(null));
         assertEquals("Unknown", service.formatTypeLabel("  "));
         assertEquals("Databases", service.formatTypeLabel("database"));
+        assertEquals("Databases", service.formatTypeLabel("databases"));
+        assertEquals("Databases", service.formatTypeLabel("db"));
+        assertEquals("Databases", service.formatTypeLabel("dbs"));
     }
 
     @Test

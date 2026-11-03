@@ -16,6 +16,11 @@ public class StackitSdkConfigTest {
 
         assertEquals("https://authorization.api.stackit.cloud/v2/project/proj-1/members", config.getMembersUrl("proj-1"));
         assertEquals("https://service-account.api.stackit.cloud/v2/projects/proj-1/service-accounts", config.getServiceAccountsUrl("proj-1"));
+        assertEquals("https://postgres-flex-service.api.stackit.cloud", config.getPostgresFlexApiUrl());
+        assertEquals("https://mongodb-flex-service.api.stackit.cloud", config.getMongodbFlexApiUrl());
+        assertEquals("https://opensearch.api.stackit.cloud", config.getOpensearchApiUrl());
+        assertEquals("https://mariadb.api.stackit.cloud", config.getMariadbApiUrl());
+        assertEquals("https://mssql-flex-service.api.stackit.cloud", config.getSqlserverFlexApiUrl());
     }
 
     @Test
@@ -24,10 +29,20 @@ public class StackitSdkConfigTest {
         config.billingApiUrl = "https://custom-billing.local";
         config.authorizationApiUrl = "https://custom-auth.local";
         config.serviceAccountApiUrl = "https://custom-sa.local";
+        config.postgresFlexApiUrl = "https://custom-postgres.local";
+        config.mongodbFlexApiUrl = "https://custom-mongodb.local";
+        config.opensearchApiUrl = "https://custom-opensearch.local";
+        config.mariadbApiUrl = "https://custom-mariadb.local";
+        config.sqlserverFlexApiUrl = "https://custom-sqlserver.local";
 
         assertEquals("https://custom-billing.local", config.getBillingApiUrl());
         assertEquals("https://custom-auth.local", config.getAuthorizationApiUrl());
         assertEquals("https://custom-sa.local", config.getServiceAccountApiUrl());
+        assertEquals("https://custom-postgres.local", config.getPostgresFlexApiUrl());
+        assertEquals("https://custom-mongodb.local", config.getMongodbFlexApiUrl());
+        assertEquals("https://custom-opensearch.local", config.getOpensearchApiUrl());
+        assertEquals("https://custom-mariadb.local", config.getMariadbApiUrl());
+        assertEquals("https://custom-sqlserver.local", config.getSqlserverFlexApiUrl());
 
         assertEquals("https://custom-auth.local/v2/project/proj-1/members", config.getMembersUrl("proj-1"));
         assertEquals("https://custom-sa.local/v2/projects/proj-1/service-accounts", config.getServiceAccountsUrl("proj-1"));
