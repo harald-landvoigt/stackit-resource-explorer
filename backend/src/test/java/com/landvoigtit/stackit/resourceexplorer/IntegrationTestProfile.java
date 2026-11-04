@@ -6,6 +6,6 @@ import java.util.Map;
 public class IntegrationTestProfile implements QuarkusTestProfile {
     @Override
     public final Map<String, String> getConfigOverrides() {
-        return Map.of("quarkus.arc.exclude-types", "com.landvoigtit.stackit.resourceexplorer.StackitSdkMockProducer");
+        return Map.of("quarkus.arc.exclude-types", "com.landvoigtit.stackit.resourceexplorer.StackitSdkMockProducer,com.landvoigtit.stackit.resourceexplorer.config.MockStackitSdkConfig");
     }
 }

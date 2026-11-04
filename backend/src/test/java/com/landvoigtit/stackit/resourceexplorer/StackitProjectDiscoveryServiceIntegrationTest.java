@@ -17,8 +17,20 @@ public class StackitProjectDiscoveryServiceIntegrationTest {
     @Inject
     StackitProjectDiscoveryService discoveryService;
 
+    @Inject
+    com.landvoigtit.stackit.resourceexplorer.config.StackitSdkConfig sdkConfig;
+
     @Test
     public final void testProjectDiscoveryIntegration() {
+        final String keyPath = sdkConfig.getServiceAccountKeyPath().orElse(null);
+        final boolean hasLiveCredentials = keyPath != null
+                && java.nio.file.Files.isRegularFile(java.nio.file.Path.of(keyPath))
+                && !keyPath.equals(com.landvoigtit.stackit.resourceexplorer.StackitSdkMockProducer.getCredentialsPath());
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                hasLiveCredentials,
+                "Skipping live STACKIT integration test: no valid service account key file found at " + keyPath
+        );
+
         log.info("Starting project discovery service integration test...");
         try {
             // 1. Discover Organization ID

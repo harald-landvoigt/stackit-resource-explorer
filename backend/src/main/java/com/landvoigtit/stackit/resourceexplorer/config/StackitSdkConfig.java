@@ -356,7 +356,7 @@ public class StackitSdkConfig {
         return authenticator;
     }
 
-    public final JsonNode getAccessTokenClaims() {
+    public JsonNode getAccessTokenClaims() {
         try {
             final ResilientKeyFlowAuthenticator auth = getOrCreateAuthenticator();
             if (auth == null) {
@@ -381,7 +381,7 @@ public class StackitSdkConfig {
         return null;
     }
 
-    public final String getDiscoveredOrganizationId() {
+    public String getDiscoveredOrganizationId() {
         final JsonNode claims = getAccessTokenClaims();
         if (claims != null && claims.has("organizations") && claims.get("organizations").isArray()) {
             final JsonNode orgs = claims.get("organizations");
@@ -392,7 +392,7 @@ public class StackitSdkConfig {
         return null;
     }
 
-    public final String getDiscoveredProjectId() {
+    public String getDiscoveredProjectId() {
         final JsonNode claims = getAccessTokenClaims();
         if (claims != null && claims.has("stackit/project/project.id")) {
             final String pid = claims.get("stackit/project/project.id").asText();
@@ -409,7 +409,7 @@ public class StackitSdkConfig {
         return null;
     }
 
-    public final String getServiceAccountEmail() {
+    public String getServiceAccountEmail() {
         final JsonNode claims = getAccessTokenClaims();
         if (claims != null && claims.has("email") && !claims.get("email").asText().isBlank()) {
             return claims.get("email").asText();
@@ -417,7 +417,7 @@ public class StackitSdkConfig {
         return getOrLoadKeyfile().email();
     }
 
-    public final String getServiceAccountId() {
+    public String getServiceAccountId() {
         final JsonNode claims = getAccessTokenClaims();
         if (claims != null && claims.has("sub") && !claims.get("sub").asText().isBlank()) {
             return claims.get("sub").asText();
@@ -425,7 +425,7 @@ public class StackitSdkConfig {
         return getOrLoadKeyfile().sub();
     }
 
-    public final String getServiceAccountKeyAlgorithm() {
+    public String getServiceAccountKeyAlgorithm() {
         return getOrLoadKeyfile().keyAlgorithm();
     }
 
