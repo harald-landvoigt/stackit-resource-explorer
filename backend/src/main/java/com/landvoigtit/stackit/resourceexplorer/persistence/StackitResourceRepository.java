@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @ApplicationScoped
 public class StackitResourceRepository implements PanacheRepositoryBase<StackitEntity, UUID> {
@@ -204,6 +205,7 @@ public class StackitResourceRepository implements PanacheRepositoryBase<StackitE
 
     public static final int MAX_QUERY_LENGTH = 256;
     public static final int MAX_PREFIX_TOKENS = 10;
+    private static final Pattern CLEAN_TOKEN_PATTERN = Pattern.compile("[^a-zA-Z0-9_-]");
 
     public List<StackitEntity> search(final String query, final int limit) {
         final int maxResults = limit > 0 ? limit : 100;
@@ -360,8 +362,8 @@ public class StackitResourceRepository implements PanacheRepositoryBase<StackitE
         final String[] tokens = query.trim().split("\\s+");
         final java.util.List<String> cleanTokens = new java.util.ArrayList<>();
         for (final String token : tokens) {
-            final String cleaned = token.replaceAll("[^a-zA-Z0-9_-]", "");
-            if (cleaned.matches(".*[a-zA-Z0-9].*")) {
+            final String cleaned = CLEAN_TOKEN_PATTERN.matcher(token).replaceAll("");
+            if (containsAlphanumeric(cleaned)) {
                 cleanTokens.add("'" + cleaned.replace("'", "''") + "':*");
                 if (cleanTokens.size() >= MAX_PREFIX_TOKENS) {
                     break;
@@ -372,5 +374,15 @@ public class StackitResourceRepository implements PanacheRepositoryBase<StackitE
             return null;
         }
         return String.join(" & ", cleanTokens);
+    }
+
+    private static boolean containsAlphanumeric(final String str) {
+        for (int i = 0; i < str.length(); i++) {
+            final char c = str.charAt(i);
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) {
+                return true;
+            }
+        }
+        return false;
     }
 }

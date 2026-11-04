@@ -670,9 +670,14 @@ public class StackitResourceRepositoryTest {
         assertNull(repository.buildPrefixQuery(null));
         assertNull(repository.buildPrefixQuery("   "));
         assertNull(repository.buildPrefixQuery("!!! ???"));
+        assertNull(repository.buildPrefixQuery("--- ___ ---"));
 
         assertEquals("'vm':*", repository.buildPrefixQuery("vm"));
         assertEquals("'web':* & 'server':*", repository.buildPrefixQuery("web server"));
+
+        // Verify strings with many repetitions (ReDoS regression test)
+        final String repeatedZeros = "0" + "0".repeat(1000);
+        assertEquals("'" + repeatedZeros + "':*", repository.buildPrefixQuery(repeatedZeros));
 
         // More than 10 tokens are capped at MAX_PREFIX_TOKENS (10)
         final String longQuery = "t1 t2 t3 t4 t5 t6 t7 t8 t9 t10 t11 t12 t13";
