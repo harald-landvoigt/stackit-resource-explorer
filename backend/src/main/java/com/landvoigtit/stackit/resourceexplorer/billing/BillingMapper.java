@@ -37,7 +37,7 @@ public class BillingMapper {
         entity.setName(dto.getInvoiceNumber());
         entity.setType(StackitConstants.RESOURCE_TYPE_BILLING);
         entity.setStatus(dto.getStatus());
-        entity.setRegion(StackitConstants.DEFAULT_REGION);
+        entity.setRegion(StackitConstants.GLOBAL_REGION);
         entity.setProjectId(StackitConstants.UNKNOWN_PROJECT_ID);
         if (dto.getBillingDate() != null) {
             entity.setCreatedAt(dto.getBillingDate().toInstant());

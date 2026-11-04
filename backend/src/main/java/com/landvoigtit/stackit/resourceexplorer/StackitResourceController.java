@@ -1,6 +1,7 @@
 package com.landvoigtit.stackit.resourceexplorer;
 
 import jakarta.inject.Inject;
+import jakarta.validation.constraints.Size;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -30,7 +31,10 @@ public class StackitResourceController {
     }
 
     @GET
-    public final ResourceSearchResultDto listAll(@QueryParam("q") final String query) {
+    public final ResourceSearchResultDto listAll(
+            @QueryParam("q")
+            @Size(max = 256, message = "Search query must not exceed 256 characters")
+            final String query) {
         return service.searchResources(query);
     }
 

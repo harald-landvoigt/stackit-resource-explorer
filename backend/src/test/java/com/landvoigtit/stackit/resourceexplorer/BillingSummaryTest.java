@@ -176,7 +176,7 @@ public class BillingSummaryTest {
         entity.setName(resourceId + "-num");
         entity.setType(type);
         entity.setStatus("active");
-        entity.setRegion("eu-central-1");
+        entity.setRegion("eu01");
         entity.setProjectId(projectId);
         entity.setCreatedAt(createdAt);
         entity.setUpdatedAt(Instant.now());

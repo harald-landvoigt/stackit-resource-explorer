@@ -68,7 +68,7 @@ public class DomainMappersTest {
         assertNotNull(entity);
         assertEquals(srvId, entity.getId());
         assertEquals(srvId.toString(), entity.getResourceId());
-        assertEquals("eu01-3", entity.getRegion());
+        assertEquals("eu01", entity.getRegion());
         assertEquals("4711", entity.getTags().get("cost-center"));
         assertEquals("harald.landvoigt", entity.getTags().get("owner"));
         assertEquals("g1r.1d", entity.getData().get("machineType"));
@@ -180,7 +180,7 @@ public class DomainMappersTest {
         assertEquals("boot-disk", entity.getName());
         assertEquals("vmdisks", entity.getType());
         assertEquals("AVAILABLE", entity.getStatus());
-        assertEquals("eu01-1", entity.getRegion());
+        assertEquals("eu01", entity.getRegion());
         assertNotNull(entity.getData());
         assertEquals(50L, entity.getData().get("sizeGb"));
         assertEquals("storage_premium_perf1", entity.getData().get("performanceClass"));

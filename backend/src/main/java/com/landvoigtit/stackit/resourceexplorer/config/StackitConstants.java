@@ -55,21 +55,45 @@ public final class StackitConstants {
     public static final String RESOURCE_TYPE_DATABASE = "database";
 
     // Default Regions
-    public static final String DEFAULT_REGION = "eu-central-1";
-    public static final String ALB_DEFAULT_REGION = "eu01";
     public static final String REGION_EU01 = "eu01";
     public static final String REGION_EU02 = "eu02";
-    public static final List<String> DEFAULT_REGIONS = List.of(REGION_EU01, REGION_EU02);
     public static final String GLOBAL_REGION = "global";
+    public static final String DEFAULT_REGION = REGION_EU01;
+    public static final String ALB_DEFAULT_REGION = REGION_EU01;
+    public static final List<String> DEFAULT_REGIONS = List.of(REGION_EU01, REGION_EU02);
 
     // Status Values
     public static final String STATUS_ACTIVE = "ACTIVE";
     public static final String STATUS_AVAILABLE = "AVAILABLE";
+    public static final String STATUS_DELETED = "DELETED";
 
     // Role & Domain Constants
     public static final String ROLE_SERVICE_ACCOUNT = "service-account";
     public static final String STORAGE_CLASS_STANDARD = "standard";
     public static final String UNKNOWN_PROJECT_ID = "unknown";
+
+    /**
+     * Normalizes a region or availability zone string to canonical STACKIT region (eu01, eu02, or global).
+     *
+     * @param rawRegion the raw region or availability zone string
+     * @return the normalized canonical region identifier
+     */
+    public static String normalizeRegion(final String rawRegion) {
+        if (rawRegion == null || rawRegion.isBlank()) {
+            return GLOBAL_REGION;
+        }
+        final String trimmed = rawRegion.trim().toLowerCase();
+        if (trimmed.startsWith("eu01") || "eu-central-1".equals(trimmed) || "eu-01".equals(trimmed)) {
+            return REGION_EU01;
+        }
+        if (trimmed.startsWith("eu02") || "eu-02".equals(trimmed)) {
+            return REGION_EU02;
+        }
+        if ("global".equals(trimmed)) {
+            return GLOBAL_REGION;
+        }
+        return trimmed;
+    }
 
     /**
      * Formats the member access URL for a given project ID using the default authorization base URL.
@@ -323,9 +347,11 @@ public final class StackitConstants {
         return false;
     }
 
+    public static final int MAX_ERROR_MESSAGE_LENGTH = 500;
+
     /**
      * Sanitizes and extracts a concise error message from a raw error or SDK ApiException string,
-     * removing multiline Istio headers and raw header payloads.
+     * removing multiline Istio headers, raw header payloads, redacting sensitive tokens, and truncating to a safe length.
      *
      * @param msg the raw error message
      * @return a sanitized, single-line error message
@@ -353,14 +379,22 @@ public final class StackitConstants {
                 }
             }
             if (body != null && !body.equals("null") && !body.isBlank()) {
-                return (code != null && !code.equals("null") ? "HTTP " + code + ": " : "") + body;
+                cleaned = (code != null && !code.equals("null") ? "HTTP " + code + ": " : "") + body;
             } else if (code != null && !code.equals("null")) {
-                return "HTTP " + code + ": " + firstLine;
+                cleaned = "HTTP " + code + ": " + firstLine;
             } else {
-                return firstLine;
+                cleaned = firstLine;
             }
         }
-        return cleaned.replaceAll("\\s+", " ").trim();
+        cleaned = cleaned.replaceAll("\\s+", " ").trim();
+        // Redact bearer / auth tokens
+        cleaned = cleaned.replaceAll("(?i)bearer\\s+[a-zA-Z0-9_\\-\\.]+", "Bearer [REDACTED]");
+        // Redact password / secret / key in json or key-value format
+        cleaned = cleaned.replaceAll("(?i)(\"?(?:password|token|secret|accessKey|secretAccessKey)\"?\\s*[:=]\\s*\")[^\"]*(\")", "$1[REDACTED]$2");
+        if (cleaned.length() > MAX_ERROR_MESSAGE_LENGTH) {
+            cleaned = cleaned.substring(0, MAX_ERROR_MESSAGE_LENGTH - 3) + "...";
+        }
+        return cleaned;
     }
 
     /**

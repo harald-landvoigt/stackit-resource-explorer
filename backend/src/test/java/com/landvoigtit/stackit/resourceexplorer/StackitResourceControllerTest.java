@@ -146,4 +146,15 @@ public class StackitResourceControllerTest {
             .body("matrix", notNullValue())
             .body("issues", notNullValue());
     }
+
+    @Test
+    public final void testSearchQueryExceedingMaxFailsValidation() {
+        final String oversizedQuery = "A".repeat(257);
+        given()
+            .when()
+            .queryParam("q", oversizedQuery)
+            .get("/resources")
+            .then()
+            .statusCode(400);
+    }
 }

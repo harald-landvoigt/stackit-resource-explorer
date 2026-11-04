@@ -175,6 +175,9 @@ public class VmDiskResourceScraper {
                     if (validator.validate(dto).isEmpty()) {
                         final StackitEntity entity = VmDiskResourceMapper.mapToEntity(dto);
                         entity.setProjectId(projectIdStr);
+                        if (region != null && !region.isBlank()) {
+                            entity.setRegion(StackitConstants.normalizeRegion(region));
+                        }
                         repository.persistOrUpdate(entity);
                         currentResourceIds.add(entity.getResourceId());
                     } else {

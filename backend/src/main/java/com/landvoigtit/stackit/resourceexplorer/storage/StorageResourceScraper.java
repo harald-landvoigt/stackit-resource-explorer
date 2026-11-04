@@ -28,7 +28,11 @@ import software.amazon.awssdk.services.s3.model.PublicAccessBlockConfiguration;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @ApplicationScoped
@@ -139,8 +143,10 @@ public class StorageResourceScraper {
                 // S3 data plane enrichment using dynamic JIT credentials
                 try {
                     s3JitKeyManager.withEphemeralClient(projectIdStr, region, s3Client -> {
-                        for (final StorageResourceDto dto : dtos) {
-                            enrichWithS3(s3Client, dto);
+                        try (final ExecutorService enrichExecutor = Executors.newVirtualThreadPerTaskExecutor()) {
+                            for (final StorageResourceDto dto : dtos) {
+                                enrichExecutor.submit(() -> enrichWithS3(s3Client, dto));
+                            }
                         }
                         return null;
                     });

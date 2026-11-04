@@ -68,7 +68,7 @@ public final class VmDiskResourceMapper {
         entity.setName(dto.getName());
         entity.setType(StackitConstants.RESOURCE_TYPE_VMDISKS);
         entity.setStatus(dto.getStatus());
-        entity.setRegion(dto.getAvailabilityZone() != null ? dto.getAvailabilityZone() : StackitConstants.DEFAULT_REGION);
+        entity.setRegion(StackitConstants.normalizeRegion(dto.getAvailabilityZone()));
         entity.setProjectId(StackitConstants.UNKNOWN_PROJECT_ID); // Set by scraper
         entity.setCreatedAt(Instant.now());
         entity.setUpdatedAt(Instant.now());

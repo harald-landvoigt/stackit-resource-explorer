@@ -306,11 +306,14 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  margin-top: -12px;
   margin-bottom: 16px;
   padding: 10px 14px;
   background-color: #121212;
   border: 1px dashed #ff6f00;
   border-radius: 4px;
+  width: 100%;
+  box-sizing: border-box;
 
   .active-facet-label {
     font-size: 0.85rem;
@@ -360,6 +363,10 @@
       color: #ffffff !important;
     }
   }
+}
+
+.active-facet-filters-bar + .search-filters {
+  margin-top: 0;
 }
 
 .agg-count {

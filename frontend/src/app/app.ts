@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -30,9 +30,14 @@ import { StackitResource, BillingSummary, AggregationItem, StorageResourceData, 
   ],
   templateUrl: './app.html',
   styleUrl: './app.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App implements OnInit {
   private readonly resourceService = inject(ResourceService);
+
+  private readonly objectKeysCache = new WeakMap<object, string[]>();
+  private readonly ipHistoryCache = new WeakMap<object, PublicIpHistoryRecord[]>();
+  private readonly formattedPolicyCache = new Map<string, string>();
 
   // All resources loaded from the backend (capped to maximum 100)
   readonly resources = signal<StackitResource[]>([]);
@@ -98,8 +103,9 @@ export class App implements OnInit {
         }
       }
       if (regionFilter) {
-        const resRegion = res.region || 'global';
-        if (resRegion.toLowerCase() !== regionFilter.toLowerCase()) {
+        const normFilter = this.normalizeRegionCode(regionFilter);
+        const normRes = this.normalizeRegionCode(res.region);
+        if (normFilter !== normRes && res.region?.toLowerCase() !== regionFilter.toLowerCase()) {
           return false;
         }
       }
@@ -602,13 +608,18 @@ export class App implements OnInit {
   }
 
   getPublicIpHistory(res: StackitResource): PublicIpHistoryRecord[] {
-    if (!this.hasPublicIpHistory(res)) return [];
-    const list = (res.data!['publicIpHistory'] as PublicIpHistoryRecord[]).slice();
-    return list.sort((a, b) => {
-      if (a.active && !b.active) return -1;
-      if (!a.active && b.active) return 1;
-      return (b.lastSeen || '').localeCompare(a.lastSeen || '');
-    });
+    if (!this.hasPublicIpHistory(res) || !res.data) return [];
+    let sorted = this.ipHistoryCache.get(res.data);
+    if (!sorted) {
+      const list = (res.data['publicIpHistory'] as PublicIpHistoryRecord[]).slice();
+      sorted = list.sort((a, b) => {
+        if (a.active && !b.active) return -1;
+        if (!a.active && b.active) return 1;
+        return (b.lastSeen || '').localeCompare(a.lastSeen || '');
+      });
+      this.ipHistoryCache.set(res.data, sorted);
+    }
+    return sorted;
   }
 
   formatIpDate(dateStr: string | null | undefined): string {
@@ -640,11 +651,17 @@ export class App implements OnInit {
 
   formatPolicyJson(policy: string | null | undefined): string {
     if (!policy) return '';
+    const cached = this.formattedPolicyCache.get(policy);
+    if (cached !== undefined) return cached;
     try {
       const parsed = typeof policy === 'string' ? JSON.parse(policy) : policy;
-      return JSON.stringify(parsed, null, 2);
+      const formatted = JSON.stringify(parsed, null, 2);
+      this.formattedPolicyCache.set(policy, formatted);
+      return formatted;
     } catch {
-      return String(policy);
+      const fallback = String(policy);
+      this.formattedPolicyCache.set(policy, fallback);
+      return fallback;
     }
   }
 
@@ -723,9 +740,40 @@ export class App implements OnInit {
     }
   }
 
+  formatRegionLabel(region?: string): string {
+    if (!region) return 'global';
+    const norm = region.toLowerCase().trim();
+    if (norm === 'eu01' || norm === 'eu-01' || norm === 'eu-central-1' || norm.startsWith('eu01-') || norm.includes('germany')) {
+      return 'eu01 (Germany)';
+    }
+    if (norm === 'eu02' || norm === 'eu-02' || norm.startsWith('eu02-') || norm.includes('austria')) {
+      return 'eu02 (Austria)';
+    }
+    if (norm === 'global') return 'global';
+    return region;
+  }
+
+  normalizeRegionCode(region?: string): string {
+    if (!region) return 'global';
+    const norm = region.toLowerCase().trim();
+    if (norm === 'eu01' || norm === 'eu-01' || norm === 'eu-central-1' || norm.startsWith('eu01-') || norm.includes('germany')) {
+      return 'eu01';
+    }
+    if (norm === 'eu02' || norm === 'eu-02' || norm.startsWith('eu02-') || norm.includes('austria')) {
+      return 'eu02';
+    }
+    if (norm === 'global') return 'global';
+    return norm;
+  }
+
   getObjectKeys(obj: any): string[] {
-    if (!obj) return [];
-    return Object.keys(obj);
+    if (!obj || typeof obj !== 'object') return [];
+    let keys = this.objectKeysCache.get(obj);
+    if (!keys) {
+      keys = Object.keys(obj);
+      this.objectKeysCache.set(obj, keys);
+    }
+    return keys;
   }
 
   isObject(val: any): boolean {

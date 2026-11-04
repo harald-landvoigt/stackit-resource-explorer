@@ -7,6 +7,8 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.Test;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -562,12 +564,49 @@ public class StackitResourceRepositoryTest {
         final StackitEntity deleted = repository.findById(vmId);
         assertNotNull(deleted);
         assertNotNull(deleted.getDeletedAt());
+        assertEquals(com.landvoigtit.stackit.resourceexplorer.config.StackitConstants.STATUS_DELETED, deleted.getStatus());
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> hist = (List<Map<String, Object>>) deleted.getData().get("publicIpHistory");
         assertNotNull(hist);
         assertEquals(1, hist.size());
         assertEquals(false, hist.get(0).get("active"));
+    }
+
+    @Test
+    @Transactional
+    public void testSoftDeleteUpdatesDatabaseResourceStatusAndMetadata() {
+        final UUID dbId = UUID.randomUUID();
+        final StackitEntity db = new StackitEntity();
+        db.setId(dbId);
+        db.setResourceId("db-del-1");
+        db.setName("mariadb-uqtx53pmtvhq");
+        db.setType(com.landvoigtit.stackit.resourceexplorer.config.StackitConstants.RESOURCE_TYPE_DATABASE);
+        db.setStatus("active");
+        db.setRegion("eu02");
+        db.setProjectId("c2cc46ae-e432-4e4a-b4df-42a4066c344b");
+        db.setCreatedAt(Instant.now());
+        db.setUpdatedAt(Instant.now());
+
+        final Map<String, Object> data = new java.util.LinkedHashMap<>();
+        data.put("status", "active");
+        data.put("engine", "mariadb");
+        data.put("flavor", "stackit-mariadb-1.4.10-single");
+        db.setData(data);
+
+        repository.persist(db);
+        repository.flush();
+
+        // Soft delete missing
+        repository.softDeleteMissing(com.landvoigtit.stackit.resourceexplorer.config.StackitConstants.RESOURCE_TYPE_DATABASE, "c2cc46ae-e432-4e4a-b4df-42a4066c344b", List.of());
+        repository.flush();
+
+        final StackitEntity deletedDb = repository.findById(dbId);
+        assertNotNull(deletedDb);
+        assertNotNull(deletedDb.getDeletedAt());
+        assertEquals(com.landvoigtit.stackit.resourceexplorer.config.StackitConstants.STATUS_DELETED, deletedDb.getStatus());
+        assertNotNull(deletedDb.getData());
+        assertEquals("deleted", deletedDb.getData().get("status"));
     }
 
     @Test
@@ -624,5 +663,119 @@ public class StackitResourceRepositoryTest {
                 "Expected idx_stackit_resources_status_active to be present, but was: " + indexes);
         assertTrue(indexes.contains("idx_stackit_resources_project_id_active"),
                 "Expected idx_stackit_resources_project_id_active to be present, but was: " + indexes);
+    }
+
+    @Test
+    public void testBuildPrefixQueryCapsTokenCountAndHandlesBounds() {
+        assertNull(repository.buildPrefixQuery(null));
+        assertNull(repository.buildPrefixQuery("   "));
+        assertNull(repository.buildPrefixQuery("!!! ???"));
+
+        assertEquals("'vm':*", repository.buildPrefixQuery("vm"));
+        assertEquals("'web':* & 'server':*", repository.buildPrefixQuery("web server"));
+
+        // More than 10 tokens are capped at MAX_PREFIX_TOKENS (10)
+        final String longQuery = "t1 t2 t3 t4 t5 t6 t7 t8 t9 t10 t11 t12 t13";
+        final String result = repository.buildPrefixQuery(longQuery);
+        assertNotNull(result);
+        final String[] parts = result.split(" & ");
+        assertEquals(StackitResourceRepository.MAX_PREFIX_TOKENS, parts.length);
+        assertEquals("'t1':*", parts[0]);
+        assertEquals("'t10':*", parts[9]);
+    }
+
+    @Test
+    @Transactional
+    public void testPersistOrUpdateSkipsUnchangedEntity() {
+        final UUID id = UUID.randomUUID();
+        final Instant initialTime = Instant.now().minusSeconds(60);
+
+        final StackitEntity entity = new StackitEntity();
+        entity.setId(id);
+        entity.setResourceId("skip-update-res");
+        entity.setName("my-server");
+        entity.setType("compute");
+        entity.setStatus("ACTIVE");
+        entity.setRegion("eu01");
+        entity.setProjectId("proj-skip");
+        entity.setCreatedAt(initialTime);
+        entity.setUpdatedAt(initialTime);
+        final Map<String, Object> data = new LinkedHashMap<>();
+        data.put("flavor", "c1.2");
+        entity.setData(data);
+
+        repository.persist(entity);
+        repository.flush();
+
+        // Persist same entity with identical values
+        final StackitEntity sameEntity = new StackitEntity();
+        sameEntity.setId(id);
+        sameEntity.setResourceId("skip-update-res");
+        sameEntity.setName("my-server");
+        sameEntity.setType("compute");
+        sameEntity.setStatus("ACTIVE");
+        sameEntity.setRegion("eu01");
+        sameEntity.setProjectId("proj-skip");
+        final Map<String, Object> sameData = new LinkedHashMap<>();
+        sameData.put("flavor", "c1.2");
+        sameEntity.setData(sameData);
+
+        repository.persistOrUpdate(sameEntity);
+        repository.flush();
+
+        final StackitEntity found = repository.findById(id);
+        assertNotNull(found);
+        // updatedAt should remain initialTime since nothing changed
+        assertEquals(initialTime.toEpochMilli(), found.getUpdatedAt().toEpochMilli());
+
+        // Now modify a field
+        final StackitEntity updatedEntity = new StackitEntity();
+        updatedEntity.setId(id);
+        updatedEntity.setResourceId("skip-update-res");
+        updatedEntity.setName("my-renamed-server");
+        updatedEntity.setType("compute");
+        updatedEntity.setStatus("ACTIVE");
+        updatedEntity.setRegion("eu01");
+        updatedEntity.setProjectId("proj-skip");
+        updatedEntity.setData(sameData);
+
+        repository.persistOrUpdate(updatedEntity);
+        repository.flush();
+
+        final StackitEntity foundAfterUpdate = repository.findById(id);
+        assertNotNull(foundAfterUpdate);
+        assertEquals("my-renamed-server", foundAfterUpdate.getName());
+        assertTrue(foundAfterUpdate.getUpdatedAt().isAfter(initialTime));
+    }
+
+    @Test
+    @Transactional
+    public void testPersistOrUpdateAllBatch() {
+        final UUID id1 = UUID.randomUUID();
+        final UUID id2 = UUID.randomUUID();
+
+        final StackitEntity e1 = new StackitEntity();
+        e1.setId(id1);
+        e1.setResourceId("batch-res-1");
+        e1.setName("batch-1");
+        e1.setType("compute");
+        e1.setStatus("ACTIVE");
+        e1.setRegion("eu01");
+        e1.setProjectId("proj-batch");
+
+        final StackitEntity e2 = new StackitEntity();
+        e2.setId(id2);
+        e2.setResourceId("batch-res-2");
+        e2.setName("batch-2");
+        e2.setType("compute");
+        e2.setStatus("ACTIVE");
+        e2.setRegion("eu01");
+        e2.setProjectId("proj-batch");
+
+        repository.persistOrUpdateAll(List.of(e1, e2));
+        repository.flush();
+
+        assertNotNull(repository.findById(id1));
+        assertNotNull(repository.findById(id2));
     }
 }

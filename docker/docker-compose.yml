@@ -59,7 +59,7 @@ services:
     container_name: stackit-frontend
     restart: unless-stopped 
     ports:
-      - "8081:80"
+      - "${FRONTEND_PORT:-8081}:8080"
     depends_on:
       - backend
 

@@ -85,8 +85,8 @@ public class StackitResourceService {
         dto.setResourceId(entity.getResourceId());
         dto.setName(entity.getName());
         dto.setType(entity.getType());
-        dto.setStatus(entity.getStatus());
-        dto.setRegion(entity.getRegion());
+        dto.setStatus(entity.getDeletedAt() != null ? StackitConstants.STATUS_DELETED : entity.getStatus());
+        dto.setRegion(StackitConstants.normalizeRegion(entity.getRegion()));
         dto.setProjectId(entity.getProjectId());
         if (projectDiscoveryService != null && entity.getProjectId() != null) {
             final java.util.Map<String, String> projectNames = projectDiscoveryService.getProjectNamesMap();
@@ -107,7 +107,20 @@ public class StackitResourceService {
             dto.setDeletedAt(entity.getDeletedAt().atOffset(ZoneOffset.UTC));
         }
         dto.setTags(entity.getTags());
-        dto.setData(entity.getData());
+        if (entity.getData() != null) {
+            final java.util.Map<String, Object> data = new java.util.LinkedHashMap<>(entity.getData());
+            if (entity.getDeletedAt() != null) {
+                if (data.containsKey("status")) {
+                    data.put("status", "deleted");
+                }
+                if (data.containsKey("state")) {
+                    data.put("state", "deleted");
+                }
+            }
+            dto.setData(data);
+        } else {
+            dto.setData(null);
+        }
         return dto;
     }
 
@@ -155,7 +168,9 @@ public class StackitResourceService {
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
 
-        final List<AggregationItemDto> rawTypeAggs = repository.aggregateByType(effectiveQuery);
+        final StackitResourceRepository.AggregationsResult allAggs = repository.aggregateAll(effectiveQuery, false);
+
+        final List<AggregationItemDto> rawTypeAggs = allAggs.byType();
         final java.util.Map<String, Long> consolidatedTypes = new java.util.LinkedHashMap<>();
         for (final AggregationItemDto agg : rawTypeAggs) {
             final String formattedLabel = formatTypeLabel(agg.getKey());
@@ -165,11 +180,25 @@ public class StackitResourceService {
                 .map(e -> new AggregationItemDto(e.getKey(), e.getValue()))
                 .collect(Collectors.toList());
 
-        final List<AggregationItemDto> regionAggs = repository.aggregateByRegion(effectiveQuery);
-        final List<AggregationItemDto> statusAggs = repository.aggregateByStatus(effectiveQuery);
+        final List<AggregationItemDto> rawRegionAggs = allAggs.byRegion();
+        final java.util.Map<String, AggregationItemDto> consolidatedRegions = new java.util.LinkedHashMap<>();
+        if (rawRegionAggs != null) {
+            for (final AggregationItemDto agg : rawRegionAggs) {
+                final String norm = StackitConstants.normalizeRegion(agg.getKey());
+                final String label = formatRegionLabel(norm);
+                if (consolidatedRegions.containsKey(label)) {
+                    final AggregationItemDto existing = consolidatedRegions.get(label);
+                    existing.setCount(existing.getCount() + agg.getCount());
+                } else {
+                    consolidatedRegions.put(label, new AggregationItemDto(label, agg.getCount(), norm));
+                }
+            }
+        }
+        final List<AggregationItemDto> regionAggs = new java.util.ArrayList<>(consolidatedRegions.values());
+        final List<AggregationItemDto> statusAggs = allAggs.byStatus();
 
         // Project aggregations
-        final List<AggregationItemDto> rawProjectAggs = repository.aggregateByProject(effectiveQuery);
+        final List<AggregationItemDto> rawProjectAggs = allAggs.byProject();
         final java.util.Map<String, String> projectNames = projectDiscoveryService != null
                 ? projectDiscoveryService.getProjectNamesMap()
                 : java.util.Collections.emptyMap();
@@ -236,6 +265,23 @@ public class StackitResourceService {
             default:
                 return Character.toUpperCase(type.charAt(0)) + type.substring(1) + "s";
         }
+    }
+
+    public static String formatRegionLabel(final String regionKey) {
+        if (regionKey == null || regionKey.isBlank()) {
+            return "global";
+        }
+        final String norm = regionKey.trim().toLowerCase();
+        if ("eu01".equals(norm) || "eu-01".equals(norm) || "eu-central-1".equals(norm) || norm.startsWith("eu01-") || norm.contains("germany")) {
+            return "eu01 (Germany)";
+        }
+        if ("eu02".equals(norm) || "eu-02".equals(norm) || norm.startsWith("eu02-") || norm.contains("austria")) {
+            return "eu02 (Austria)";
+        }
+        if ("global".equals(norm)) {
+            return "global";
+        }
+        return regionKey;
     }
 
     public final List<StackitResourceDto> listAll() {

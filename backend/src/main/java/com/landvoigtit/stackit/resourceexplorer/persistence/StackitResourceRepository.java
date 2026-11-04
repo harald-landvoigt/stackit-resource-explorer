@@ -11,6 +11,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -35,6 +36,20 @@ public class StackitResourceRepository implements PanacheRepositoryBase<StackitE
         }
         final StackitEntity existing = findById(entity.getId());
         if (existing != null) {
+            mergePublicIpHistory(existing, entity);
+
+            final boolean changed = existing.getDeletedAt() != null
+                    || !Objects.equals(existing.getName(), entity.getName())
+                    || !Objects.equals(existing.getStatus(), entity.getStatus())
+                    || !Objects.equals(existing.getRegion(), entity.getRegion())
+                    || !Objects.equals(existing.getProjectId(), entity.getProjectId())
+                    || !Objects.equals(existing.getTags(), entity.getTags())
+                    || !Objects.equals(existing.getData(), entity.getData());
+
+            if (!changed) {
+                return;
+            }
+
             existing.setName(entity.getName());
             existing.setStatus(entity.getStatus());
             existing.setRegion(entity.getRegion());
@@ -42,12 +57,25 @@ public class StackitResourceRepository implements PanacheRepositoryBase<StackitE
             existing.setUpdatedAt(Instant.now());
             existing.setDeletedAt(null);
             existing.setTags(entity.getTags());
-
-            mergePublicIpHistory(existing, entity);
-
             existing.setData(entity.getData());
         } else {
+            if (entity.getCreatedAt() == null) {
+                entity.setCreatedAt(Instant.now());
+            }
+            if (entity.getUpdatedAt() == null) {
+                entity.setUpdatedAt(Instant.now());
+            }
             persist(entity);
+        }
+    }
+
+    @Transactional
+    public void persistOrUpdateAll(final List<StackitEntity> entities) {
+        if (entities == null || entities.isEmpty()) {
+            return;
+        }
+        for (final StackitEntity entity : entities) {
+            persistOrUpdate(entity);
         }
     }
 
@@ -131,21 +159,40 @@ public class StackitResourceRepository implements PanacheRepositoryBase<StackitE
         } else {
             missing = list("type = ?1 and projectId = ?2 and resourceId not in ?3 and deletedAt is null", type, projectId, activeResourceIds);
         }
+        final Instant now = Instant.now();
         for (final StackitEntity entity : missing) {
-            entity.setDeletedAt(Instant.now());
-            if (StackitConstants.RESOURCE_TYPE_COMPUTE.equalsIgnoreCase(entity.getType()) && entity.getData() != null) {
-                final Object histObj = entity.getData().get("publicIpHistory");
-                if (histObj instanceof List<?> histList) {
-                    final List<Map<String, Object>> updatedList = new ArrayList<>();
-                    for (final Object item : histList) {
-                        if (item instanceof Map<?, ?> itemMap) {
-                            @SuppressWarnings("unchecked")
-                            final Map<String, Object> mutableMap = new LinkedHashMap<>((Map<String, Object>) itemMap);
-                            mutableMap.put("active", false);
-                            updatedList.add(mutableMap);
+            entity.setDeletedAt(now);
+            entity.setUpdatedAt(now);
+            entity.setStatus(StackitConstants.STATUS_DELETED);
+            if (entity.getData() != null) {
+                final Map<String, Object> updatedData = new LinkedHashMap<>(entity.getData());
+                boolean dataChanged = false;
+                if (updatedData.containsKey("status") && !"deleted".equalsIgnoreCase(String.valueOf(updatedData.get("status")))) {
+                    updatedData.put("status", "deleted");
+                    dataChanged = true;
+                }
+                if (updatedData.containsKey("state") && !"deleted".equalsIgnoreCase(String.valueOf(updatedData.get("state")))) {
+                    updatedData.put("state", "deleted");
+                    dataChanged = true;
+                }
+                if (StackitConstants.RESOURCE_TYPE_COMPUTE.equalsIgnoreCase(entity.getType())) {
+                    final Object histObj = updatedData.get("publicIpHistory");
+                    if (histObj instanceof List<?> histList) {
+                        final List<Map<String, Object>> updatedList = new ArrayList<>();
+                        for (final Object item : histList) {
+                            if (item instanceof Map<?, ?> itemMap) {
+                                @SuppressWarnings("unchecked")
+                                final Map<String, Object> mutableMap = new LinkedHashMap<>((Map<String, Object>) itemMap);
+                                mutableMap.put("active", false);
+                                updatedList.add(mutableMap);
+                            }
                         }
+                        updatedData.put("publicIpHistory", updatedList);
+                        dataChanged = true;
                     }
-                    entity.getData().put("publicIpHistory", updatedList);
+                }
+                if (dataChanged) {
+                    entity.setData(updatedData);
                 }
             }
         }
@@ -155,6 +202,9 @@ public class StackitResourceRepository implements PanacheRepositoryBase<StackitE
         return search(query, 100);
     }
 
+    public static final int MAX_QUERY_LENGTH = 256;
+    public static final int MAX_PREFIX_TOKENS = 10;
+
     public List<StackitEntity> search(final String query, final int limit) {
         final int maxResults = limit > 0 ? limit : 100;
         if (query == null || query.isBlank()) {
@@ -162,7 +212,10 @@ public class StackitResourceRepository implements PanacheRepositoryBase<StackitE
                     .page(0, maxResults)
                     .list();
         }
-        final String trimmed = query.trim();
+        String trimmed = query.trim();
+        if (trimmed.length() > MAX_QUERY_LENGTH) {
+            trimmed = trimmed.substring(0, MAX_QUERY_LENGTH).trim();
+        }
         final String prefixQuery = buildPrefixQuery(trimmed);
 
         final String sql;
@@ -194,55 +247,59 @@ public class StackitResourceRepository implements PanacheRepositoryBase<StackitE
         return results;
     }
 
-    public List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> aggregateByType(final String query) {
-        return executeAggregation(AggregationDimension.TYPE, query, false);
-    }
+    public record AggregationsResult(
+            List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> byType,
+            List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> byRegion,
+            List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> byStatus,
+            List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> byProject
+    ) {}
 
-    public List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> aggregateByRegion(final String query) {
-        return executeAggregation(AggregationDimension.REGION, query, false);
-    }
-
-    public List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> aggregateByStatus(final String query) {
-        return executeAggregation(AggregationDimension.STATUS, query, false);
-    }
-
-    public List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> aggregateByProject(final String query) {
-        return executeAggregation(AggregationDimension.PROJECT, query, false);
-    }
-
-    private List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> executeAggregation(
-            final AggregationDimension dimension,
-            final String query,
-            final boolean excludeDeleted) {
-        final String columnExpr = java.util.Objects.requireNonNull(dimension, "Dimension must not be null").getExpression();
+    public AggregationsResult aggregateAll(final String query, final boolean excludeDeleted) {
         final String trimmed = query != null ? query.trim() : "";
-        final String prefixQuery = !trimmed.isBlank() ? buildPrefixQuery(trimmed) : null;
+        final String boundedQuery = trimmed.length() > MAX_QUERY_LENGTH ? trimmed.substring(0, MAX_QUERY_LENGTH).trim() : trimmed;
+        final String prefixQuery = !boundedQuery.isBlank() ? buildPrefixQuery(boundedQuery) : null;
         final String deletedClause = excludeDeleted ? "deleted_at IS NULL" : "1=1";
 
-        final String sql;
-        if (trimmed.isBlank()) {
-            sql = "SELECT " + columnExpr + " AS agg_key, COUNT(*) FROM stackit_resources " +
-                    "WHERE " + deletedClause + " " +
-                    "GROUP BY 1 " +
-                    "ORDER BY COUNT(*) DESC";
+        final String whereClause;
+        if (boundedQuery.isBlank()) {
+            whereClause = "WHERE " + deletedClause;
         } else if (prefixQuery != null) {
-            sql = "SELECT " + columnExpr + " AS agg_key, COUNT(*) FROM stackit_resources " +
-                    "WHERE (search_vector @@ websearch_to_tsquery('english', :query) " +
+            whereClause = "WHERE (search_vector @@ websearch_to_tsquery('english', :query) " +
                     "   OR search_vector @@ to_tsquery('english', :prefixQuery)) " +
-                    "AND " + deletedClause + " " +
-                    "GROUP BY 1 " +
-                    "ORDER BY COUNT(*) DESC";
+                    "AND " + deletedClause;
         } else {
-            sql = "SELECT " + columnExpr + " AS agg_key, COUNT(*) FROM stackit_resources " +
-                    "WHERE search_vector @@ websearch_to_tsquery('english', :query) " +
-                    "AND " + deletedClause + " " +
-                    "GROUP BY 1 " +
-                    "ORDER BY COUNT(*) DESC";
+            whereClause = "WHERE search_vector @@ websearch_to_tsquery('english', :query) " +
+                    "AND " + deletedClause;
         }
 
+        final String typeExpr = AggregationDimension.TYPE.getExpression();
+        final String regionExpr = AggregationDimension.REGION.getExpression();
+        final String statusExpr = AggregationDimension.STATUS.getExpression();
+        final String projectExpr = AggregationDimension.PROJECT.getExpression();
+
+        final String sql = "WITH matched AS (" +
+                "    SELECT " +
+                "        " + typeExpr + " AS dim_type, " +
+                "        " + regionExpr + " AS dim_region, " +
+                "        " + statusExpr + " AS dim_status, " +
+                "        " + projectExpr + " AS dim_project " +
+                "    FROM stackit_resources " +
+                "    " + whereClause + " " +
+                ") " +
+                "SELECT " +
+                "    GROUPING(dim_type) AS g_type, " +
+                "    GROUPING(dim_region) AS g_region, " +
+                "    GROUPING(dim_status) AS g_status, " +
+                "    GROUPING(dim_project) AS g_project, " +
+                "    dim_type, dim_region, dim_status, dim_project, " +
+                "    COUNT(*) AS cnt " +
+                "FROM matched " +
+                "GROUP BY GROUPING SETS ((dim_type), (dim_region), (dim_status), (dim_project)) " +
+                "ORDER BY cnt DESC";
+
         final var nativeQuery = getEntityManager().createNativeQuery(sql);
-        if (!trimmed.isBlank()) {
-            nativeQuery.setParameter("query", trimmed);
+        if (!boundedQuery.isBlank()) {
+            nativeQuery.setParameter("query", boundedQuery);
             if (prefixQuery != null) {
                 nativeQuery.setParameter("prefixQuery", prefixQuery);
             }
@@ -250,16 +307,53 @@ public class StackitResourceRepository implements PanacheRepositoryBase<StackitE
 
         @SuppressWarnings("unchecked")
         final List<Object[]> rows = nativeQuery.getResultList();
-        final List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> results = new java.util.ArrayList<>(rows.size());
+        final List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> byType = new java.util.ArrayList<>();
+        final List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> byRegion = new java.util.ArrayList<>();
+        final List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> byStatus = new java.util.ArrayList<>();
+        final List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> byProject = new java.util.ArrayList<>();
+
         for (final Object[] row : rows) {
-            final String key = row[0] != null ? row[0].toString() : "UNKNOWN";
-            final long count = ((Number) row[1]).longValue();
-            results.add(new com.landvoigtit.stackit.resourceexplorer.AggregationItemDto(key, count));
+            final int gType = ((Number) row[0]).intValue();
+            final int gRegion = ((Number) row[1]).intValue();
+            final int gStatus = ((Number) row[2]).intValue();
+            final int gProject = ((Number) row[3]).intValue();
+            final long count = ((Number) row[8]).longValue();
+
+            if (gType == 0) {
+                final String key = row[4] != null ? row[4].toString() : "UNKNOWN";
+                byType.add(new com.landvoigtit.stackit.resourceexplorer.AggregationItemDto(key, count));
+            } else if (gRegion == 0) {
+                final String key = row[5] != null ? row[5].toString() : "UNKNOWN";
+                byRegion.add(new com.landvoigtit.stackit.resourceexplorer.AggregationItemDto(key, count));
+            } else if (gStatus == 0) {
+                final String key = row[6] != null ? row[6].toString() : "UNKNOWN";
+                byStatus.add(new com.landvoigtit.stackit.resourceexplorer.AggregationItemDto(key, count));
+            } else if (gProject == 0) {
+                final String key = row[7] != null ? row[7].toString() : "UNKNOWN";
+                byProject.add(new com.landvoigtit.stackit.resourceexplorer.AggregationItemDto(key, count));
+            }
         }
-        return results;
+
+        return new AggregationsResult(byType, byRegion, byStatus, byProject);
     }
 
-    private String buildPrefixQuery(final String query) {
+    public List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> aggregateByType(final String query) {
+        return aggregateAll(query, false).byType();
+    }
+
+    public List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> aggregateByRegion(final String query) {
+        return aggregateAll(query, false).byRegion();
+    }
+
+    public List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> aggregateByStatus(final String query) {
+        return aggregateAll(query, false).byStatus();
+    }
+
+    public List<com.landvoigtit.stackit.resourceexplorer.AggregationItemDto> aggregateByProject(final String query) {
+        return aggregateAll(query, false).byProject();
+    }
+
+    public String buildPrefixQuery(final String query) {
         if (query == null) {
             return null;
         }
@@ -269,6 +363,9 @@ public class StackitResourceRepository implements PanacheRepositoryBase<StackitE
             final String cleaned = token.replaceAll("[^a-zA-Z0-9_-]", "");
             if (cleaned.matches(".*[a-zA-Z0-9].*")) {
                 cleanTokens.add("'" + cleaned.replace("'", "''") + "':*");
+                if (cleanTokens.size() >= MAX_PREFIX_TOKENS) {
+                    break;
+                }
             }
         }
         if (cleanTokens.isEmpty()) {

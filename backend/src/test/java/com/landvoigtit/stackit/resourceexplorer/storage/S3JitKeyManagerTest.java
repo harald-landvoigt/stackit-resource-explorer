@@ -1,17 +1,21 @@
 package com.landvoigtit.stackit.resourceexplorer.storage;
 
 import cloud.stackit.sdk.objectstorage.v2api.api.ObjectStorageApi;
+import cloud.stackit.sdk.objectstorage.v2api.model.AccessKey;
 import cloud.stackit.sdk.objectstorage.v2api.model.CreateAccessKeyPayload;
 import cloud.stackit.sdk.objectstorage.v2api.model.CreateAccessKeyResponse;
 import cloud.stackit.sdk.objectstorage.v2api.model.CreateCredentialsGroupPayload;
 import cloud.stackit.sdk.objectstorage.v2api.model.CreateCredentialsGroupResponse;
 import cloud.stackit.sdk.objectstorage.v2api.model.CredentialsGroup;
 import cloud.stackit.sdk.objectstorage.v2api.model.DeleteAccessKeyResponse;
+import cloud.stackit.sdk.objectstorage.v2api.model.ListAccessKeysResponse;
 import cloud.stackit.sdk.objectstorage.v2api.model.ListCredentialsGroupsResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.s3.S3Client;
 
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -59,6 +63,10 @@ public class S3JitKeyManagerTest {
         // Mock S3 Access Key deletion
         when(objectStorageApi.deleteAccessKey(eq(PROJECT_ID), eq(REGION), eq(KEY_ID), eq(GROUP_ID)))
                 .thenReturn(new DeleteAccessKeyResponse());
+
+        // Default mock for listing access keys in credentials groups (empty list)
+        when(objectStorageApi.listAccessKeys(anyString(), anyString(), anyString()))
+                .thenReturn(new ListAccessKeysResponse());
     }
 
     @Test
@@ -132,5 +140,43 @@ public class S3JitKeyManagerTest {
         verify(objectStorageApi, times(1)).createAccessKey(eq(PROJECT_ID), eq(REGION), any(CreateAccessKeyPayload.class), eq(GROUP_ID));
         // Verify key was deleted in cleanup
         verify(objectStorageApi, times(1)).deleteAccessKey(PROJECT_ID, REGION, KEY_ID, GROUP_ID);
+    }
+
+    @Test
+    public void testCleanupStaleAuditKeysDeletesExpiredAndOrphanedKeys() throws Exception {
+        final AccessKey expiredKey = new AccessKey();
+        expiredKey.setKeyId("expired-key-1");
+        expiredKey.setExpires(OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(5).toString());
+
+        final AccessKey noExpiryKey = new AccessKey();
+        noExpiryKey.setKeyId("no-expiry-key-2");
+        noExpiryKey.setExpires(null);
+
+        final AccessKey activeKey = new AccessKey();
+        activeKey.setKeyId("active-key-3");
+        activeKey.setExpires(OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(10).toString());
+
+        final ListAccessKeysResponse keysResp = new ListAccessKeysResponse();
+        keysResp.setAccessKeys(List.of(expiredKey, noExpiryKey, activeKey));
+
+        when(objectStorageApi.listAccessKeys(PROJECT_ID, REGION, GROUP_ID)).thenReturn(keysResp);
+
+        jitKeyManager.cleanupStaleAuditKeys(PROJECT_ID, REGION, GROUP_ID);
+
+        // Verify expired and null-expiry keys are deleted
+        verify(objectStorageApi, times(1)).deleteAccessKey(PROJECT_ID, REGION, "expired-key-1", GROUP_ID);
+        verify(objectStorageApi, times(1)).deleteAccessKey(PROJECT_ID, REGION, "no-expiry-key-2", GROUP_ID);
+
+        // Verify active key is NOT deleted
+        verify(objectStorageApi, never()).deleteAccessKey(PROJECT_ID, REGION, "active-key-3", GROUP_ID);
+    }
+
+    @Test
+    public void testCleanupStaleAuditKeysHandlesApiErrorGracefully() throws Exception {
+        when(objectStorageApi.listAccessKeys(PROJECT_ID, REGION, GROUP_ID))
+                .thenThrow(new RuntimeException("Simulated API failure"));
+
+        // Should not throw
+        assertDoesNotThrow(() -> jitKeyManager.cleanupStaleAuditKeys(PROJECT_ID, REGION, GROUP_ID));
     }
 }

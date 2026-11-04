@@ -26,6 +26,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @ApplicationScoped
@@ -77,7 +81,7 @@ public class IamResourceScraper {
                     continue;
                 }
                 final String projectIdStr = project.getProjectId().toString();
-                final List<String> currentResourceIds = new ArrayList<>();
+                final List<String> currentResourceIds = Collections.synchronizedList(new ArrayList<>());
                 final boolean success = scrapeProjectIam(project, currentResourceIds);
 
                 if (success) {
@@ -96,7 +100,7 @@ public class IamResourceScraper {
         final String projectIdStr = project.getProjectId().toString();
         final String projectName = project.getName();
         log.info("Scraping IAM resources for project {}", projectIdStr);
-        final Map<String, ServiceAccountAuthInfo> saAuthMap = new HashMap<>();
+        final Map<String, ServiceAccountAuthInfo> saAuthMap = new ConcurrentHashMap<>();
         final boolean sasSuccess = scrapeProjectServiceAccounts(projectIdStr, currentResourceIds, saAuthMap);
         final boolean membersSuccess = scrapeProjectMembers(projectIdStr, currentResourceIds, saAuthMap);
         final boolean s3KeysSuccess = scrapeProjectS3AccessKeys(projectIdStr, currentResourceIds);
@@ -376,8 +380,10 @@ public class IamResourceScraper {
             return false;
         }
 
-        for (final ServiceAccountJsonDto saDto : serviceAccounts) {
-            processServiceAccount(projectIdStr, saDto, saAuthMap, currentResourceIds);
+        try (final ExecutorService saExecutor = Executors.newVirtualThreadPerTaskExecutor()) {
+            for (final ServiceAccountJsonDto saDto : serviceAccounts) {
+                saExecutor.submit(() -> processServiceAccount(projectIdStr, saDto, saAuthMap, currentResourceIds));
+            }
         }
         return true;
     }

@@ -1,11 +1,13 @@
 package com.landvoigtit.stackit.resourceexplorer.storage;
 
 import cloud.stackit.sdk.objectstorage.v2api.api.ObjectStorageApi;
+import cloud.stackit.sdk.objectstorage.v2api.model.AccessKey;
 import cloud.stackit.sdk.objectstorage.v2api.model.CreateAccessKeyPayload;
 import cloud.stackit.sdk.objectstorage.v2api.model.CreateAccessKeyResponse;
 import cloud.stackit.sdk.objectstorage.v2api.model.CreateCredentialsGroupPayload;
 import cloud.stackit.sdk.objectstorage.v2api.model.CreateCredentialsGroupResponse;
 import cloud.stackit.sdk.objectstorage.v2api.model.CredentialsGroup;
+import cloud.stackit.sdk.objectstorage.v2api.model.ListAccessKeysResponse;
 import cloud.stackit.sdk.objectstorage.v2api.model.ListCredentialsGroupsResponse;
 import com.landvoigtit.stackit.resourceexplorer.config.StackitConstants;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -112,7 +114,9 @@ public class S3JitKeyManager {
             for (final CredentialsGroup group : groups) {
                 if (AUDIT_CREDENTIALS_GROUP_NAME.equalsIgnoreCase(group.getDisplayName())) {
                     log.info("Found existing audit credentials group {} in project {}", group.getCredentialsGroupId(), projectId);
-                    return group.getCredentialsGroupId();
+                    final String groupId = group.getCredentialsGroupId();
+                    cleanupStaleAuditKeys(projectId, region, groupId);
+                    return groupId;
                 }
             }
         }
@@ -122,9 +126,68 @@ public class S3JitKeyManager {
         groupPayload.setDisplayName(AUDIT_CREDENTIALS_GROUP_NAME);
         final CreateCredentialsGroupResponse createdGroupResp = objectStorageApi.createCredentialsGroup(projectId, region, groupPayload);
         if (createdGroupResp != null && createdGroupResp.getCredentialsGroup() != null) {
-            return createdGroupResp.getCredentialsGroup().getCredentialsGroupId();
+            final String groupId = createdGroupResp.getCredentialsGroup().getCredentialsGroupId();
+            cleanupStaleAuditKeys(projectId, region, groupId);
+            return groupId;
         }
         throw new IllegalStateException("Failed to create audit credentials group for project " + projectId);
+    }
+
+    /**
+     * Discovers and deletes orphaned or expired S3 access keys left in the audit credentials group
+     * from previous interrupted or crashed scraper runs.
+     *
+     * @param projectId the STACKIT project ID
+     * @param region the regional cluster endpoint
+     * @param groupId the credentials group ID
+     */
+    void cleanupStaleAuditKeys(final String projectId, final String region, final String groupId) {
+        if (objectStorageApi == null || projectId == null || region == null || groupId == null) {
+            return;
+        }
+        try {
+            final ListAccessKeysResponse keysResp = objectStorageApi.listAccessKeys(projectId, region, groupId);
+            if (keysResp != null && keysResp.getAccessKeys() != null) {
+                final List<AccessKey> keys = keysResp.getAccessKeys();
+                final OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+                for (final AccessKey key : keys) {
+                    final String keyId = key.getKeyId();
+                    if (keyId == null || keyId.isBlank()) {
+                        continue;
+                    }
+                    boolean shouldDelete = false;
+                    final String expiresStr = key.getExpires();
+                    if (expiresStr == null || expiresStr.isBlank()) {
+                        shouldDelete = true;
+                    } else {
+                        try {
+                            final OffsetDateTime expires = OffsetDateTime.parse(expiresStr);
+                            if (expires.isBefore(now)) {
+                                shouldDelete = true;
+                            }
+                        } catch (final Exception parseEx) {
+                            log.debug("Unable to parse key expiration '{}' for key {}, marking for cleanup: {}",
+                                    expiresStr, keyId, parseEx.getMessage());
+                            shouldDelete = true;
+                        }
+                    }
+
+                    if (shouldDelete) {
+                        try {
+                            objectStorageApi.deleteAccessKey(projectId, region, keyId, groupId);
+                            log.info("Cleaned up orphaned/expired audit key {} from group {} in project {}",
+                                    keyId, groupId, projectId);
+                        } catch (final Exception delEx) {
+                            log.warn("Failed to delete stale audit key {} from group {} in project {}: {}",
+                                    keyId, groupId, projectId, delEx.getMessage());
+                        }
+                    }
+                }
+            }
+        } catch (final Exception e) {
+            log.warn("Failed to list access keys in audit group {} for project {} in region {}: {}",
+                    groupId, projectId, region, e.getMessage());
+        }
     }
 
     @FunctionalInterface

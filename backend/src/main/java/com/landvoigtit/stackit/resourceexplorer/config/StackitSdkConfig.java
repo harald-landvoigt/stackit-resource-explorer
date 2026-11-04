@@ -74,6 +74,64 @@ public class StackitSdkConfig {
     private volatile ResilientKeyFlowAuthenticator authenticator;
     private final ConcurrentHashMap<String, IaasApi> regionalIaasApis = new ConcurrentHashMap<>();
 
+    private static final Duration DEFAULT_CONNECT_TIMEOUT = Duration.ofSeconds(15);
+    private static final Duration DEFAULT_READ_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration DEFAULT_WRITE_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration DEFAULT_CALL_TIMEOUT = Duration.ofSeconds(60);
+
+    private final OkHttpClient sharedBaseClient = new OkHttpClient.Builder()
+            .connectTimeout(DEFAULT_CONNECT_TIMEOUT)
+            .readTimeout(DEFAULT_READ_TIMEOUT)
+            .writeTimeout(DEFAULT_WRITE_TIMEOUT)
+            .callTimeout(DEFAULT_CALL_TIMEOUT)
+            .build();
+
+    public record ParsedKeyfile(String email, String sub, String projectId, String keyAlgorithm) {}
+    private volatile ParsedKeyfile cachedKeyfile;
+
+    private ParsedKeyfile getOrLoadKeyfile() {
+        if (cachedKeyfile != null) {
+            return cachedKeyfile;
+        }
+        synchronized (this) {
+            if (cachedKeyfile != null) {
+                return cachedKeyfile;
+            }
+            if (serviceAccountKeyPath == null || serviceAccountKeyPath.isEmpty() || serviceAccountKeyPath.get().isBlank()) {
+                cachedKeyfile = new ParsedKeyfile(null, null, null, null);
+                return cachedKeyfile;
+            }
+            final Path path = Path.of(serviceAccountKeyPath.get());
+            if (!Files.isRegularFile(path)) {
+                cachedKeyfile = new ParsedKeyfile(null, null, null, null);
+                return cachedKeyfile;
+            }
+            try {
+                final String content = Files.readString(path);
+                final JsonNode node = objectMapper.readTree(content);
+                String email = null;
+                if (node.has("credentials") && node.get("credentials").has("iss")) {
+                    email = node.get("credentials").get("iss").asText();
+                } else if (node.has("email")) {
+                    email = node.get("email").asText();
+                }
+                String sub = null;
+                if (node.has("credentials") && node.get("credentials").has("sub")) {
+                    sub = node.get("credentials").get("sub").asText();
+                } else if (node.has("id")) {
+                    sub = node.get("id").asText();
+                }
+                String projectId = node.has("projectId") ? node.get("projectId").asText() : null;
+                String keyAlgorithm = node.has("keyAlgorithm") ? node.get("keyAlgorithm").asText() : null;
+                cachedKeyfile = new ParsedKeyfile(email, sub, projectId, keyAlgorithm);
+            } catch (final Exception e) {
+                log.warn("Could not parse service account keyfile: {}", e.getMessage());
+                cachedKeyfile = new ParsedKeyfile(null, null, null, null);
+            }
+            return cachedKeyfile;
+        }
+    }
+
     public void onStartup(@Observes final StartupEvent event) {
         validateConfigurationOnStartup();
     }
@@ -272,7 +330,7 @@ public class StackitSdkConfig {
             return null;
         }
         try {
-            final OkHttpClient baseClient = new OkHttpClient();
+            final OkHttpClient baseClient = sharedBaseClient.newBuilder().build();
             authenticator = new ResilientKeyFlowAuthenticator(baseClient, config);
             return authenticator;
         } catch (final IOException e) {
@@ -342,24 +400,11 @@ public class StackitSdkConfig {
                 return pid;
             }
         }
-        // Fallback: extract projectId directly from the service account keyfile
-        if (serviceAccountKeyPath != null && serviceAccountKeyPath.isPresent() && !serviceAccountKeyPath.get().isBlank()) {
-            final Path path = Path.of(serviceAccountKeyPath.get());
-            if (Files.isRegularFile(path)) {
-                try {
-                    final String content = Files.readString(path);
-                    final JsonNode node = objectMapper.readTree(content);
-                    if (node.has("projectId")) {
-                        final String pid = node.get("projectId").asText();
-                        if (pid != null && !pid.isBlank()) {
-                            log.info("Discovered initial project ID {} directly from service account keyfile.", pid);
-                            return pid;
-                        }
-                    }
-                } catch (final Exception e) {
-                    log.warn("Could not read projectId from keyfile: {}", e.getMessage());
-                }
-            }
+        // Fallback: extract projectId from cached keyfile metadata
+        final String pid = getOrLoadKeyfile().projectId();
+        if (pid != null && !pid.isBlank()) {
+            log.info("Discovered initial project ID {} directly from cached service account keyfile.", pid);
+            return pid;
         }
         return null;
     }
@@ -369,22 +414,7 @@ public class StackitSdkConfig {
         if (claims != null && claims.has("email") && !claims.get("email").asText().isBlank()) {
             return claims.get("email").asText();
         }
-        if (serviceAccountKeyPath == null || serviceAccountKeyPath.isEmpty()) {
-            return null;
-        }
-        try {
-            final String content = Files.readString(Path.of(serviceAccountKeyPath.get()));
-            final JsonNode node = objectMapper.readTree(content);
-            if (node.has("credentials") && node.get("credentials").has("iss")) {
-                return node.get("credentials").get("iss").asText();
-            }
-            if (node.has("email")) {
-                return node.get("email").asText();
-            }
-        } catch (final Exception e) {
-            // ignore
-        }
-        return null;
+        return getOrLoadKeyfile().email();
     }
 
     public final String getServiceAccountId() {
@@ -392,38 +422,11 @@ public class StackitSdkConfig {
         if (claims != null && claims.has("sub") && !claims.get("sub").asText().isBlank()) {
             return claims.get("sub").asText();
         }
-        if (serviceAccountKeyPath == null || serviceAccountKeyPath.isEmpty()) {
-            return null;
-        }
-        try {
-            final String content = Files.readString(Path.of(serviceAccountKeyPath.get()));
-            final JsonNode node = objectMapper.readTree(content);
-            if (node.has("credentials") && node.get("credentials").has("sub")) {
-                return node.get("credentials").get("sub").asText();
-            }
-            if (node.has("id")) {
-                return node.get("id").asText();
-            }
-        } catch (final Exception e) {
-            // ignore
-        }
-        return null;
+        return getOrLoadKeyfile().sub();
     }
 
     public final String getServiceAccountKeyAlgorithm() {
-        if (serviceAccountKeyPath == null || serviceAccountKeyPath.isEmpty()) {
-            return null;
-        }
-        try {
-            final String content = Files.readString(Path.of(serviceAccountKeyPath.get()));
-            final JsonNode node = objectMapper.readTree(content);
-            if (node.has("keyAlgorithm")) {
-                return node.get("keyAlgorithm").asText();
-            }
-        } catch (final Exception e) {
-            // ignore
-        }
-        return null;
+        return getOrLoadKeyfile().keyAlgorithm();
     }
 
     @Produces
@@ -438,13 +441,12 @@ public class StackitSdkConfig {
     @Singleton
     public OkHttpClient okHttpClient(final CoreConfiguration config) {
         final ResilientKeyFlowAuthenticator auth = resilientKeyFlowAuthenticator(config);
-        final OkHttpClient baseClient = new OkHttpClient();
         if (auth != null) {
-            return baseClient.newBuilder()
+            return sharedBaseClient.newBuilder()
                     .authenticator(auth)
                     .build();
         }
-        return baseClient;
+        return sharedBaseClient;
     }
 
     @Produces

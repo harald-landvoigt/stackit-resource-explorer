@@ -59,7 +59,7 @@ public final class NetworkVpcResourceMapper {
         entity.setName(dto.getName());
         entity.setType(StackitConstants.RESOURCE_TYPE_NETWORK_VPC);
         entity.setStatus(dto.getStatus());
-        entity.setRegion(dto.getRegion() != null && !dto.getRegion().isBlank() ? dto.getRegion() : StackitConstants.DEFAULT_REGION);
+        entity.setRegion(StackitConstants.normalizeRegion(dto.getRegion()));
         entity.setProjectId(StackitConstants.UNKNOWN_PROJECT_ID); // Set by scraper
         entity.setCreatedAt(Instant.now());
         entity.setUpdatedAt(Instant.now());

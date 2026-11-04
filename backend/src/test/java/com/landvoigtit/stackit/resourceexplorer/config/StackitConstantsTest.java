@@ -67,7 +67,7 @@ public class StackitConstantsTest {
         assertEquals("dns-record-set", StackitConstants.RESOURCE_TYPE_DNS_RECORD_SET);
         assertEquals("database", StackitConstants.RESOURCE_TYPE_DATABASE);
 
-        assertEquals("eu-central-1", StackitConstants.DEFAULT_REGION);
+        assertEquals("eu01", StackitConstants.DEFAULT_REGION);
         assertEquals("global", StackitConstants.GLOBAL_REGION);
         assertEquals("eu01", StackitConstants.REGION_EU01);
         assertEquals("eu02", StackitConstants.REGION_EU02);
@@ -77,6 +77,21 @@ public class StackitConstantsTest {
         assertEquals("service-account", StackitConstants.ROLE_SERVICE_ACCOUNT);
         assertEquals("standard", StackitConstants.STORAGE_CLASS_STANDARD);
         assertEquals("unknown", StackitConstants.UNKNOWN_PROJECT_ID);
+    }
+
+    @Test
+    public void testNormalizeRegion() {
+        assertEquals("eu01", StackitConstants.normalizeRegion("eu01-1"));
+        assertEquals("eu01", StackitConstants.normalizeRegion("eu01-3"));
+        assertEquals("eu01", StackitConstants.normalizeRegion("eu-central-1"));
+        assertEquals("eu01", StackitConstants.normalizeRegion("eu01"));
+        assertEquals("eu01", StackitConstants.normalizeRegion("eu-01"));
+        assertEquals("eu02", StackitConstants.normalizeRegion("eu02"));
+        assertEquals("eu02", StackitConstants.normalizeRegion("eu-02"));
+        assertEquals("eu02", StackitConstants.normalizeRegion("eu02-1"));
+        assertEquals("global", StackitConstants.normalizeRegion("global"));
+        assertEquals("global", StackitConstants.normalizeRegion(null));
+        assertEquals("global", StackitConstants.normalizeRegion(""));
     }
 
     @Test
@@ -155,5 +170,17 @@ public class StackitConstantsTest {
         final cloud.stackit.sdk.core.exception.ApiException apiEx = new cloud.stackit.sdk.core.exception.ApiException(404, "404 Not Found");
         assertTrue(StackitConstants.cleanErrorMessage(apiEx).contains("404"));
         assertFalse(StackitConstants.cleanErrorMessage(apiEx).contains("HTTP response headers"));
+        // Redaction & Truncation
+        final String sensitiveMsg = "Failed with token: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xyz and secret \"password\": \"secret123\"";
+        final String sanitized = StackitConstants.cleanErrorMessage(sensitiveMsg);
+        assertTrue(sanitized.contains("Bearer [REDACTED]"));
+        assertFalse(sanitized.contains("eyJhbGciOi"));
+        assertTrue(sanitized.contains("\"password\": \"[REDACTED]\""));
+        assertFalse(sanitized.contains("secret123"));
+
+        final String longMsg = "A".repeat(800);
+        final String truncated = StackitConstants.cleanErrorMessage(longMsg);
+        assertEquals(StackitConstants.MAX_ERROR_MESSAGE_LENGTH, truncated.length());
+        assertTrue(truncated.endsWith("..."));
     }
 }

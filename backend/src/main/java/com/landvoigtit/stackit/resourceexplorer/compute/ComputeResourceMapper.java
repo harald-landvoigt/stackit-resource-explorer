@@ -101,10 +101,10 @@ public final class ComputeResourceMapper {
         entity.setType(StackitConstants.RESOURCE_TYPE_COMPUTE);
         entity.setStatus(dto.getStatus() != null ? dto.getStatus() : StackitConstants.STATUS_ACTIVE);
 
-        final String region = (dto.getAvailabilityZone() != null && !dto.getAvailabilityZone().isBlank())
+        final String rawRegion = (dto.getAvailabilityZone() != null && !dto.getAvailabilityZone().isBlank())
                 ? dto.getAvailabilityZone()
                 : StackitConstants.DEFAULT_REGION;
-        entity.setRegion(region);
+        entity.setRegion(StackitConstants.normalizeRegion(rawRegion));
 
         entity.setProjectId(StackitConstants.UNKNOWN_PROJECT_ID); // Set by scraper
         entity.setCreatedAt(dto.getCreatedAt() != null ? dto.getCreatedAt().toInstant() : Instant.now());
