@@ -82,6 +82,32 @@ public class StackitResourceServiceTest {
     }
 
     @Test
+    public final void testMapToDtoDeletedEntityOverridesStatusAndMetadata() {
+        final UUID id = UUID.randomUUID();
+        final Instant now = Instant.now();
+        final StackitEntity entity = new StackitEntity();
+        entity.setId(id);
+        entity.setResourceId("mariadb-uqtx53pmtvhq");
+        entity.setName("mariadb-uqtx53pmtvhq");
+        entity.setType("database");
+        entity.setStatus("active");
+        entity.setRegion("eu02");
+        entity.setProjectId("c2cc46ae-e432-4e4a-b4df-42a4066c344b");
+        entity.setCreatedAt(now);
+        entity.setUpdatedAt(now);
+        entity.setDeletedAt(now);
+        entity.setData(Map.of("status", "active", "state", "active", "engine", "mariadb"));
+
+        final StackitResourceDto dto = service.mapToDto(entity);
+        assertNotNull(dto);
+        assertEquals(com.landvoigtit.stackit.resourceexplorer.config.StackitConstants.STATUS_DELETED, dto.getStatus());
+        assertNotNull(dto.getDeletedAt());
+        assertEquals("deleted", dto.getData().get("status"));
+        assertEquals("deleted", dto.getData().get("state"));
+        assertEquals("mariadb", dto.getData().get("engine"));
+    }
+
+    @Test
     public final void testValidationSuccess() {
         final StackitResourceDto dto = new StackitResourceDto();
         dto.setId(UUID.randomUUID().toString());
@@ -184,6 +210,16 @@ public class StackitResourceServiceTest {
                         new AggregationItemDto("Global / No Project", 50L)
                 );
             }
+
+            @Override
+            public AggregationsResult aggregateAll(String query, boolean excludeDeleted) {
+                return new AggregationsResult(
+                        aggregateByType(query),
+                        aggregateByRegion(query),
+                        aggregateByStatus(query),
+                        aggregateByProject(query)
+                );
+            }
         };
 
         final StackitProjectDiscoveryService discoveryFake = new StackitProjectDiscoveryService(null, null) {
@@ -215,7 +251,8 @@ public class StackitResourceServiceTest {
         assertEquals(80L, result.getTypeAggregations().get(1).getCount());
 
         assertEquals(1, result.getRegionAggregations().size());
-        assertEquals("eu01", result.getRegionAggregations().get(0).getKey());
+        assertEquals("eu01 (Germany)", result.getRegionAggregations().get(0).getKey());
+        assertEquals("eu01", result.getRegionAggregations().get(0).getRawKey());
         assertEquals(200L, result.getRegionAggregations().get(0).getCount());
 
         assertEquals(2, result.getStatusAggregations().size());
@@ -267,6 +304,16 @@ public class StackitResourceServiceTest {
             @Override
             public java.util.List<AggregationItemDto> aggregateByProject(String query) {
                 return java.util.List.of(new AggregationItemDto("proj-1", 1L));
+            }
+
+            @Override
+            public AggregationsResult aggregateAll(String query, boolean excludeDeleted) {
+                return new AggregationsResult(
+                        aggregateByType(query),
+                        aggregateByRegion(query),
+                        aggregateByStatus(query),
+                        aggregateByProject(query)
+                );
             }
         };
 
@@ -341,6 +388,30 @@ public class StackitResourceServiceTest {
 
         org.mockito.Mockito.verify(discoveryMock, org.mockito.Mockito.times(1)).getProjectNamesMap();
         org.mockito.Mockito.verify(discoveryMock, org.mockito.Mockito.never()).discoverProjects();
+    }
+
+    @Test
+    public void testGetBillingSummaryWhenEmptyDoesNotInvokeScraper() {
+        final StackitResourceRepository repoFake = new StackitResourceRepository() {
+            @Override
+            public java.util.List<StackitEntity> list(String query, Object... params) {
+                return java.util.Collections.emptyList();
+            }
+        };
+
+        final StackitProjectDiscoveryService discoveryMock = org.mockito.Mockito.mock(StackitProjectDiscoveryService.class);
+        final com.landvoigtit.stackit.resourceexplorer.billing.BillingResourceScraper scraperMock =
+                org.mockito.Mockito.mock(com.landvoigtit.stackit.resourceexplorer.billing.BillingResourceScraper.class);
+
+        final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+        final StackitResourceService svc = new StackitResourceService(repoFake, validator, discoveryMock, scraperMock, null);
+
+        final java.util.List<BillingSummaryDto> summaries = svc.getBillingSummary();
+        assertNotNull(summaries);
+        assertTrue(summaries.isEmpty(), "Should return empty list when no billing entities exist");
+
+        // Crucial security check: Billing scraper should NEVER be synchronously invoked on GET request
+        org.mockito.Mockito.verify(scraperMock, org.mockito.Mockito.never()).scrape();
     }
 
     @Test

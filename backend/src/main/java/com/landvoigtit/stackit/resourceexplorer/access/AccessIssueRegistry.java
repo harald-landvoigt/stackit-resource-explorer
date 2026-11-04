@@ -70,6 +70,8 @@ public class AccessIssueRegistry {
         projectStatuses.computeIfAbsent(projectId, k -> new ConcurrentHashMap<>())
                 .put(normType, AccessStatus.ACCESS_DENIED);
 
+        final String sanitizedError = StackitConstants.cleanErrorMessage(errorMessage);
+
         final AccessIssueRecordDto issue = AccessIssueRecordDto.builder()
                 .projectId(projectId)
                 .projectName(resolveDisplayName(projectId, projectName))
@@ -77,7 +79,7 @@ public class AccessIssueRegistry {
                 .region(region != null ? region : StackitConstants.GLOBAL_REGION)
                 .status(AccessStatus.ACCESS_DENIED)
                 .statusCode(statusCode)
-                .errorMessage(errorMessage)
+                .errorMessage(sanitizedError)
                 .lastChecked(Instant.now())
                 .build();
 

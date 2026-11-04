@@ -39,8 +39,20 @@ public class BillingIntegrationTest {
     @Inject
     StackitResourceRepository repository;
 
+    @Inject
+    com.landvoigtit.stackit.resourceexplorer.config.StackitSdkConfig sdkConfig;
+
     @Test
     public final void testBillingIntegration() {
+        final String keyPath = sdkConfig.getServiceAccountKeyPath().orElse(null);
+        final boolean hasLiveCredentials = keyPath != null
+                && java.nio.file.Files.isRegularFile(java.nio.file.Path.of(keyPath))
+                && !keyPath.equals(com.landvoigtit.stackit.resourceexplorer.StackitSdkMockProducer.getCredentialsPath());
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                hasLiveCredentials,
+                "Skipping live STACKIT integration test: no valid service account key file found at " + keyPath
+        );
+
         log.info("Starting billing integration test...");
         try {
             // 1. Verify discoveryService works with real credentials and resolves the organization ID and projects

@@ -108,4 +108,19 @@ class AccessIssueRegistryTest {
         assertNotNull(summary);
         assertTrue(summary.getTotalProjectsChecked() <= 3);
     }
+
+    @Test
+    void testRecordFailureSanitizesAndTruncatesErrorMessage() {
+        final String verboseLongError = "Bearer eyJhbGciOi_token_12345 " + "X".repeat(700);
+        registry.recordFailure("p-leak", "Project Leak", "compute", "eu01", 500, verboseLongError);
+
+        final AccessIssuesSummaryDto summary = registry.getSummary();
+        assertEquals(1, summary.getIssues().size());
+        final AccessIssueRecordDto issue = summary.getIssues().getFirst();
+
+        assertTrue(issue.getErrorMessage().startsWith("Bearer [REDACTED]"));
+        assertFalse(issue.getErrorMessage().contains("eyJhbGciOi"));
+        assertEquals(500, issue.getErrorMessage().length());
+        assertTrue(issue.getErrorMessage().endsWith("..."));
+    }
 }

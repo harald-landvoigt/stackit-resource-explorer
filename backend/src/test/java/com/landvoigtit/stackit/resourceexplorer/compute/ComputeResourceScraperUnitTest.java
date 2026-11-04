@@ -114,4 +114,16 @@ public class ComputeResourceScraperUnitTest {
         verify(accessIssueRegistry, times(1)).recordSuccess(eq(PROJECT_ID.toString()), eq(PROJECT_NAME), eq(StackitConstants.RESOURCE_TYPE_COMPUTE), isNull());
         verify(repository, atLeastOnce()).persistOrUpdate(any());
     }
+
+    @Test
+    public void testConcurrentScrapeSkipped() throws Exception {
+        final Field isScrapingField = ComputeResourceScraper.class.getDeclaredField("isScraping");
+        isScrapingField.setAccessible(true);
+        final java.util.concurrent.atomic.AtomicBoolean isScraping = (java.util.concurrent.atomic.AtomicBoolean) isScrapingField.get(scraper);
+        isScraping.set(true);
+
+        scraper.scrape();
+
+        verify(projectDiscoveryService, never()).discoverProjects();
+    }
 }

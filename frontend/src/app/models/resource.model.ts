@@ -6,6 +6,7 @@ export interface StackitResource {
   status: string;
   region: string;
   projectId: string;
+  projectName?: string;
   createdAt?: string;
   updatedAt?: string;
   deletedAt?: string;
@@ -25,6 +26,7 @@ export interface AggregationItem {
   key: string;
   count: number;
   type?: string;
+  rawKey?: string;
 }
 
 export type TypeAggregation = AggregationItem;

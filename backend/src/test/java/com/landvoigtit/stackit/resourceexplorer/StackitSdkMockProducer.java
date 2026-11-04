@@ -75,9 +75,8 @@ public class StackitSdkMockProducer {
             final KeyPair kp = kpg.generateKeyPair();
             final byte[] priv = kp.getPrivate().getEncoded();
 
-            final String base64 = Base64.getMimeEncoder().encodeToString(priv);
-            final String pem = "-----BEGIN PRIVATE KEY-----\n" + base64 + "\n-----END PRIVATE KEY-----";
-            final String escapedPem = pem.replace("\n", "\\n");
+            final String base64 = Base64.getEncoder().encodeToString(priv);
+            final String escapedPem = "-----BEGIN PRIVATE KEY-----\\n" + base64 + "\\n-----END PRIVATE KEY-----";
 
             final String json = "{\n" +
                     "  \"projectId\": \"8a784558-b50d-4553-b4e7-19e843d2e279\",\n" +

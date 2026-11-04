@@ -85,9 +85,18 @@ public class StackitResourceService {
         dto.setResourceId(entity.getResourceId());
         dto.setName(entity.getName());
         dto.setType(entity.getType());
-        dto.setStatus(entity.getStatus());
-        dto.setRegion(entity.getRegion());
+        dto.setStatus(entity.getDeletedAt() != null ? StackitConstants.STATUS_DELETED : entity.getStatus());
+        dto.setRegion(StackitConstants.normalizeRegion(entity.getRegion()));
         dto.setProjectId(entity.getProjectId());
+        if (projectDiscoveryService != null && entity.getProjectId() != null) {
+            final java.util.Map<String, String> projectNames = projectDiscoveryService.getProjectNamesMap();
+            if (projectNames != null) {
+                final String pName = projectNames.get(entity.getProjectId());
+                if (pName != null && !pName.isBlank()) {
+                    dto.setProjectName(pName);
+                }
+            }
+        }
         if (entity.getCreatedAt() != null) {
             dto.setCreatedAt(entity.getCreatedAt().atOffset(ZoneOffset.UTC));
         }
@@ -98,7 +107,20 @@ public class StackitResourceService {
             dto.setDeletedAt(entity.getDeletedAt().atOffset(ZoneOffset.UTC));
         }
         dto.setTags(entity.getTags());
-        dto.setData(entity.getData());
+        if (entity.getData() != null) {
+            final java.util.Map<String, Object> data = new java.util.LinkedHashMap<>(entity.getData());
+            if (entity.getDeletedAt() != null) {
+                if (data.containsKey("status")) {
+                    data.put("status", "deleted");
+                }
+                if (data.containsKey("state")) {
+                    data.put("state", "deleted");
+                }
+            }
+            dto.setData(data);
+        } else {
+            dto.setData(null);
+        }
         return dto;
     }
 
@@ -126,12 +148,29 @@ public class StackitResourceService {
     }
 
     public final ResourceSearchResultDto searchResources(final String query) {
-        final List<StackitEntity> list = repository.search(query, 100);
+        String effectiveQuery = query;
+        if (query != null && !query.isBlank() && projectDiscoveryService != null) {
+            final java.util.Map<String, String> projectNames = projectDiscoveryService.getProjectNamesMap();
+            if (projectNames != null) {
+                final String trimmedQuery = query.trim();
+                for (final java.util.Map.Entry<String, String> entry : projectNames.entrySet()) {
+                    if (entry.getValue() != null && entry.getValue().equalsIgnoreCase(trimmedQuery)) {
+                        // User searched for an exact project name (e.g., "sandbox-1"), resolve to project UUID
+                        effectiveQuery = entry.getKey();
+                        break;
+                    }
+                }
+            }
+        }
+
+        final List<StackitEntity> list = repository.search(effectiveQuery, 100);
         final List<StackitResourceDto> resourceDtos = list.stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
 
-        final List<AggregationItemDto> rawTypeAggs = repository.aggregateByType(query);
+        final StackitResourceRepository.AggregationsResult allAggs = repository.aggregateAll(effectiveQuery, false);
+
+        final List<AggregationItemDto> rawTypeAggs = allAggs.byType();
         final java.util.Map<String, Long> consolidatedTypes = new java.util.LinkedHashMap<>();
         for (final AggregationItemDto agg : rawTypeAggs) {
             final String formattedLabel = formatTypeLabel(agg.getKey());
@@ -141,11 +180,25 @@ public class StackitResourceService {
                 .map(e -> new AggregationItemDto(e.getKey(), e.getValue()))
                 .collect(Collectors.toList());
 
-        final List<AggregationItemDto> regionAggs = repository.aggregateByRegion(query);
-        final List<AggregationItemDto> statusAggs = repository.aggregateByStatus(query);
+        final List<AggregationItemDto> rawRegionAggs = allAggs.byRegion();
+        final java.util.Map<String, AggregationItemDto> consolidatedRegions = new java.util.LinkedHashMap<>();
+        if (rawRegionAggs != null) {
+            for (final AggregationItemDto agg : rawRegionAggs) {
+                final String norm = StackitConstants.normalizeRegion(agg.getKey());
+                final String label = formatRegionLabel(norm);
+                if (consolidatedRegions.containsKey(label)) {
+                    final AggregationItemDto existing = consolidatedRegions.get(label);
+                    existing.setCount(existing.getCount() + agg.getCount());
+                } else {
+                    consolidatedRegions.put(label, new AggregationItemDto(label, agg.getCount(), norm));
+                }
+            }
+        }
+        final List<AggregationItemDto> regionAggs = new java.util.ArrayList<>(consolidatedRegions.values());
+        final List<AggregationItemDto> statusAggs = allAggs.byStatus();
 
         // Project aggregations
-        final List<AggregationItemDto> rawProjectAggs = repository.aggregateByProject(query);
+        final List<AggregationItemDto> rawProjectAggs = allAggs.byProject();
         final java.util.Map<String, String> projectNames = projectDiscoveryService != null
                 ? projectDiscoveryService.getProjectNamesMap()
                 : java.util.Collections.emptyMap();
@@ -158,7 +211,7 @@ public class StackitResourceService {
                 if (!"Global / No Project".equalsIgnoreCase(rawKey) && projectNames.containsKey(rawKey)) {
                     displayName = projectNames.get(rawKey);
                 }
-                projectAggs.add(new AggregationItemDto(displayName, agg.getCount()));
+                projectAggs.add(new AggregationItemDto(displayName, agg.getCount(), rawKey));
             }
         }
 
@@ -214,6 +267,23 @@ public class StackitResourceService {
         }
     }
 
+    public static String formatRegionLabel(final String regionKey) {
+        if (regionKey == null || regionKey.isBlank()) {
+            return "global";
+        }
+        final String norm = regionKey.trim().toLowerCase();
+        if ("eu01".equals(norm) || "eu-01".equals(norm) || "eu-central-1".equals(norm) || norm.startsWith("eu01-") || norm.contains("germany")) {
+            return "eu01 (Germany)";
+        }
+        if ("eu02".equals(norm) || "eu-02".equals(norm) || norm.startsWith("eu02-") || norm.contains("austria")) {
+            return "eu02 (Austria)";
+        }
+        if ("global".equals(norm)) {
+            return "global";
+        }
+        return regionKey;
+    }
+
     public final List<StackitResourceDto> listAll() {
         return listAll(null);
     }
@@ -229,19 +299,11 @@ public class StackitResourceService {
         final int currentMonth = nowUtc.getMonthValue();
 
         // Fetch all active billing/billing-org resources
-        List<StackitEntity> billingEntities = repository != null
+        final List<StackitEntity> billingEntities = repository != null
                 ? repository.list("type in (?1, ?2) and deletedAt is null",
                         StackitConstants.RESOURCE_TYPE_BILLING,
                         StackitConstants.RESOURCE_TYPE_BILLING_ORG)
                 : java.util.Collections.emptyList();
-
-        // If no billing data exists in repository yet, trigger an on-demand scrape
-        if (billingEntities.isEmpty() && billingScraper != null && repository != null) {
-            billingScraper.scrape();
-            billingEntities = repository.list("type in (?1, ?2) and deletedAt is null",
-                    StackitConstants.RESOURCE_TYPE_BILLING,
-                    StackitConstants.RESOURCE_TYPE_BILLING_ORG);
-        }
 
         // Filter for current month in UTC
         final List<StackitEntity> currentMonthEntities = billingEntities.stream()

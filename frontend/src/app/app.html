@@ -46,6 +46,30 @@
             </button>
           </div>
 
+          <!-- Active Facet Filters Bar -->
+          <div class="active-facet-filters-bar" *ngIf="hasActiveFacetFilters()">
+            <span class="active-facet-label text-orange font-medium">Active Filters:</span>
+            <mat-chip *ngIf="selectedTypeFilter() as type" class="active-facet-chip" (click)="toggleTypeFilter(type)" title="Click to remove filter">
+              Type: {{ type }}
+              <mat-icon class="facet-remove-icon">cancel</mat-icon>
+            </mat-chip>
+            <mat-chip *ngIf="selectedProjectFilter() as proj" class="active-facet-chip" (click)="toggleProjectFilter(proj)" title="Click to remove filter">
+              Project: {{ proj }}
+              <mat-icon class="facet-remove-icon">cancel</mat-icon>
+            </mat-chip>
+            <mat-chip *ngIf="selectedRegionFilter() as reg" class="active-facet-chip" (click)="toggleRegionFilter(reg)" title="Click to remove filter">
+              Region: {{ formatRegionLabel(reg) }}
+              <mat-icon class="facet-remove-icon">cancel</mat-icon>
+            </mat-chip>
+            <mat-chip *ngIf="selectedStatusFilter() as st" class="active-facet-chip" (click)="toggleStatusFilter(st)" title="Click to remove filter">
+              State: {{ st }}
+              <mat-icon class="facet-remove-icon">cancel</mat-icon>
+            </mat-chip>
+            <button type="button" class="clear-all-facets-btn text-orange font-medium" (click)="clearAllFacetFilters()">
+              Clear all
+            </button>
+          </div>
+
           <!-- Quick Filters -->
           <div class="search-filters">
             <button type="button" 
@@ -88,30 +112,6 @@
               <mat-icon class="filter-btn-icon">sensors_off</mat-icon>
               <span>Unattached IPs</span>
             </button>
-            <button type="button" 
-                    class="filter-chip-btn s3key-filter-btn" 
-                    [class.active-filter]="searchString() === 'S3 Access Key'"
-                    (click)="filterS3Keys()"
-                    title="Filter S3 Object Storage access keys">
-              <mat-icon class="filter-btn-icon">vpn_key</mat-icon>
-              <span>S3 Keys</span>
-            </button>
-            <button type="button" 
-                    class="filter-chip-btn dns-filter-btn" 
-                    [class.active-filter]="searchString() === 'dns-zone' || searchString() === 'DNS Zones'"
-                    (click)="filterDnsZones()"
-                    title="Filter DNS Zones and record sets">
-              <mat-icon class="filter-btn-icon">dns</mat-icon>
-              <span>DNS Zones</span>
-            </button>
-            <button type="button" 
-                    class="filter-chip-btn database-filter-btn" 
-                    [class.active-filter]="searchString() === 'database' || searchString() === 'Databases'"
-                    (click)="filterDatabases()"
-                    title="Filter managed database instances">
-              <mat-icon class="filter-btn-icon">storage</mat-icon>
-              <span>Databases</span>
-            </button>
           </div>
 
           <!-- Main Columns Layout -->
@@ -133,10 +133,15 @@
                       <div *ngIf="typeAggregations().length === 0" class="no-data">
                         No resources found.
                       </div>
-                      <div *ngFor="let agg of typeAggregations()" class="agg-item border-orange">
-                        <span class="agg-type text-orange font-medium">{{ agg.key || agg.type }}</span>
-                        <span class="agg-count bg-orange text-black font-bold">{{ agg.count }}</span>
-                      </div>
+                      @for (agg of typeAggregations(); track (agg.key || agg.type)) {
+                        <div class="agg-item border-orange clickable-agg-item"
+                             [class.active-agg-item]="selectedTypeFilter() === (agg.key || agg.type)"
+                             (click)="toggleTypeFilter(agg.key || agg.type)"
+                             [title]="'Filter by type: ' + (agg.key || agg.type)">
+                          <span class="agg-type text-orange font-medium">{{ agg.key || agg.type }}</span>
+                          <span class="agg-count bg-orange text-black font-bold">{{ agg.count }}</span>
+                        </div>
+                      }
                     </div>
                   </div>
 
@@ -149,10 +154,15 @@
                       <div *ngIf="projectAggregations().length === 0" class="no-data">
                         No projects found.
                       </div>
-                      <div *ngFor="let agg of projectAggregations()" class="agg-item border-orange">
-                        <span class="agg-type text-orange font-medium">{{ agg.key || agg.type }}</span>
-                        <span class="agg-count bg-orange text-black font-bold">{{ agg.count }}</span>
-                      </div>
+                      @for (agg of projectAggregations(); track (agg.key || agg.type)) {
+                        <div class="agg-item border-orange clickable-agg-item"
+                             [class.active-agg-item]="selectedProjectFilter() === (agg.key || agg.type)"
+                             (click)="toggleProjectFilter(agg.key || agg.type)"
+                             [title]="'Filter by project: ' + (agg.key || agg.type)">
+                          <span class="agg-type text-orange font-medium">{{ agg.key || agg.type }}</span>
+                          <span class="agg-count bg-orange text-black font-bold">{{ agg.count }}</span>
+                        </div>
+                      }
                     </div>
                   </div>
 
@@ -165,10 +175,15 @@
                       <div *ngIf="regionAggregations().length === 0" class="no-data">
                         No regions found.
                       </div>
-                      <div *ngFor="let agg of regionAggregations()" class="agg-item border-orange">
-                        <span class="agg-type text-orange font-medium">{{ agg.key || agg.type }}</span>
-                        <span class="agg-count bg-orange text-black font-bold">{{ agg.count }}</span>
-                      </div>
+                      @for (agg of regionAggregations(); track (agg.rawKey || agg.key || agg.type)) {
+                        <div class="agg-item border-orange clickable-agg-item"
+                             [class.active-agg-item]="selectedRegionFilter() === (agg.rawKey || agg.key || agg.type) || selectedRegionFilter() === formatRegionLabel(agg.key || agg.type)"
+                             (click)="toggleRegionFilter(agg.rawKey || agg.key || agg.type)"
+                             [title]="'Filter by region: ' + formatRegionLabel(agg.key || agg.type)">
+                          <span class="agg-type text-orange font-medium">{{ formatRegionLabel(agg.key || agg.type) }}</span>
+                          <span class="agg-count bg-orange text-black font-bold">{{ agg.count }}</span>
+                        </div>
+                      }
                     </div>
                   </div>
 
@@ -181,10 +196,15 @@
                       <div *ngIf="statusAggregations().length === 0" class="no-data">
                         No states found.
                       </div>
-                      <div *ngFor="let agg of statusAggregations()" class="agg-item border-orange">
-                        <span class="agg-type text-orange font-medium">{{ agg.key || agg.type }}</span>
-                        <span class="agg-count bg-orange text-black font-bold" [class.bg-deleted]="(agg.key || agg.type)?.toUpperCase() === 'DELETED'">{{ agg.count }}</span>
-                      </div>
+                      @for (agg of statusAggregations(); track (agg.key || agg.type)) {
+                        <div class="agg-item border-orange clickable-agg-item"
+                             [class.active-agg-item]="selectedStatusFilter() === (agg.key || agg.type)"
+                             (click)="toggleStatusFilter(agg.key || agg.type)"
+                             [title]="'Filter by state: ' + (agg.key || agg.type)">
+                          <span class="agg-type text-orange font-medium">{{ agg.key || agg.type }}</span>
+                          <span class="agg-count bg-orange text-black font-bold" [class.bg-deleted]="(agg.key || agg.type)?.toUpperCase() === 'DELETED'">{{ agg.count }}</span>
+                        </div>
+                      }
                     </div>
                   </div>
                 </mat-card-content>
@@ -205,7 +225,8 @@
                       No resources match your search query.
                     </div>
                     
-                    <div *ngFor="let res of filteredResources()" class="resource-card border-orange" [class.deleted-card]="!!res.deletedAt">
+                    @for (res of filteredResources(); track res.id) {
+                      <div class="resource-card border-orange" [class.deleted-card]="!!res.deletedAt">
                       <div class="resource-header">
                         <span class="resource-name font-bold">
                           <mat-icon *ngIf="isDnsZone(res)" class="dns-icon text-orange">dns</mat-icon>
@@ -348,9 +369,13 @@
                       </div>
                       
                       <div class="resource-details">
+                        <div class="detail-row" *ngIf="res.projectName">
+                          <span class="detail-label text-orange">Project Name:</span>
+                          <span class="detail-value font-bold text-orange">{{ res.projectName }}</span>
+                        </div>
                         <div class="detail-row">
                           <span class="detail-label text-orange">Region:</span>
-                          <span class="detail-value">{{ res.region }}</span>
+                          <span class="detail-value">{{ formatRegionLabel(res.region) }}</span>
                         </div>
                         <div class="detail-row">
                           <span class="detail-label text-orange">Project ID:</span>
@@ -381,12 +406,12 @@
                         <div *ngIf="res.data && getObjectKeys(res.data).length > 0" class="metadata-section">
                           <span class="section-title text-orange font-medium">Metadata:</span>
                           <div class="metadata-grid">
-                            <ng-container *ngFor="let key of getObjectKeys(res.data)">
+                            @for (key of getObjectKeys(res.data); track key) {
                               <div *ngIf="key !== 'amount' && key !== 'currency' && key !== 'bucketPolicy' && key !== 'acl' && key !== 'securityFindings' && key !== 'retention' && key !== 'publicIpHistory' && key !== 'publicIps' && key !== 'recordSets' && key !== 'imageUrl' && res.data[key] !== '' && res.data[key] !== null" class="meta-item">
                                 <span class="meta-key">{{ key }}:</span>
-                                <span class="meta-val">{{ formatMetaValue(res.data[key]) }}</span>
+                                <span class="meta-val" [class.text-red]="(key === 'status' || key === 'state') && (res.deletedAt || res.data[key] === 'deleted' || res.data[key] === 'DELETED')">{{ (key === 'status' || key === 'state') && res.deletedAt ? 'deleted' : formatMetaValue(res.data[key]) }}</span>
                               </div>
-                            </ng-container>
+                            }
                           </div>
                         </div>
 
@@ -403,15 +428,17 @@
                             Public IP History:
                           </span>
                           <div class="ip-history-list">
-                            <div *ngFor="let ipRecord of getPublicIpHistory(res)" class="ip-history-row" [class.ip-active]="ipRecord.active" [class.ip-inactive]="!ipRecord.active">
-                              <span class="ip-address font-bold">{{ ipRecord.ip }}</span>
-                              <span *ngIf="ipRecord.active" class="ip-status-badge active-ip-badge" title="Currently assigned public IP">
-                                Active (since {{ formatIpDate(ipRecord.firstSeen) }})
-                              </span>
-                              <span *ngIf="!ipRecord.active" class="ip-status-badge inactive-ip-badge" title="Historical public IP assignment">
-                                Historical ({{ formatIpDate(ipRecord.firstSeen) }} – {{ formatIpDate(ipRecord.lastSeen) }})
-                              </span>
-                            </div>
+                            @for (ipRecord of getPublicIpHistory(res); track ipRecord.ip) {
+                              <div class="ip-history-row" [class.ip-active]="ipRecord.active" [class.ip-inactive]="!ipRecord.active">
+                                <span class="ip-address font-bold">{{ ipRecord.ip }}</span>
+                                <span *ngIf="ipRecord.active" class="ip-status-badge active-ip-badge" title="Currently assigned public IP">
+                                  Active (since {{ formatIpDate(ipRecord.firstSeen) }})
+                                </span>
+                                <span *ngIf="!ipRecord.active" class="ip-status-badge inactive-ip-badge" title="Historical public IP assignment">
+                                  Historical ({{ formatIpDate(ipRecord.firstSeen) }} – {{ formatIpDate(ipRecord.lastSeen) }})
+                                </span>
+                              </div>
+                            }
                           </div>
                         </div>
 
@@ -419,9 +446,11 @@
                         <div *ngIf="res.tags && getObjectKeys(res.tags).length > 0" class="tags-section">
                           <span class="section-title text-orange font-medium">Tags:</span>
                           <div class="tags-container">
-                            <span *ngFor="let key of getObjectKeys(res.tags)" class="tag-badge">
-                              {{ key }}: {{ res.tags[key] }}
-                            </span>
+                            @for (key of getObjectKeys(res.tags); track key) {
+                              <span class="tag-badge">
+                                {{ key }}: {{ res.tags[key] }}
+                              </span>
+                            }
                           </div>
                         </div>
 
@@ -442,10 +471,12 @@
                               Security Findings:
                             </div>
                             <div class="findings-list">
-                              <span *ngFor="let finding of storage.securityFindings" class="finding-chip">
-                                <mat-icon class="finding-icon">warning_amber</mat-icon>
-                                {{ finding }}
-                              </span>
+                              @for (finding of storage.securityFindings; track finding) {
+                                <span class="finding-chip">
+                                  <mat-icon class="finding-icon">warning_amber</mat-icon>
+                                  {{ finding }}
+                                </span>
+                              }
                             </div>
                           </div>
 
@@ -465,10 +496,12 @@
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  <tr *ngFor="let grant of storage.acl.grants">
-                                    <td class="grantee-col">{{ grant.grantee }}</td>
-                                    <td class="permission-col font-bold" [class.perm-warn]="grant.permission === 'FULL_CONTROL' || grant.permission === 'WRITE'">{{ grant.permission }}</td>
-                                  </tr>
+                                  @for (grant of storage.acl.grants; track (grant.grantee + ':' + grant.permission)) {
+                                    <tr>
+                                      <td class="grantee-col">{{ grant.grantee }}</td>
+                                      <td class="permission-col font-bold" [class.perm-warn]="grant.permission === 'FULL_CONTROL' || grant.permission === 'WRITE'">{{ grant.permission }}</td>
+                                    </tr>
+                                  }
                                 </tbody>
                               </table>
                             </div>
@@ -515,31 +548,34 @@
                                 </tr>
                               </thead>
                               <tbody>
-                                <tr *ngFor="let rs of getDnsRecordSets(res)">
-                                  <td class="rs-name font-bold">{{ rs.name }}</td>
-                                  <td><span class="rs-type-badge">{{ rs.type }}</span></td>
-                                  <td class="rs-ttl">{{ rs.ttl ? rs.ttl + 's' : '-' }}</td>
-                                  <td class="rs-target">{{ formatRecordTargets(rs) }}</td>
-                                  <td class="rs-match">
-                                    <span *ngIf="rs.matchedServerName" class="match-badge vm-match" [title]="'Matched VM: ' + rs.matchedServerName + ' (' + rs.matchedServerId + ')'">
-                                      <mat-icon class="match-icon">computer</mat-icon>
-                                      VM: {{ rs.matchedServerName }}
-                                    </span>
-                                    <span *ngIf="rs.matchedPublicIpId && !rs.matchedServerName" class="match-badge ip-match" [title]="'Matched Public IP: ' + rs.matchedPublicIpId">
-                                      <mat-icon class="match-icon">sensors</mat-icon>
-                                      Public IP
-                                    </span>
-                                    <span *ngIf="!rs.matchedServerName && !rs.matchedPublicIpId" class="rs-unmatched text-muted">
-                                      -
-                                    </span>
-                                  </td>
-                                </tr>
+                                @for (rs of getDnsRecordSets(res); track (rs.name + ':' + rs.type)) {
+                                  <tr>
+                                    <td class="rs-name font-bold">{{ rs.name }}</td>
+                                    <td><span class="rs-type-badge">{{ rs.type }}</span></td>
+                                    <td class="rs-ttl">{{ rs.ttl ? rs.ttl + 's' : '-' }}</td>
+                                    <td class="rs-target">{{ formatRecordTargets(rs) }}</td>
+                                    <td class="rs-match">
+                                      <span *ngIf="rs.matchedServerName" class="match-badge vm-match" [title]="'Matched VM: ' + rs.matchedServerName + ' (' + rs.matchedServerId + ')'">
+                                        <mat-icon class="match-icon">computer</mat-icon>
+                                        VM: {{ rs.matchedServerName }}
+                                      </span>
+                                      <span *ngIf="rs.matchedPublicIpId && !rs.matchedServerName" class="match-badge ip-match" [title]="'Matched Public IP: ' + rs.matchedPublicIpId">
+                                        <mat-icon class="match-icon">sensors</mat-icon>
+                                        Public IP
+                                      </span>
+                                      <span *ngIf="!rs.matchedServerName && !rs.matchedPublicIpId" class="rs-unmatched text-muted">
+                                        -
+                                      </span>
+                                    </td>
+                                  </tr>
+                                }
                               </tbody>
                             </table>
                           </div>
                         </div>
                       </div>
                     </div>
+                  }
                   </div>
                 </mat-card-content>
               </mat-card>
@@ -576,16 +612,18 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <tr *ngFor="let bill of billingSummary()" class="billing-table-row" [class.org-row]="bill.type === 'Organization'">
-                      <td>
-                        <div class="bill-name font-bold">{{ bill.name }}</div>
-                        <div class="bill-id text-orange font-medium">{{ bill.id }}</div>
-                      </td>
-                      <td class="bill-type">{{ bill.type }}</td>
-                      <td class="bill-amount font-bold text-orange">
-                        {{ bill.amount | number:'1.2-2' }} {{ bill.currency }}
-                      </td>
-                    </tr>
+                    @for (bill of billingSummary(); track (bill.id || bill.name)) {
+                      <tr class="billing-table-row" [class.org-row]="bill.type === 'Organization'">
+                        <td>
+                          <div class="bill-name font-bold">{{ bill.name }}</div>
+                          <div class="bill-id text-orange font-medium">{{ bill.id }}</div>
+                        </td>
+                        <td class="bill-type">{{ bill.type }}</td>
+                        <td class="bill-amount font-bold text-orange">
+                          {{ bill.amount | number:'1.2-2' }} {{ bill.currency }}
+                        </td>
+                      </tr>
+                    }
                   </tbody>
                 </table>
               </div>
@@ -671,24 +709,30 @@
                   <thead>
                     <tr>
                       <th class="matrix-project-header">Project Name / ID</th>
-                      <th *ngFor="let rt of matrixResourceTypes" class="matrix-type-header">{{ rt.label }}</th>
+                      @for (rt of matrixResourceTypes; track rt.key) {
+                        <th class="matrix-type-header">{{ rt.label }}</th>
+                      }
                     </tr>
                   </thead>
                   <tbody>
-                    <tr *ngFor="let row of filteredMatrixRows()" class="matrix-row" [class.matrix-row-denied]="row.hasAccessIssues">
-                      <td class="matrix-project-cell">
-                        <div class="project-name font-bold">{{ row.projectName }}</div>
-                        <div class="project-id text-orange font-medium">{{ row.projectId }}</div>
-                      </td>
-                      <td *ngFor="let rt of matrixResourceTypes" class="matrix-status-cell">
-                        <span class="status-badge"
-                              [ngClass]="'status-' + getMatrixStatus(row, rt.key).toLowerCase().replace('_', '-')"
-                              [title]="row.projectName + ' ' + rt.label + ': ' + getMatrixStatus(row, rt.key)">
-                          <span class="status-indicator"></span>
-                          <span class="status-text">{{ getMatrixStatus(row, rt.key) === 'ACCESS_DENIED' ? 'DENIED' : (getMatrixStatus(row, rt.key) === 'ACCESSIBLE' ? 'OK' : 'N/A') }}</span>
-                        </span>
-                      </td>
-                    </tr>
+                    @for (row of filteredMatrixRows(); track row.projectId) {
+                      <tr class="matrix-row" [class.matrix-row-denied]="row.hasAccessIssues">
+                        <td class="matrix-project-cell">
+                          <div class="project-name font-bold">{{ row.projectName }}</div>
+                          <div class="project-id text-orange font-medium">{{ row.projectId }}</div>
+                        </td>
+                        @for (rt of matrixResourceTypes; track rt.key) {
+                          <td class="matrix-status-cell">
+                            <span class="status-badge"
+                                  [ngClass]="'status-' + getMatrixStatus(row, rt.key).toLowerCase().replace('_', '-')"
+                                  [title]="row.projectName + ' ' + rt.label + ': ' + getMatrixStatus(row, rt.key)">
+                              <span class="status-indicator"></span>
+                              <span class="status-text">{{ getMatrixStatus(row, rt.key) === 'ACCESS_DENIED' ? 'DENIED' : (getMatrixStatus(row, rt.key) === 'ACCESSIBLE' ? 'OK' : 'N/A') }}</span>
+                            </span>
+                          </td>
+                        }
+                      </tr>
+                    }
                   </tbody>
                 </table>
               </div>
@@ -719,23 +763,25 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <tr *ngFor="let issue of filteredAccessIssues()" class="issue-row">
-                      <td class="issue-project-cell">
-                        <div class="project-name font-bold">{{ issue.projectName }}</div>
-                        <div class="project-id text-orange font-medium">{{ issue.projectId }}</div>
-                      </td>
-                      <td class="issue-type-cell">
-                        <span class="type-badge">{{ formatAccessResourceType(issue.resourceType) }}</span>
-                      </td>
-                      <td class="issue-region-cell">{{ issue.region || 'global' }}</td>
-                      <td class="issue-status-cell">
-                        <span class="http-status-badge font-bold">{{ issue.statusCode || 403 }}</span>
-                      </td>
-                      <td class="issue-msg-cell">
-                        <div class="error-msg-text font-medium">{{ issue.errorMessage }}</div>
-                      </td>
-                      <td class="issue-time-cell">{{ issue.lastChecked ? (issue.lastChecked | date:'short') : '-' }}</td>
-                    </tr>
+                    @for (issue of filteredAccessIssues(); track (issue.projectId + ':' + issue.resourceType + ':' + (issue.region || ''))) {
+                      <tr class="issue-row">
+                        <td class="issue-project-cell">
+                          <div class="project-name font-bold">{{ issue.projectName }}</div>
+                          <div class="project-id text-orange font-medium">{{ issue.projectId }}</div>
+                        </td>
+                        <td class="issue-type-cell">
+                          <span class="type-badge">{{ formatAccessResourceType(issue.resourceType) }}</span>
+                        </td>
+                        <td class="issue-region-cell">{{ issue.region || 'global' }}</td>
+                        <td class="issue-status-cell">
+                          <span class="http-status-badge font-bold">{{ issue.statusCode || 403 }}</span>
+                        </td>
+                        <td class="issue-msg-cell">
+                          <div class="error-msg-text font-medium">{{ issue.errorMessage }}</div>
+                        </td>
+                        <td class="issue-time-cell">{{ issue.lastChecked ? (issue.lastChecked | date:'short') : '-' }}</td>
+                      </tr>
+                    }
                   </tbody>
                 </table>
               </div>

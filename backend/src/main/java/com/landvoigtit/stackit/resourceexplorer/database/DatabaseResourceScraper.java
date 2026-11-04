@@ -14,9 +14,14 @@ import jakarta.validation.Validator;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Scheduled scraper for discovering and cataloging STACKIT Managed Database and messaging instances
@@ -47,8 +52,14 @@ public class DatabaseResourceScraper {
     @Inject
     Validator validator;
 
-    @Scheduled(every = "${stackit.database.schedule:1h}")
+    private final AtomicBoolean isScraping = new AtomicBoolean(false);
+
+    @Scheduled(every = "${stackit.database.schedule:1h}", delayed = "${stackit.database.delay:3m}", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void scrape() {
+        if (!isScraping.compareAndSet(false, true)) {
+            log.warn("Database scrape is already running, skipping overlapping execution.");
+            return;
+        }
         log.info("Starting managed database resources scrape...");
         try {
             final List<Project> projects = projectDiscoveryService.discoverProjects();
@@ -72,6 +83,8 @@ public class DatabaseResourceScraper {
             log.info("Managed database resources scrape completed successfully.");
         } catch (final Exception e) {
             log.error("Failed to scrape managed database resources", e);
+        } finally {
+            isScraping.set(false);
         }
     }
 

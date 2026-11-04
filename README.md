@@ -427,8 +427,8 @@ You can run the entire stack without cloning the repository or installing build 
    docker compose up -d
    ```
    Docker will automatically pull the pre-built images from GHCR:
-   - Backend: `ghcr.io/harald-landvoigt/stackit-resource-explorer/backend:latest`
-   - Frontend: `ghcr.io/harald-landvoigt/stackit-resource-explorer/frontend:latest`
+   - Backend: `ghcr.io/harald-landvoigt/stackit-resource-explorer/backend:latest` (or `:1`, `:1.0`, `:1.0.0`, `:edge`)
+   - Frontend: `ghcr.io/harald-landvoigt/stackit-resource-explorer/frontend:latest` (or `:1`, `:1.0`, `:1.0.0`, `:edge`)
    - Database: `postgres:15-alpine`
 
 ---
@@ -483,7 +483,7 @@ These variables can be set in a `.env` file (see `docker/.env.example`) or passe
 | :--- | :--- | :--- | :--- |
 | `STACKIT_KEY_FILE` | `./scraper.json` | `../../.keys/scraper.json` | Host path to your STACKIT service account JSON key (supports absolute or relative paths) |
 | `STACKIT_REGIONS` | `eu01,eu02` | `eu01,eu02` | Comma-separated list of STACKIT regions to scrape |
-| `IMAGE_TAG` | `latest` | `latest` | Container image tag pulled from GHCR (`backend` & `frontend`) |
+| `IMAGE_TAG` | `latest` | `latest` | Container image tag pulled from GHCR (`backend` & `frontend`). Supported: `latest`, `edge`, `1`, `1.0`, `1.0.0` |
 | `DB_PASSWORD` | `stackit` | `stackit` | PostgreSQL database password |
 
 ### Backend Scraper & Application Variables (Container Level)
@@ -579,7 +579,7 @@ The backend can be configured via `application.properties` or overridden with en
 ### Backend (Quarkus / Java 21)
 ```bash
 cd backend
-./mvnw test                  # Run unit and integration test suite (131 tests)
+./mvnw test                  # Run unit and integration test suite (232 tests)
 ./mvnw quarkus:dev           # Run dev mode with hot reload (Dev UI at http://localhost:8080/q/dev)
 ```
 
@@ -589,6 +589,21 @@ cd frontend
 npm test -- --watch=false    # Run unit tests via Vitest (65 tests)
 ng serve                     # Start development server on port 4200 (proxies backend to 8080)
 ```
+
+---
+
+## CI/CD & Automated Dependency Management
+
+- **Automated Quality Gate (`ci.yml`)**: Every pull request and push to `main` runs full backend test suites (`./mvnw test`) and frontend production builds (`npm run build`).
+- **Dependabot Minor/Patch Upgrades (`dependabot.yml`)**:
+  - Scans Maven (`/backend`), npm (`/frontend`), Docker (`/docker`), and GitHub Actions (`/`) weekly on Mondays at 06:00 CET.
+  - Automatically suppresses breaking major upgrades (`ignore: semver-major`).
+  - Groups non-breaking minor and patch updates into a single pull request per ecosystem.
+- **Auto-Merge (`dependabot-auto-merge.yml`)**: Automatically approves and squash-merges minor/patch Dependabot PRs as soon as the CI quality gate passes.
+- **Container Publishing (`publish-containers.yml`)**:
+  - Builds and publishes multi-architecture images to GitHub Container Registry (`ghcr.io`).
+  - Tags release git tags (`vX.Y.Z`) with full SemVer patch (`1.0.0`), floating minor (`1.0`), floating major (`1`), `latest`, and `edge`.
+  - Injects standard OCI metadata labels (`version`, `revision`, `source`, `description`).
 
 ---
 

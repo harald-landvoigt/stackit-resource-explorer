@@ -40,6 +40,8 @@ public class StackitResourceDto {
     @NotBlank(message = "Resource project ID must not be null or empty")
     private String projectId;
 
+    private String projectName;
+
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
     private OffsetDateTime deletedAt;

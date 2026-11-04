@@ -160,7 +160,7 @@ describe('App', () => {
 
     const firstCardText = resourceCards[0].textContent;
     expect(firstCardText).toContain('prod-vm-1');
-    expect(firstCardText).toContain('eu-central-1');
+    expect(firstCardText).toContain('eu01 (Germany)');
     expect(firstCardText).toContain('proj-1');
   });
 
@@ -563,7 +563,7 @@ describe('App', () => {
       fixture.detectChanges();
       const compiled = fixture.nativeElement as HTMLElement;
       const buttons = compiled.querySelectorAll('.filter-chip-btn');
-      expect(buttons.length).toBe(8);
+      expect(buttons.length).toBe(5);
 
       // First button is Token Flow in red
       expect(buttons[0].classList).toContain('tokenflow-filter-btn');
@@ -584,18 +584,6 @@ describe('App', () => {
       // Fifth button is Unattached IPs in amber/warning
       expect(buttons[4].classList).toContain('unattached-ip-filter-btn');
       expect(buttons[4].textContent).toContain('Unattached IPs');
-
-      // Sixth button is S3 Keys in sky blue
-      expect(buttons[5].classList).toContain('s3key-filter-btn');
-      expect(buttons[5].textContent).toContain('S3 Keys');
-
-      // Seventh button is DNS Zones in purple
-      expect(buttons[6].classList).toContain('dns-filter-btn');
-      expect(buttons[6].textContent).toContain('DNS Zones');
-
-      // Eighth button is Databases in cyan
-      expect(buttons[7].classList).toContain('database-filter-btn');
-      expect(buttons[7].textContent).toContain('Databases');
     });
 
     it('should render deprecated warning chip on resources using Token Flow (Deprecated)', () => {
@@ -2167,6 +2155,133 @@ describe('App', () => {
       expect(compiled.textContent).toContain('cost_center: 4711');
       expect(compiled.textContent).toContain('owner: harald.landvoigt');
       expect(compiled.textContent).toContain('cost_center=4711, owner=harald.landvoigt');
+    });
+
+    it('should filter resources when clicking on aggregation facet chips', () => {
+      const res1: StackitResource = {
+        id: '11111111-1111-1111-1111-111111111111',
+        resourceId: 'vol-1',
+        name: 'vol-unattached-test',
+        type: 'vmdisks',
+        status: 'available',
+        region: 'eu01-1',
+        projectId: 'f58b4f27-68d7-4bd6-b0f3-2e36a783ad1a',
+        projectName: 'sandbox-1'
+      };
+      const res2: StackitResource = {
+        id: '22222222-2222-2222-2222-222222222222',
+        resourceId: 'vm-1',
+        name: 'test-vm',
+        type: 'compute',
+        status: 'RUNNING',
+        region: 'eu01-2',
+        projectId: 'other-proj-id',
+        projectName: 'production-crm'
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [res1, res2],
+        totalCount: 2,
+        typeAggregations: [{ key: 'VM Disks', count: 1 }, { key: 'VMs', count: 1 }],
+        projectAggregations: [{ key: 'sandbox-1', count: 1 }, { key: 'production-crm', count: 1 }],
+        regionAggregations: [{ key: 'eu01-1', count: 1 }, { key: 'eu01-2', count: 1 }],
+        statusAggregations: [{ key: 'AVAILABLE', count: 1 }, { key: 'RUNNING', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const app = fixture.componentInstance;
+
+      expect(app.filteredResources().length).toBe(2);
+
+      // Filter by project "sandbox-1"
+      app.toggleProjectFilter('sandbox-1');
+      fixture.detectChanges();
+      expect(app.selectedProjectFilter()).toBe('sandbox-1');
+      expect(app.filteredResources().length).toBe(1);
+      expect(app.filteredResources()[0].name).toBe('vol-unattached-test');
+
+      // Clear filter by toggling again
+      app.toggleProjectFilter('sandbox-1');
+      fixture.detectChanges();
+      expect(app.selectedProjectFilter()).toBeNull();
+      expect(app.filteredResources().length).toBe(2);
+
+      // Filter by type "VMs"
+      app.toggleTypeFilter('VMs');
+      fixture.detectChanges();
+      expect(app.filteredResources().length).toBe(1);
+      expect(app.filteredResources()[0].name).toBe('test-vm');
+
+      // Clear all filters
+      app.clearAllFacetFilters();
+      fixture.detectChanges();
+      expect(app.hasActiveFacetFilters()).toBe(false);
+      expect(app.filteredResources().length).toBe(2);
+    });
+
+    it('should render deleted status in metadata for deleted resources even if raw data.status was active', () => {
+      const deletedDb: StackitResource = {
+        id: 'db-del-uuid-1',
+        resourceId: '5991024f-66ad-42d7-affd-2178abe95978',
+        name: 'mariadb-uqtx53pmtvhq',
+        type: 'database',
+        status: 'DELETED',
+        region: 'eu02',
+        projectId: 'c2cc46ae-e432-4e4a-b4df-42a4066c344b',
+        projectName: 'sandbox-2',
+        deletedAt: '2026-11-03T13:35:22.222335Z',
+        data: {
+          status: 'active',
+          engine: 'mariadb',
+          flavor: 'stackit-mariadb-1.4.10-single'
+        }
+      };
+
+      mockResourceService.getResources.mockReturnValue(of({
+        resources: [deletedDb],
+        totalCount: 1,
+        typeAggregations: [{ key: 'Databases', count: 1 }],
+        projectAggregations: [{ key: 'sandbox-2', count: 1 }],
+        regionAggregations: [{ key: 'eu02', count: 1 }],
+        statusAggregations: [{ key: 'DELETED', count: 1 }]
+      }));
+
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+
+      const compiled = fixture.nativeElement as HTMLElement;
+      const metaItems = compiled.querySelectorAll('.metadata-grid .meta-item');
+      let statusFound = false;
+      metaItems.forEach((item) => {
+        const key = item.querySelector('.meta-key')?.textContent?.trim();
+        const val = item.querySelector('.meta-val')?.textContent?.trim();
+        if (key === 'status:') {
+          statusFound = true;
+          expect(val).toBe('deleted');
+        }
+      });
+      expect(statusFound).toBe(true);
+    });
+
+    it('should format region labels with canonical country names and normalize region codes', () => {
+      const fixture = TestBed.createComponent(App);
+      const app = fixture.componentInstance;
+
+      expect(app.formatRegionLabel('eu01')).toBe('eu01 (Germany)');
+      expect(app.formatRegionLabel('eu01-1')).toBe('eu01 (Germany)');
+      expect(app.formatRegionLabel('eu01-3')).toBe('eu01 (Germany)');
+      expect(app.formatRegionLabel('eu-central-1')).toBe('eu01 (Germany)');
+      expect(app.formatRegionLabel('eu02')).toBe('eu02 (Austria)');
+      expect(app.formatRegionLabel('eu02-1')).toBe('eu02 (Austria)');
+      expect(app.formatRegionLabel('global')).toBe('global');
+      expect(app.formatRegionLabel(undefined)).toBe('global');
+
+      expect(app.normalizeRegionCode('eu01')).toBe('eu01');
+      expect(app.normalizeRegionCode('eu01 (Germany)')).toBe('eu01');
+      expect(app.normalizeRegionCode('eu01-1')).toBe('eu01');
+      expect(app.normalizeRegionCode('eu02 (Austria)')).toBe('eu02');
+      expect(app.normalizeRegionCode('global')).toBe('global');
     });
   });
 });

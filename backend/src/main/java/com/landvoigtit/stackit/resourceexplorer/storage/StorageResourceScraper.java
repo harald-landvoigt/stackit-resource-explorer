@@ -28,7 +28,12 @@ import software.amazon.awssdk.services.s3.model.PublicAccessBlockConfiguration;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @ApplicationScoped
 @Slf4j
@@ -55,8 +60,14 @@ public class StorageResourceScraper {
     @Inject
     com.landvoigtit.stackit.resourceexplorer.access.AccessIssueRegistry accessIssueRegistry;
 
-    @Scheduled(every = "${stackit.storage.schedule:off}")
+    private final AtomicBoolean isScraping = new AtomicBoolean(false);
+
+    @Scheduled(every = "${stackit.storage.schedule:1h}", delayed = "${stackit.storage.delay:2m30s}", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void scrape() {
+        if (!isScraping.compareAndSet(false, true)) {
+            log.warn("Storage scrape is already running, skipping overlapping execution.");
+            return;
+        }
         log.info("Starting Storage resource scrape...");
         try {
             final List<Project> projects = projectDiscoveryService.discoverProjects();
@@ -80,6 +91,8 @@ public class StorageResourceScraper {
             log.info("Storage resource scrape completed successfully.");
         } catch (final Exception e) {
             log.error("Failed to scrape Storage resources", e);
+        } finally {
+            isScraping.set(false);
         }
     }
 
@@ -130,8 +143,10 @@ public class StorageResourceScraper {
                 // S3 data plane enrichment using dynamic JIT credentials
                 try {
                     s3JitKeyManager.withEphemeralClient(projectIdStr, region, s3Client -> {
-                        for (final StorageResourceDto dto : dtos) {
-                            enrichWithS3(s3Client, dto);
+                        try (final ExecutorService enrichExecutor = Executors.newVirtualThreadPerTaskExecutor()) {
+                            for (final StorageResourceDto dto : dtos) {
+                                enrichExecutor.submit(() -> enrichWithS3(s3Client, dto));
+                            }
                         }
                         return null;
                     });

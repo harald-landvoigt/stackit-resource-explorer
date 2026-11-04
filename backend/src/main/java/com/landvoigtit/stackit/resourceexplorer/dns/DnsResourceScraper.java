@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @ApplicationScoped
 @Slf4j
@@ -37,8 +38,14 @@ public class DnsResourceScraper {
     @Inject
     AccessIssueRegistry accessIssueRegistry;
 
-    @Scheduled(every = "${stackit.dns.schedule:1h}")
+    private final AtomicBoolean isScraping = new AtomicBoolean(false);
+
+    @Scheduled(every = "${stackit.dns.schedule:1h}", delayed = "${stackit.dns.delay:4m}", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void scrape() {
+        if (!isScraping.compareAndSet(false, true)) {
+            log.warn("DNS scrape is already running, skipping overlapping execution.");
+            return;
+        }
         log.info("Starting DNS resource scrape...");
         try {
             final List<Project> projects = projectDiscoveryService.discoverProjects();
@@ -64,6 +71,8 @@ public class DnsResourceScraper {
             log.info("DNS resource scrape completed successfully.");
         } catch (final Exception e) {
             log.error("Failed to scrape DNS resources", e);
+        } finally {
+            isScraping.set(false);
         }
     }
 

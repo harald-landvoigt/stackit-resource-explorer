@@ -12,6 +12,13 @@ RUN mvn clean package -DskipTests -Dquarkus.container-image.build=false -B
 
 # Stage 2: Runtime image using UBI minimal openjdk-21
 FROM registry.access.redhat.com/ubi9/openjdk-21-runtime:1.24
+ARG APP_VERSION=1.0.0
+ARG REVISION=""
+
+LABEL org.opencontainers.image.source="https://github.com/harald-landvoigt/stackit-resource-explorer"
+LABEL org.opencontainers.image.description="STACKIT Resource Explorer Backend API"
+LABEL org.opencontainers.image.version="${APP_VERSION}"
+LABEL org.opencontainers.image.revision="${REVISION}"
 
 ENV LANGUAGE='en_US:en'
 COPY --from=build --chown=185 /app/target/quarkus-app/lib/ /deployments/lib/

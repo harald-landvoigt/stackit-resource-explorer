@@ -26,6 +26,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @ApplicationScoped
 @Slf4j
@@ -55,8 +60,14 @@ public class IamResourceScraper {
     @Inject
     com.landvoigtit.stackit.resourceexplorer.access.AccessIssueRegistry accessIssueRegistry;
 
-    @Scheduled(every = "${stackit.iam.schedule:off}")
+    private final AtomicBoolean isScraping = new AtomicBoolean(false);
+
+    @Scheduled(every = "${stackit.iam.schedule:1h}", delayed = "${stackit.iam.delay:3m30s}", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void scrape() {
+        if (!isScraping.compareAndSet(false, true)) {
+            log.warn("IAM scrape is already running, skipping overlapping execution.");
+            return;
+        }
         log.info("Starting IAM resource scrape...");
         try {
             final List<Project> projects = projectDiscoveryService.discoverProjects();
@@ -70,7 +81,7 @@ public class IamResourceScraper {
                     continue;
                 }
                 final String projectIdStr = project.getProjectId().toString();
-                final List<String> currentResourceIds = new ArrayList<>();
+                final List<String> currentResourceIds = Collections.synchronizedList(new ArrayList<>());
                 final boolean success = scrapeProjectIam(project, currentResourceIds);
 
                 if (success) {
@@ -80,6 +91,8 @@ public class IamResourceScraper {
             log.info("Finished IAM resource scrape successfully.");
         } catch (final Exception e) {
             log.error("Failed to scrape IAM resources", e);
+        } finally {
+            isScraping.set(false);
         }
     }
 
@@ -87,7 +100,7 @@ public class IamResourceScraper {
         final String projectIdStr = project.getProjectId().toString();
         final String projectName = project.getName();
         log.info("Scraping IAM resources for project {}", projectIdStr);
-        final Map<String, ServiceAccountAuthInfo> saAuthMap = new HashMap<>();
+        final Map<String, ServiceAccountAuthInfo> saAuthMap = new ConcurrentHashMap<>();
         final boolean sasSuccess = scrapeProjectServiceAccounts(projectIdStr, currentResourceIds, saAuthMap);
         final boolean membersSuccess = scrapeProjectMembers(projectIdStr, currentResourceIds, saAuthMap);
         final boolean s3KeysSuccess = scrapeProjectS3AccessKeys(projectIdStr, currentResourceIds);
@@ -367,8 +380,10 @@ public class IamResourceScraper {
             return false;
         }
 
-        for (final ServiceAccountJsonDto saDto : serviceAccounts) {
-            processServiceAccount(projectIdStr, saDto, saAuthMap, currentResourceIds);
+        try (final ExecutorService saExecutor = Executors.newVirtualThreadPerTaskExecutor()) {
+            for (final ServiceAccountJsonDto saDto : serviceAccounts) {
+                saExecutor.submit(() -> processServiceAccount(projectIdStr, saDto, saAuthMap, currentResourceIds));
+            }
         }
         return true;
     }
