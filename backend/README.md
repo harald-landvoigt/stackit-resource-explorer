@@ -14,7 +14,7 @@ Runs the application with hot-reload enabled and starts testcontainers Dev Servi
 > **_NOTE:_** The Quarkus Dev UI is available at <http://localhost:8080/q/dev/>.
 
 #### Testing
-Executes unit tests and integration tests against containerized PostgreSQL and mocked/live STACKIT APIs (131 tests):
+Executes unit tests and integration tests against containerized PostgreSQL and mocked/live STACKIT APIs (232 tests):
 ```bash
 ./mvnw test
 ```
