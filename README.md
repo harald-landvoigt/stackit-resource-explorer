@@ -85,38 +85,52 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
 - **Cost & Consumption Scraper**: Periodically queries the **STACKIT Cost API v3** (`https://cost.api.stackit.cloud/v3/costs/{customerAccountId}`) for the current calendar month in UTC:
   - Catalogs expenses for each project (`billing`) and computes the aggregate organization total (`billing-org`).
   - Automatically converts amounts from cents to EUR.
-  - Features an on-demand fallback: when the `/resources/billing-summary` endpoint is queried, if no records exist in cache yet, it triggers an immediate scrape.
+  - Features an on-demand fallback: when the `/resources/billing-summary` endpoint is queried, if no records exist in cache yet, it triggers an immediate scrape (guarded with an `AtomicBoolean` run guard and minimum cooldown to prevent DoS amplification).
 - **Interactive UI Dashboard**:
-  - **Authentication & Security Quick Filters**:
+  - **High-Value Security & FinOps Quick Filters**:
     - **Public Buckets (Rose)**: 1-click filter for publicly exposed storage buckets (`is-public: true`).
-    - **Unattached Disks (Amber)**: 1-click filter for idle / orphan block storage disks (`"unattached vmdisks"`), enabling quick identification of wasted storage spend.
+    - **Unattached Disks (Amber)**: 1-click filter for idle / orphan block storage disks (`"unattached vmdisks"`), enabling rapid identification of wasted storage spend.
     - **Unattached IPs (Purple)**: 1-click filter for idle / unattached floating public IPs (`"unattached public-ip"`), instantly isolating unassigned public IP addresses.
     - **Token Flow (Red)**: Filters service accounts and users utilizing deprecated static API tokens (`"Token Flow"`).
     - **Key Flow (Orange)**: Filters service accounts utilizing modern asymmetric RSA key pairs (`"Key Flow"`).
-    - **S3 Keys (Sky Blue)**: 1-click filter for Object Storage S3 access keys (`"S3 Access Key"`).
-    - **DNS Zones (Purple)**: 1-click filter for DNS zones and their associated record sets (`"dns-zone"`).
-    - **Databases (Teal)**: 1-click filter for managed database instances across all engines (`"database"`).
-    - Prominent warning chips on resource cards utilizing deprecated static token credentials (searchable anytime via `"Token Flow"`).
-  - **Resource Explorer**: Search and filter discovered resources in real time via PostgreSQL Full-Text Search. Returns results capped at 100 elements for ultra-fast rendering while displaying a `"Showing X of Y items"` indicator.
+  - **Interactive Multi-Dimensional Facet Filters**:
+    - Clicking any item in the left-hand aggregation columns (**Type**, **Project**, **Region**, or **State**) instantly filters the discovered resources list.
+    - Active facets appear in a prominent filter bar above the search filters with removable chips (`Type: ...`, `Project: ...`, `Region: ...`, `State: ...`) and a **Clear all** button.
+    - Facet filters combine seamlessly with the full-text search input and quick filter buttons.
+  - **Project Name Full-Text Search Resolution**:
+    - Typing a human-readable project name (e.g. `sandbox-1`) directly in the search bar resolves matching project IDs and returns all resources belonging to that project, in addition to matching direct resource attributes.
+  - **Resource Explorer**: Search and filter discovered resources in real time via PostgreSQL Full-Text Search. Returns results capped at 100 elements for ultra-fast rendering while displaying a `"Showing X of Y items"` indicator. Search queries are capped at 256 characters and up to 10 prefix tokens to protect database evaluation.
   - **Resource Details, Badges & UUIDs**:
     - Displays the exact **Resource UUID** alongside any distinct human-readable **Resource ID** (such as bucket names or IAM accounts). Cleanly formats complex metadata (arrays of IPs/ACLs or flat key-value objects like `labels` and `options` as `key=value, ...`) with responsive text wrapping and excludes blank fields.
     - **Disk Attachment Badges**: VM disks display clear color-coded badges: 🟡 **`[Unattached]`** (amber warning for idle/orphan volumes), 🟢 **`[Attached: <serverName>]`** (green badge with parent VM name), and 🔵 **`[Boot Disk]`** (blue badge for OS root volumes).
     - **Database Badges**: Managed databases display engine-specific badges: 🗄️ **`[Engine: <engine>]`** (PostgreSQL, MongoDB, OpenSearch, MariaDB, SQL Server, Key-Value Store / Valkey), ⚡ **`[Flavor: <flavor>]`**, 💾 **`[Storage: <size> GB]`**, and 🔄 **`[Replicas: <count>]`**.
     - **Public IP Badges**: Public IPs display dedicated badges: 🟢 **`[Attached (VM: <serverName>)]`** (green badge with parent VM name) or 🟣 **`[Unattached / Floating]`** (purple badge for idle/unassigned public IPs).
     - **S3 Access Key Badges**: Persistent S3 access keys display color-coded identity chips: 🔷 **`[S3 Key: <groupName>]`** (sky-blue badge with credentials group name) and 🔴 **`[EXPIRED]`** (red warning for expired keys).
-    - **Soft-Deleted Resources & Lifecycle Tracking**: Decommissioned resources retain their discovery record with `deletedAt` timestamps. Soft-deleted resources are included in both unfiltered catalog views and text searches, styled with a red `.deleted-card` accent, a distinct `DELETED` status badge (`.deleted-status`) with a `delete_outline` icon, and a `Deleted At: <timestamp>` detail row. Multi-dimensional aggregations consistently tally all active and deleted resources.
+    - **Soft-Deleted Resources & Lifecycle Tracking**: Decommissioned resources retain their discovery record with `deletedAt` timestamps. Soft-deleted resources are included in both unfiltered catalog views and text searches, styled with a red `.deleted-card` accent, a distinct `DELETED` status badge (`.deleted-status`) with a `delete_outline` icon, and a `Deleted At: <timestamp>` detail row. Flyway migration `V1.2.1` ensures consistent synchronization between soft-deletion status and internal metadata status. Multi-dimensional aggregations consistently tally all active and deleted resources.
   - **Multi-Dimensional Summary Aggregations**: Backend-calculated exact counts stacked across four distinct dimensions with a responsive scrollable container (`max-height: 70vh`) and custom orange scrollbar matching the resource explorer:
     - **By Resource Type** (*VMs*, *Public IPs*, *Buckets*, *VM Disks*, *Databases*, *DNS Zones*, *Invoices*, *Networks*, *IAM Policies*)
     - **By Project** (e.g. *resource-explorer*, *sandbox-1*, *sandbox-2*, or *Global / No Project* with automatic project ID-to-name resolution)
-    - **By Region** (e.g. *eu01*, *eu02*, *eu01-1*, *eu01-3*, *global*)
+    - **By Region**: Normalized canonical regions via Flyway `V1.2.2` displayed with intuitive country labels: `eu01 (Germany)`, `eu02 (Austria)`, and `global`.
     - **By State** (e.g. *ACTIVE*, *RUNNING*, *AVAILABLE*, *Ready*, and *DELETED* with warning accents)
   - **Billing Summary**: Aggregated project and organization consumption for the current calendar month in UTC with currency conversions. The Organization total is pinned to the first row, followed by projects ordered descending by costs.
   - **Access Issues View & Project Status Matrix**:
     - Automatically monitors and records scraper permission results (`ACCESSIBLE`, `ACCESS_DENIED`, `NOT_CHECKED`) across all discovered projects and services (`compute`, `storage`, `network`, `network-vpc`, `public-ip`, `vmdisks`, `iam`, `dns-zone`, `database`, `billing`) in a thread-safe registry.
+    - Sanitizes and truncates upstream HTTP error bodies to a maximum of 500 characters, scrubbing reflected headers or internal tokens.
     - Exposes `GET /resources/access-issues` providing a consolidated summary, project-by-service matrix, and active issues detail list.
     - Dedicated **"Access Issues"** tab with live counter badge, KPI summary cards (Total Projects Checked, Affected Projects, Total Issues), Project × Resource Type status matrix with visual status chips (🟢 `OK`, 🔴 `DENIED`, ⚪ `N/A`), and an active issues diagnostic table with error logs, HTTP status codes, and search filters.
-- **Production-Ready Persistence & Flyway Migrations**:
-  - Schema lifecycle and GIN full-text index managed via versioned Flyway migrations (`V1.0.0__init_schema_and_fts_gin_index.sql`, `V1.1.0__cleanup_duplicate_storage_resources.sql`).
+- **High-Performance Architecture & Flyway Migrations**:
+  - **Single-Query Aggregations (`GROUPING SETS`)**: Aggregations across all four dimensions are consolidated into a single native SQL query using PostgreSQL `GROUPING SETS ((type), (region), (status), (project_id))` over a single filtered CTE, eliminating multiple database round-trips.
+  - **Write Amplification & GIN Index Elimination**: `StackitResourceRepository.persistOrUpdate` performs diff detection on incoming resources to skip writes when fields have not changed, eliminating unnecessary `tsvector` regeneration and PostgreSQL GIN index churn. Batch persistence is supported via `persistOrUpdateAll`.
+  - **Concurrency Control & Thundering Herd Protection**: All 10 scrapers run with `concurrentExecution = Scheduled.ConcurrentExecution.SKIP` and `AtomicBoolean` run guards. Startup delays (`stackit.*.delay`) are staggered (0s to 4m30s) across scrapers to honor dependency order (e.g. Compute before Public IPs and Disks).
+  - **Java 21 Virtual Threads**: Outbound HTTP calls for IAM service account token/key auditing and S3 bucket data-plane enrichment run concurrently on Virtual Threads via `Executors.newVirtualThreadPerTaskExecutor()`.
+  - **HTTP & Key Caching**: Re-reading and JSON parsing of the scraper service account keyfile is cached in `StackitSdkConfig`. A shared base `OkHttpClient` is configured with connection pooling, 15s connect, 30s read/write, and 60s call timeouts.
+  - **Frontend Performance**: All template loops use modern Angular `@for (...; track ...)` blocks; `App` runs with `ChangeDetectionStrategy.OnPush`; expensive view helpers are memoized with `WeakMap` and `Map`.
+  - **Versioned Flyway Migrations**:
+    - `V1.0.0__init_schema_and_fts_gin_index.sql`: Schema, table, and GIN full-text index.
+    - `V1.1.0__cleanup_duplicate_storage_resources.sql`: Deduplication for storage resources.
+    - `V1.2.0__add_performance_btree_indexes.sql`: B-Tree indexes on `created_at DESC`, `updated_at DESC`, and active partial indexes on `(type, deleted_at)`, `(region, deleted_at)`, `(status, deleted_at)`, and `(project_id, deleted_at)`.
+    - `V1.2.1__sync_deleted_resources_status.sql`: Synchronizes status of soft-deleted resources.
+    - `V1.2.2__normalize_region_names.sql`: Normalizes canonical region naming (`eu01`, `eu02`, `global`).
   - Strict baseline control (`quarkus.flyway.baseline-on-migrate=false`) guarantees that initial migrations are never silently skipped on pre-existing non-empty databases.
   - Hibernate ORM runs in `validate` mode to safeguard against schema drift.
   - **Read-Only API Architecture**: Mutation endpoints (e.g. `POST /resources`) are eliminated; data ingestion is performed exclusively through internal scheduled and on-demand cloud scrapers.
@@ -467,8 +481,8 @@ If you have cloned the repository and wish to build containers locally from sour
 
 | Service | Port | Description |
 | :--- | :--- | :--- |
-| **Frontend** | `8081` | Angular Web Dashboard & Nginx reverse proxy |
-| **Backend** | Internal (`backend:8080`) | Quarkus REST API & Scheduled Scraper Engine (proxied via Nginx) |
+| **Frontend** | `${FRONTEND_PORT:-8081}:80` | Angular Web Dashboard & Nginx reverse proxy (listening on container port `80` with hardened security headers: `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, CSP) |
+| **Backend** | Internal (`backend:8080`) | Quarkus REST API & Scheduled Scraper Engine (proxied via Nginx `proxy_pass http://backend:8080`) |
 | **Database** | Internal (`database:5432`) | PostgreSQL persistence store (isolated on internal network) |
 
 ---
@@ -482,6 +496,7 @@ These variables can be set in a `.env` file (see `docker/.env.example`) or passe
 | Variable | Default (Standalone) | Default (Local Repo) | Description |
 | :--- | :--- | :--- | :--- |
 | `STACKIT_KEY_FILE` | `./scraper.json` | `../../.keys/scraper.json` | Host path to your STACKIT service account JSON key (supports absolute or relative paths) |
+| `FRONTEND_PORT` | `8081` | `8081` | Host port mapped to Nginx container port `80` (e.g. set `FRONTEND_PORT=80` for direct HTTP access) |
 | `STACKIT_REGIONS` | `eu01,eu02` | `eu01,eu02` | Comma-separated list of STACKIT regions to scrape |
 | `IMAGE_TAG` | `latest` | `latest` | Container image tag pulled from GHCR (`backend` & `frontend`). Supported: `latest`, `edge`, `1`, `1.0`, `1.0.0` |
 | `DB_PASSWORD` | `stackit` | `stackit` | PostgreSQL database password |

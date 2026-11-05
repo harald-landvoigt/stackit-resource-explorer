@@ -27,22 +27,23 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
 - **Mobile-Adaptive**: Smooth horizontal scrolling and auto-adjusted padding on smaller viewports (`<= 600px`).
 
 ### 3. Resource Explorer Tab
-- **Real-Time Search Bar**: Full-text searching across resource name, type, region, status, tags, and data attributes via PostgreSQL FTS.
-- **1-Click Quick Filters**: Fast toggle filter buttons directly below the search input:
+- **Real-Time Search Bar**: Full-text searching across resource name, type, region, status, tags, and data attributes via PostgreSQL FTS. Also resolves human-readable project names (e.g. `sandbox-1`) directly to project IDs.
+- **High-Value Security & FinOps Quick Filters**: Fast toggle filter buttons directly below the search input:
   - **Token Flow (Red)**: Filters service accounts and members utilizing deprecated static API tokens (`"Token Flow"`). Styled with `.tokenflow-filter-btn` and red warning accent (`#ef4444`).
   - **Key Flow (Orange)**: Filters service accounts utilizing modern asymmetric RSA key pairs (`"Key Flow"`). Styled with `.keyflow-filter-btn` and deep orange key accent (`#ff6f00`).
   - **Public Buckets (Rose)**: Filters publicly accessible S3 storage buckets (`"is-public: true"`). Styled with `.public-filter-btn` and rose accent (`#f43f5e`).
   - **Unattached Disks (Amber)**: Filters unattached / orphan VM block storage disks (`"unattached vmdisks"`). Styled with `.unattached-filter-btn` and amber accent (`#f59e0b`).
   - **Unattached IPs (Purple)**: Filters unattached / floating public IP allocations (`"unattached public-ip"`). Styled with `.unattached-ip-filter-btn` and purple accent (`#c084fc`).
-  - **S3 Keys (Sky Blue)**: Filters persistent S3 Object Storage access keys (`"S3 Access Key"`). Styled with `.s3key-filter-btn` and sky-blue accent (`#38bdf8`).
-  - **DNS Zones (Purple)**: Filters DNS zones and record sets (`"dns-zone"`). Styled with `.dns-filter-btn`.
-  - **Databases (Teal)**: Filters managed database instances across all engines (`"database"`). Styled with `.database-filter-btn`.
-  - All quick filter buttons toggle on/off with a single click.
+  - All quick filter buttons toggle on/off with a single click and combine seamlessly with search queries and facet filters.
+- **Interactive Multi-Dimensional Facet Filters**:
+  - Clicking any aggregation chip in the left-hand breakdown cards (**Type**, **Project**, **Region**, or **State**) instantly filters the discovered resources list.
+  - Active facet filters are displayed in a prominent bar above the resource list as removable chips (`Type: ...`, `Project: ...`, `Region: ...`, `State: ...`) alongside a **Clear all** button.
+  - Allows rapid drill-down without manual typing.
 - **Summary Aggregations Card (Left Column)**: Stacked sections displaying exact backend-computed breakdowns across the full dataset. Features a responsive height constraint (`max-height: 70vh` on desktop, `45vh` on mobile) with a custom orange scrollbar matching the resource explorer:
-  - **By Resource Type**: Counts for *VMs*, *Public IPs*, *Buckets*, *VM Disks*, *Databases*, *DNS Zones*, *Invoices*, *Networks*, *IAM Policies*.
-  - **By Project**: Counts partitioned per STACKIT project (e.g. *resource-explorer*, *sandbox-1*, *sandbox-2*, or *Global / No Project*).
-  - **By Region**: Counts by region / availability zone (e.g. *eu01*, *eu02*, *eu01-3*, *global*).
-  - **By State**: Counts by status and lifecycle (*ACTIVE*, *RUNNING*, *AVAILABLE*, *Ready*, and *DELETED* with red accent).
+  - **By Resource Type**: Interactive counts for *VMs*, *Public IPs*, *Buckets*, *VM Disks*, *Databases*, *DNS Zones*, *Invoices*, *Networks*, *IAM Policies*.
+  - **By Project**: Interactive counts partitioned per STACKIT project (e.g. *resource-explorer*, *sandbox-1*, *sandbox-2*, or *Global / No Project*) with project IDs resolved to human-readable names.
+  - **By Region**: Normalized canonical regions displayed with country labels: `eu01 (Germany)`, `eu02 (Austria)`, and `global`.
+  - **By State**: Interactive counts by status and lifecycle (*ACTIVE*, *RUNNING*, *AVAILABLE*, *Ready*, and *DELETED* with red accent).
 - **Discovered Resources Card (Right Column)**: Scrollable list of resource cards capped at 100 elements for optimal browser performance, showing `"Showing X of Y items"` subtitle when capped:
   - **Disk Attachment Badges**: VM disks render color-coded attachment chips:
     - 🟡 **`[Unattached]`** (`.unattached-badge`): Warning badge for orphan/idle disks.
@@ -107,11 +108,16 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
   - `projectAggregations`: Signal storing exact project breakdown.
   - `regionAggregations`: Signal storing exact cloud region breakdown.
   - `statusAggregations`: Signal storing exact state/lifecycle breakdown.
+  - `activeFacets`: Signal tracking active multi-dimensional facet filters (`type`, `projectId`, `region`, `status`).
   - `billingSummary`: Current-month cost summaries.
   - `errorMessage`: Active error message string, rendered in the header error banner.
   - `selectedIndex`: Active navigation tab index.
   - `searchString`: Input query string.
-  - `filteredResources`: Computed signal deriving matching items from search terms.
+  - `filteredResources`: Computed signal deriving matching items from search terms and active facet filters.
+- **High-Performance Change Detection & Template Rendering**:
+  - `ChangeDetectionStrategy.OnPush`: Enforced on the root `AppComponent` to eliminate unnecessary re-renders.
+  - Modern `@for (...; track ...)` Control Flow: Replaced all legacy `*ngFor` directives across resource lists, metadata grids, table rows, and badges with modern built-in `@for` loops and unique entity tracking keys (`res.id`, `issue.id`).
+  - `WeakMap` & `Map` Helper Memoization: View helper functions (e.g. database icon / color styling and tag formatting) memoize lookups to ensure zero redundant object allocations during change detection sweeps.
 - **Service Layer**: `ResourceService` encapsulates HTTP communication:
   - `GET /resources?q=...`: Retrieves `ResourceSearchResult` containing capped resources, `totalCount`, and all 4 aggregation arrays.
   - `GET /resources/billing-summary`: Retrieves aggregated calendar-month costs.
@@ -121,13 +127,14 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
 ## Development & Testing Commands
 
 ### Prerequisites
-- Node.js 20+
+- Node.js 22+
 - npm 11+
 
 ### Install Dependencies
 ```bash
-npm install
+npm install --legacy-peer-deps
 ```
+*(Note: `--legacy-peer-deps` is used to prevent strict peer dependency conflicts with transient rolldown WASM packages).*
 
 ### Start Local Development Server
 ```bash
@@ -153,9 +160,9 @@ Compiles and optimizes the output to `dist/frontend/browser/`.
 ## Docker Deployment
 
 The frontend is packaged as a multi-stage Docker build:
-1. **Build Stage**: Compiles the Angular production bundle using `node:20-alpine`.
-2. **Runtime Stage**: Serves the static assets via `nginx:alpine` and reverse-proxies `/resources` requests to the Quarkus backend on port `8080`.
-Exposed on host port **8081**.
+1. **Build Stage**: Compiles the Angular production bundle using `node:22-alpine` with `npm ci --legacy-peer-deps`.
+2. **Runtime Stage**: Serves the static assets via `nginx:alpine` on container port `80` (configured with `default_server`, `server_name _;`, and strict security headers) and reverse-proxies `/resources` requests to the Quarkus backend on `backend:8080`.
+Exposed on host port `${FRONTEND_PORT:-8081}:80`.
 
 ---
 

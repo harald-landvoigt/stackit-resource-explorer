@@ -186,8 +186,13 @@ Each scraper implements independent schedules (configurable via `application.pro
 ### 3. Resilient Scraping & Code Quality Standards
 All scraper jobs and backend domain services adhere to uniform coding, quality, and fault-isolation standards:
 - **Cognitive Complexity (< 15)**: Every method must maintain a Cognitive Complexity strictly `< 15` (enforcing SonarLint rule `java:S3776`). Workflows with nested branching, loops, or complex error handling must be decomposed into cohesive single-responsibility helper methods.
+- **Java 21 Virtual Threads**: Outbound HTTP requests during fan-out inspection—such as service account token and key auditing in `IamResourceScraper` and S3 bucket ACL/policy queries in `StorageResourceScraper`—are executed concurrently on lightweight Java 21 Virtual Threads (`Executors.newVirtualThreadPerTaskExecutor()`), drastically reducing thread contention and wall-clock scraping time.
+- **Concurrency Control & Thundering Herd Protection**: All 10 scrapers implement `concurrentExecution = Scheduled.ConcurrentExecution.SKIP` alongside `AtomicBoolean` run guards to prevent overlapping runs when operations exceed standard intervals.
+- **Staggered Startup Delays**: Scrapers configure staggered startup delays (`stackit.*.delay` spanning `0s` to `4m30s`) so scrapers start predictably without competing for network I/O or CPU, while respecting dependency order (e.g. Compute runs before Disks and Public IPs).
+- **HTTP Client & Service Account Key Caching**: `StackitSdkConfig` caches parsed service account JSON credentials to eliminate repeated disk I/O. Outbound OkHttp calls share a single centralized client instance with connection pooling, 15s connect, 30s read/write, and 60s call timeouts.
 - **Operational Progress (`INFO`)**: Scraping phase transitions (start, project discovery, completion), target database type and region dispatch, and counts of scraped resources per service and project are logged at `INFO` level.
 - **Permission Denials (`WARN`)**: When encountering HTTP `401` or `403` (Unauthorized, Forbidden) for any target project or region, scrapers log a structured warning including the project ID, region, and error payload. The failure is isolated—the scraper continues processing remaining projects.
+- **Sanitized Diagnostic Logging**: Upstream HTTP error response bodies captured in the `AccessIssueRegistry` are automatically scrubbed and truncated to a maximum of 500 characters to prevent log pollution and shield sensitive headers or auth tokens.
 - **Absent / Unactivated Services (`INFO`)**: When a project does not have an optional service enabled (HTTP 404 Not Found), scrapers log the event as standard `INFO` without triggering warnings.
 - **Exception Catch Blocks (`WARN` / `ERROR`)**: All catch blocks across scrapers and SDK initialization strictly log at `WARN` or `ERROR` level (never `INFO`) to guarantee visibility of caught exceptions and fallback execution paths.
 
@@ -201,15 +206,25 @@ All scraper jobs and backend domain services adhere to uniform coding, quality, 
 | `stackit.regions` | `STACKIT_REGIONS` | `eu01,eu02` | Comma-separated list of STACKIT regions to scrape for regional services |
 | `stackit.storage.s3.endpoint-template` | `STACKIT_S3_ENDPOINT_TEMPLATE` | `https://object.storage.%s.onstackit.cloud` | S3 data-plane endpoint template (`%s` replaced by region) |
 | `stackit.compute.schedule` | `STACKIT_COMPUTE_SCHEDULE` | `1h` | Interval or cron for Compute VM Scraper |
-| `stackit.publicips.schedule` | `STACKIT_PUBLICIPS_SCHEDULE` | `1h` | Interval or cron for Public IP Scraper |
-| `stackit.storage.schedule` | `STACKIT_STORAGE_SCHEDULE` | `1h` | Interval or cron for Object Storage Scraper |
+| `stackit.compute.delay` | `STACKIT_COMPUTE_DELAY` | `0s` | Startup delay before initial compute scrape |
 | `stackit.vmdisks.schedule` | `STACKIT_VMDISKS_SCHEDULE` | `1h` | Interval or cron for VM Disk (Block Storage) Scraper |
+| `stackit.vmdisks.delay` | `STACKIT_VMDISKS_DELAY` | `30s` | Startup delay before initial disk scrape |
+| `stackit.publicips.schedule` | `STACKIT_PUBLICIPS_SCHEDULE` | `1h` | Interval or cron for Public IP Scraper |
+| `stackit.publicips.delay` | `STACKIT_PUBLICIPS_DELAY` | `1m` | Startup delay before initial public IP scrape |
 | `stackit.network.schedule` | `STACKIT_NETWORK_SCHEDULE` | `1h` | Interval or cron for Load Balancer Scraper |
+| `stackit.network.delay` | `STACKIT_NETWORK_DELAY` | `1m30s` | Startup delay before initial load balancer scrape |
 | `stackit.network-vpc.schedule` | `STACKIT_NETWORK_VPC_SCHEDULE` | `1h` | Interval or cron for Network VPC Scraper |
-| `stackit.iam.schedule` | `STACKIT_IAM_SCHEDULE` | `1h` | Interval or cron for IAM Scraper |
-| `stackit.dns.schedule` | `STACKIT_DNS_SCHEDULE` | `1h` | Interval or cron for DNS Zones & Record Sets Scraper |
+| `stackit.network-vpc.delay` | `STACKIT_NETWORK_VPC_DELAY` | `2m` | Startup delay before initial network VPC scrape |
+| `stackit.storage.schedule` | `STACKIT_STORAGE_SCHEDULE` | `1h` | Interval or cron for Object Storage Scraper |
+| `stackit.storage.delay` | `STACKIT_STORAGE_DELAY` | `2m30s` | Startup delay before initial object storage scrape |
 | `stackit.database.schedule` | `STACKIT_DATABASE_SCHEDULE` | `1h` | Interval or cron for Managed Database Scraper (`1h`, cron, or `off`) |
+| `stackit.database.delay` | `STACKIT_DATABASE_DELAY` | `3m` | Startup delay before initial database scrape |
+| `stackit.iam.schedule` | `STACKIT_IAM_SCHEDULE` | `1h` | Interval or cron for IAM Scraper |
+| `stackit.iam.delay` | `STACKIT_IAM_DELAY` | `3m30s` | Startup delay before initial IAM scrape |
+| `stackit.dns.schedule` | `STACKIT_DNS_SCHEDULE` | `1h` | Interval or cron for DNS Zones & Record Sets Scraper |
+| `stackit.dns.delay` | `STACKIT_DNS_DELAY` | `4m` | Startup delay before initial DNS scrape |
 | `stackit.billing.schedule` | `STACKIT_BILLING_SCHEDULE` | `1h` | Interval or cron for Billing / Cost Scraper |
+| `stackit.billing.delay` | `STACKIT_BILLING_DELAY` | `4m30s` | Startup delay before initial billing scrape |
 | `stackit.database.postgres-url` | `STACKIT_DATABASE_POSTGRES_URL` | `https://postgres-flex-service.api.stackit.cloud` | Base URL for PostgreSQL Flex API |
 | `stackit.database.mongodb-url` | `STACKIT_DATABASE_MONGODB_URL` | `https://mongodb-flex-service.api.stackit.cloud` | Base URL for MongoDB Flex API |
 | `stackit.database.opensearch-url` | `STACKIT_DATABASE_OPENSEARCH_URL` | `https://opensearch.api.stackit.cloud` | Base URL for OpenSearch API |
@@ -223,11 +238,23 @@ Schedules accept standard Quarkus interval strings (`1h`, `30m`), standard cron 
 
 ## Database & Flyway Migrations
 
-- **Flyway Versioning**: Schema lifecycle and indexing are handled via Flyway scripts in `src/main/resources/db/migration/` (`V1.0.0` for base schema & GIN FTS index, `V1.1.0` for storage resource deduplication).
+- **Flyway Versioning**: Schema lifecycle and indexing are handled via Flyway scripts in `src/main/resources/db/migration/`:
+  - `V1.0.0__init_schema_and_fts_gin_index.sql`: Initial schema, table creation, and GIN full-text index on `search_vector`.
+  - `V1.1.0__cleanup_duplicate_storage_resources.sql`: Storage resource deduplication migration.
+  - `V1.2.0__add_performance_btree_indexes.sql`: High-performance B-Tree indexes on `(created_at DESC)` and `(updated_at DESC)`, alongside partial active indexes on `(type, deleted_at)`, `(region, deleted_at)`, `(status, deleted_at)`, and `(project_id, deleted_at)` to accelerate common aggregation and sorting queries.
+  - `V1.2.1__sync_deleted_resources_status.sql`: Synchronizes the lifecycle status of soft-deleted resources (`deleted_at IS NOT NULL`) to `DELETED`.
+  - `V1.2.2__normalize_region_names.sql`: Normalizes legacy regional descriptors to canonical region names (`eu01`, `eu02`, `global`).
 - **Strict Baseline Policy**: `quarkus.flyway.baseline-on-migrate=false` ensures that baseline migrations are never silently bypassed on non-empty databases.
 - **Validation**: `quarkus.hibernate-orm.schema-management.strategy=validate` ensures Hibernate entities strictly adhere to Flyway-created schemas.
-- **Full-Text Search & Lifecycle**: Uses a stored generated `tsvector` column (`search_vector`) indexed with PostgreSQL GIN (`USING gin (search_vector)`). Includes soft-deleted items (`deletedAt != null`) in both full-text search and aggregations to provide an uncompromised resource audit trail.
-- **Ranking**: Matches are ranked using `ts_rank` evaluated against `websearch_to_tsquery('simple', query)`.
+- **Single-Query Aggregations (`GROUPING SETS`)**:
+  - `StackitResourceRepository.aggregateAll` consolidates facet counts across all four dimensions (`TYPE`, `PROJECT`, `REGION`, `STATUS` via `AggregationDimension` enum) into a single native SQL query.
+  - Leverages PostgreSQL `GROUPING SETS ((type), (region), (status), (project_id))` over a single filtered CTE, avoiding multiple round-trips and repeated scans of the resource table.
+- **Write Amplification & GIN Index Churn Prevention**:
+  - `StackitResourceRepository.persistOrUpdate` compares incoming resource fields against existing database records. Unchanged resources are skipped, avoiding unnecessary updates that trigger expensive PostgreSQL `tsvector` recalculations and GIN index writes.
+  - Batch persistence is supported through `persistOrUpdateAll`.
+- **Full-Text Search & Lifecycle**:
+  - Uses a stored generated `tsvector` column (`search_vector`) indexed with PostgreSQL GIN (`USING gin (search_vector)`). Includes soft-deleted items (`deletedAt != null`) in both full-text search and aggregations to provide an uncompromised resource audit trail.
+  - Ranked using `ts_rank` evaluated against `websearch_to_tsquery('simple', query)`.
 
 ---
 
@@ -235,12 +262,14 @@ Schedules accept standard Quarkus interval strings (`1h`, `30m`), standard cron 
 
 ### `GET /resources?q={query}`
 Searches discovered resources using Full-Text Search.
-- Capped at 100 resources (`LIMIT 100`) for low-latency response times.
-- Returns active and soft-deleted resources (marked with `deletedAt`), allowing full lifecycle visibility without requiring specialized filter syntax.
-- Returns exact total count and multi-dimensional aggregations (including soft-deleted items):
+- **Bounded Search Protection**: Queries are validated with `@Size(max = 256)`. Long queries are tokenized and bounded to a maximum of 10 prefix tokens to protect database evaluation against ReDoS or complex AST expansion.
+- **Project Name Full-Text Resolution**: When users search by a human-readable project name (e.g., `sandbox-1`), the search engine matches against cached projects from `StackitProjectDiscoveryService`, resolves corresponding project UUIDs, and returns all resources belonging to the project alongside direct text matches.
+- **Capped Result Set**: Capped at 100 resources (`LIMIT 100`) for low-latency response times and consistent browser rendering.
+- **Soft-Deletion Visibility**: Returns active and soft-deleted resources (marked with `deletedAt`), allowing full lifecycle visibility without requiring specialized filter syntax.
+- **Unified Aggregations**: Returns exact total count and multi-dimensional aggregations (including soft-deleted items) computed in a single query via `GROUPING SETS`:
   - `typeAggregations`: Categorized counts (*VMs*, *Public IPs*, *Buckets*, *VM Disks*, *Invoices*, *Networks*, *IAM Policies*).
   - `projectAggregations`: Counts by STACKIT project (*resource-explorer*, *sandbox-1*, *sandbox-2*, *Global / No Project*) with project IDs resolved to human-readable names via `StackitProjectDiscoveryService`.
-  - `regionAggregations`: Counts by cloud region / AZ (*eu01*, *eu01-3*, *global*).
+  - `regionAggregations`: Counts by normalized cloud region (`eu01`, `eu02`, `global`).
   - `statusAggregations`: Counts by resource lifecycle state (*ACTIVE*, *RUNNING*, *AVAILABLE*, *DELETED*).
 
 > [!NOTE]
