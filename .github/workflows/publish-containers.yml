@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - master
+      - 'feat/**'
     tags:
       - 'v*.*.*'
       - 'v*'
@@ -58,6 +59,9 @@ jobs:
           elif [ "${{ github.ref }}" = "refs/heads/main" ] || [ "${{ github.ref }}" = "refs/heads/master" ]; then
             PRIMARY_TAG="latest"
             ADDITIONAL_TAGS="edge"
+          elif [[ "${{ github.ref }}" =~ ^refs/heads/feat/ ]]; then
+            PRIMARY_TAG="edge"
+            ADDITIONAL_TAGS="sha-${GITHUB_SHA::7}"
           else
             PRIMARY_TAG="sha-${GITHUB_SHA::7}"
             ADDITIONAL_TAGS=""
