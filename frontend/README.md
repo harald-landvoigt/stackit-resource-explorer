@@ -28,6 +28,10 @@ The top navigation uses a custom segmented pill-style container (`mat-tab-group`
 
 ### 3. Resource Explorer Tab
 - **Real-Time Search Bar**: Full-text searching across resource name, type, region, status, tags, and data attributes via PostgreSQL FTS. Also resolves human-readable project names (e.g. `sandbox-1`) directly to project IDs.
+- **Search & Filter Deep-Linking (`/?q=...&type=...&tab=...`)**:
+  - **Shareable State URLs**: Search queries (`q`), sidebar aggregation facets (`type`, `project`, `region`, `status`), active tab (`tab=billing`, `tab=access`), and Access Issues filters (`aq`, `amode`) synchronize with browser URL query parameters in real time.
+  - **Copy Share Link Button**: Instant one-click **Share** button (`.share-link-button`) situated beside the Search button (and in the Access Issues control bar) that copies the full deep-linked URL to the clipboard with animated green confirmation (`Copied!`).
+  - **Full Browser History Support**: Browser Back and Forward buttons seamlessly restore previous search queries, facet filters, and view states via `popstate` event handling.
 - **High-Value Security & FinOps Quick Filters**: Fast toggle filter buttons directly below the search input:
   - **Token Flow (Red)**: Filters service accounts and members utilizing deprecated static API tokens (`"Token Flow"`). Styled with `.tokenflow-filter-btn` and red warning accent (`#ef4444`).
   - **Key Flow (Orange)**: Filters service accounts utilizing modern asymmetric RSA key pairs (`"Key Flow"`). Styled with `.keyflow-filter-btn` and deep orange key accent (`#ff6f00`).

@@ -130,6 +130,37 @@
   color: #000000 !important;
 }
 
+.share-link-button {
+  height: 56px;
+  font-weight: 600;
+  border: 1px solid #ff6f00 !important;
+  color: #ff6f00 !important;
+  background-color: transparent !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px;
+  border-radius: 4px;
+  transition: all 0.2s ease-in-out;
+
+  .share-btn-icon {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+  }
+
+  &:hover {
+    background-color: rgba(255, 111, 0, 0.12) !important;
+    border-color: #ffa040 !important;
+  }
+
+  &.copied-state {
+    border-color: #22c55e !important;
+    color: #22c55e !important;
+    background-color: rgba(34, 197, 94, 0.15) !important;
+  }
+}
+
 .search-filters {
   display: flex;
   align-items: center;
@@ -1127,7 +1158,8 @@
     flex-direction: column;
     align-items: stretch;
   }
-  .search-button {
+  .search-button,
+  .share-link-button {
     height: 48px;
   }
 }
