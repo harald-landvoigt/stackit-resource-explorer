@@ -31,15 +31,22 @@ jobs:
     steps:
       - name: Compute tags
         id: tag_calc
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          GIT_REF: ${{ github.ref }}
         run: |
           RAW_TAG=""
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            RAW_TAG="${{ github.event.inputs.tag }}"
-          elif [[ "${{ github.ref }}" =~ ^refs/tags/ ]]; then
+          if [ -n "${INPUT_TAG}" ]; then
+            RAW_TAG="${INPUT_TAG}"
+          elif [[ "${GIT_REF}" =~ ^refs/tags/ ]]; then
             RAW_TAG="${GITHUB_REF_NAME}"
           fi
 
           if [ -n "${RAW_TAG}" ]; then
+            if [[ ! "${RAW_TAG}" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+              echo "::error::Invalid image tag '${RAW_TAG}'. Only alphanumeric characters, '.', '_', and '-' are allowed."
+              exit 1
+            fi
             VERSION="${RAW_TAG#v}"
             if [[ "${VERSION}" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(.*)$ ]]; then
               MAJOR="${BASH_REMATCH[1]}"
@@ -56,10 +63,10 @@ jobs:
               PRIMARY_TAG="${VERSION}"
               ADDITIONAL_TAGS="latest,edge"
             fi
-          elif [ "${{ github.ref }}" = "refs/heads/main" ] || [ "${{ github.ref }}" = "refs/heads/master" ]; then
+          elif [ "${GIT_REF}" = "refs/heads/main" ] || [ "${GIT_REF}" = "refs/heads/master" ]; then
             PRIMARY_TAG="latest"
             ADDITIONAL_TAGS="edge"
-          elif [[ "${{ github.ref }}" =~ ^refs/heads/feat/ ]]; then
+          elif [[ "${GIT_REF}" =~ ^refs/heads/feat/ ]]; then
             PRIMARY_TAG="edge"
             ADDITIONAL_TAGS="sha-${GITHUB_SHA::7}"
           else
@@ -67,8 +74,8 @@ jobs:
             ADDITIONAL_TAGS=""
           fi
 
-          echo "primary_tag=${PRIMARY_TAG}" >> $GITHUB_OUTPUT
-          echo "additional_tags=${ADDITIONAL_TAGS}" >> $GITHUB_OUTPUT
+          echo "primary_tag=${PRIMARY_TAG}" >> "$GITHUB_OUTPUT"
+          echo "additional_tags=${ADDITIONAL_TAGS}" >> "$GITHUB_OUTPUT"
 
           REG_FRONTEND="ghcr.io/harald-landvoigt/stackit-resource-explorer/frontend"
           TAG_ARRAY=("$REG_FRONTEND:$PRIMARY_TAG")
@@ -81,9 +88,9 @@ jobs:
             done
           fi
 
-          echo "frontend_tags<<EOF" >> $GITHUB_OUTPUT
-          printf "%s\n" "${TAG_ARRAY[@]}" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "frontend_tags<<EOF" >> "$GITHUB_OUTPUT"
+          printf "%s\n" "${TAG_ARRAY[@]}" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
 
   publish-backend:
     name: Build & Publish Backend (Jib)
@@ -105,12 +112,14 @@ jobs:
         env:
           PRIMARY_TAG: ${{ needs.resolve-tags.outputs.primary_tag }}
           ADDITIONAL_TAGS: ${{ needs.resolve-tags.outputs.additional_tags }}
+          QUARKUS_CONTAINER_IMAGE_USERNAME: ${{ github.actor }}
+          QUARKUS_CONTAINER_IMAGE_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          EXTRA_JIB_ARGS=""
+          EXTRA_JIB_ARGS=()
           if [ -n "${ADDITIONAL_TAGS}" ]; then
-            EXTRA_JIB_ARGS="-Dquarkus.container-image.additional-tags=${ADDITIONAL_TAGS}"
+            EXTRA_JIB_ARGS+=("-Dquarkus.container-image.additional-tags=${ADDITIONAL_TAGS}")
           else
-            EXTRA_JIB_ARGS="-Dquarkus.container-image.additional-tags="
+            EXTRA_JIB_ARGS+=("-Dquarkus.container-image.additional-tags=")
           fi
           ./mvnw package -DskipTests \
             -Dquarkus.container-image.build=true \
@@ -119,9 +128,7 @@ jobs:
             -Dquarkus.container-image.group=harald-landvoigt/stackit-resource-explorer \
             -Dquarkus.container-image.name=backend \
             -Dquarkus.container-image.tag="${PRIMARY_TAG}" \
-            ${EXTRA_JIB_ARGS} \
-            -Dquarkus.container-image.username="${{ github.actor }}" \
-            -Dquarkus.container-image.password="${{ secrets.GITHUB_TOKEN }}"
+            "${EXTRA_JIB_ARGS[@]}"
 
   publish-frontend:
     name: Build & Publish Frontend (Docker Buildx)
