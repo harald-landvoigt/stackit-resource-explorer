@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, computed, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -32,12 +32,21 @@ import { StackitResource, BillingSummary, AggregationItem, StorageResourceData, 
   styleUrl: './app.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class App implements OnInit {
+export class App implements OnInit, OnDestroy {
   private readonly resourceService = inject(ResourceService);
 
   private readonly objectKeysCache = new WeakMap<object, string[]>();
   private readonly ipHistoryCache = new WeakMap<object, PublicIpHistoryRecord[]>();
   private readonly formattedPolicyCache = new Map<string, string>();
+
+  // Feedback state for Copy Share Link button
+  readonly linkCopied = signal<boolean>(false);
+  private linkCopiedTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  // Popstate event listener reference for cleanup on destroy
+  private readonly popstateListener = () => {
+    this.handlePopState();
+  };
 
   // All resources loaded from the backend (capped to maximum 100)
   readonly resources = signal<StackitResource[]>([]);
@@ -203,9 +212,197 @@ export class App implements OnInit {
   });
 
   ngOnInit(): void {
-    this.loadResources();
+    if (typeof window !== 'undefined') {
+      if (window.location && window.location.search && window.location.search !== '?') {
+        this.applyUrlParameters(window.location.search);
+      }
+      window.addEventListener('popstate', this.popstateListener);
+    }
+    const initialQuery = this.activeSearchQuery() || undefined;
+    this.loadResources(initialQuery);
     this.loadBillingSummary();
     this.loadAccessIssues();
+  }
+
+  ngOnDestroy(): void {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('popstate', this.popstateListener);
+    }
+    if (this.linkCopiedTimeout) {
+      clearTimeout(this.linkCopiedTimeout);
+      this.linkCopiedTimeout = null;
+    }
+  }
+
+  /**
+   * Resets all search queries, facet filters, tab selection, and access issue filters to defaults.
+   */
+  resetFiltersToDefaults(): void {
+    this.searchString.set('');
+    this.activeSearchQuery.set('');
+    this.selectedTypeFilter.set(null);
+    this.selectedProjectFilter.set(null);
+    this.selectedRegionFilter.set(null);
+    this.selectedStatusFilter.set(null);
+    this.selectedIndex.set(0);
+    this.accessSearchString.set('');
+    this.accessFilterMode.set('ALL');
+  }
+
+  /**
+   * Parses query parameters from window.location.search (or an explicit query string)
+   * and initializes the reactive filter signals.
+   */
+  applyUrlParameters(queryString?: string): void {
+    if (queryString === undefined && typeof window !== 'undefined' && window.location) {
+      queryString = window.location.search;
+    }
+    const params = new URLSearchParams(queryString || '');
+
+    // Search query: 'q'
+    const q = params.get('q');
+    if (q !== null && q.trim() !== '') {
+      this.searchString.set(q);
+      this.activeSearchQuery.set(q);
+    } else {
+      this.searchString.set('');
+      this.activeSearchQuery.set('');
+    }
+
+    // Facet filters: 'type', 'project', 'region', 'status'
+    this.selectedTypeFilter.set(params.get('type') || null);
+    this.selectedProjectFilter.set(params.get('project') || null);
+    this.selectedRegionFilter.set(params.get('region') || null);
+    this.selectedStatusFilter.set(params.get('status') || null);
+
+    // Tab navigation: 'tab' ('billing' -> 1, 'access' -> 2, otherwise 0)
+    const tabParam = params.get('tab')?.toLowerCase();
+    if (tabParam === 'billing' || tabParam === '1') {
+      this.selectedIndex.set(1);
+    } else if (tabParam === 'access' || tabParam === '2') {
+      this.selectedIndex.set(2);
+    } else {
+      this.selectedIndex.set(0);
+    }
+
+    // Access Issues filters: 'aq', 'amode'
+    this.accessSearchString.set(params.get('aq') || '');
+    const amodeParam = params.get('amode')?.toUpperCase();
+    this.accessFilterMode.set(amodeParam === 'ISSUES_ONLY' ? 'ISSUES_ONLY' : 'ALL');
+  }
+
+  /**
+   * Synchronizes current search, facet filter, tab, and access issue states to the browser URL query string.
+   * If replace is false, creates a new browser history entry; if true, replaces current history entry.
+   */
+  syncUrlToState(replace: boolean = false): void {
+    if (typeof window === 'undefined' || !window.history || !window.location) return;
+
+    try {
+      const params = new URLSearchParams();
+
+      const query = this.activeSearchQuery().trim();
+      if (query) {
+        params.set('q', query);
+      }
+
+      const typeFilter = this.selectedTypeFilter();
+      if (typeFilter) {
+        params.set('type', typeFilter);
+      }
+
+      const projectFilter = this.selectedProjectFilter();
+      if (projectFilter) {
+        params.set('project', projectFilter);
+      }
+
+      const regionFilter = this.selectedRegionFilter();
+      if (regionFilter) {
+        params.set('region', regionFilter);
+      }
+
+      const statusFilter = this.selectedStatusFilter();
+      if (statusFilter) {
+        params.set('status', statusFilter);
+      }
+
+      const tab = this.selectedIndex();
+      if (tab === 1) {
+        params.set('tab', 'billing');
+      } else if (tab === 2) {
+        params.set('tab', 'access');
+      }
+
+      const aq = this.accessSearchString().trim();
+      if (aq) {
+        params.set('aq', aq);
+      }
+
+      const amode = this.accessFilterMode();
+      if (amode === 'ISSUES_ONLY') {
+        params.set('amode', 'ISSUES_ONLY');
+      }
+
+      const qs = params.toString();
+      const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+      const currentUrl = `${window.location.pathname}${window.location.search}`;
+
+      if (newUrl !== currentUrl) {
+        if (replace) {
+          window.history.replaceState(null, '', newUrl);
+        } else {
+          window.history.pushState(null, '', newUrl);
+        }
+      }
+    } catch {
+      // Gracefully ignore restrictions in restrictive iframe/embedded test environments
+    }
+  }
+
+  /**
+   * Handles browser back/forward popstate events to restore filters and re-run search if needed.
+   */
+  private handlePopState(): void {
+    if (typeof window === 'undefined' || !window.location) return;
+    const prevQuery = this.activeSearchQuery();
+    if (window.location.search && window.location.search !== '?') {
+      this.applyUrlParameters(window.location.search);
+    } else {
+      this.resetFiltersToDefaults();
+    }
+    if (prevQuery !== this.activeSearchQuery()) {
+      this.loadResources(this.activeSearchQuery() || undefined);
+    }
+  }
+
+  /**
+   * Switches the active tab and synchronizes the tab state to the URL.
+   */
+  onTabChange(index: number): void {
+    this.selectedIndex.set(index);
+    this.syncUrlToState();
+  }
+
+  /**
+   * Copies the current deep link URL (including active search & filters) to the clipboard
+   * and triggers visual button confirmation feedback.
+   */
+  copyShareLink(): void {
+    if (typeof window === 'undefined') return;
+    this.syncUrlToState(true);
+    const url = window.location.href;
+
+    this.linkCopied.set(true);
+    if (this.linkCopiedTimeout) {
+      clearTimeout(this.linkCopiedTimeout);
+    }
+    this.linkCopiedTimeout = setTimeout(() => {
+      this.linkCopied.set(false);
+    }, 2000);
+
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(url).catch(() => {});
+    }
   }
 
   loadResources(query?: string): void {
@@ -360,6 +557,7 @@ export class App implements OnInit {
   onSearch(): void {
     const query = this.searchString().trim();
     this.activeSearchQuery.set(query);
+    this.syncUrlToState();
     this.loadResources(query);
   }
 
@@ -438,21 +636,25 @@ export class App implements OnInit {
   toggleTypeFilter(key?: string): void {
     if (!key) return;
     this.selectedTypeFilter.update((curr) => (curr === key ? null : key));
+    this.syncUrlToState();
   }
 
   toggleProjectFilter(key?: string): void {
     if (!key) return;
     this.selectedProjectFilter.update((curr) => (curr === key ? null : key));
+    this.syncUrlToState();
   }
 
   toggleRegionFilter(key?: string): void {
     if (!key) return;
     this.selectedRegionFilter.update((curr) => (curr === key ? null : key));
+    this.syncUrlToState();
   }
 
   toggleStatusFilter(key?: string): void {
     if (!key) return;
     this.selectedStatusFilter.update((curr) => (curr === key ? null : key));
+    this.syncUrlToState();
   }
 
   clearAllFacetFilters(): void {
@@ -460,6 +662,7 @@ export class App implements OnInit {
     this.selectedProjectFilter.set(null);
     this.selectedRegionFilter.set(null);
     this.selectedStatusFilter.set(null);
+    this.syncUrlToState();
   }
 
   isDatabase(res: StackitResource): boolean {
@@ -689,6 +892,7 @@ export class App implements OnInit {
     if (!value || value.trim() === '') {
       if (this.activeSearchQuery()) {
         this.activeSearchQuery.set('');
+        this.syncUrlToState();
         this.loadResources();
       }
     }
@@ -809,6 +1013,7 @@ export class App implements OnInit {
 
   toggleAccessFilterMode(): void {
     this.accessFilterMode.update((mode) => (mode === 'ALL' ? 'ISSUES_ONLY' : 'ALL'));
+    this.syncUrlToState();
   }
 
   formatAccessResourceType(type: string): string {
@@ -818,5 +1023,6 @@ export class App implements OnInit {
 
   onAccessSearchChange(value: string): void {
     this.accessSearchString.set(value);
+    this.syncUrlToState(true);
   }
 }

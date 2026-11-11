@@ -80,6 +80,10 @@ describe('App', () => {
       }))
     };
 
+    if (typeof window !== 'undefined' && window.history) {
+      window.history.replaceState(null, '', '/');
+    }
+
     await TestBed.configureTestingModule({
       imports: [App, NoopAnimationsModule],
       providers: [
@@ -2282,6 +2286,156 @@ describe('App', () => {
       expect(app.normalizeRegionCode('eu01-1')).toBe('eu01');
       expect(app.normalizeRegionCode('eu02 (Austria)')).toBe('eu02');
       expect(app.normalizeRegionCode('global')).toBe('global');
+    });
+  });
+
+  describe('Search & Filter Deep-Linking', () => {
+    it('should parse deep-link search parameters on init and load filtered resources', () => {
+      window.history.replaceState(null, '', '/?q=database&type=Databases&project=proj-1&region=eu01&status=ACTIVE');
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const app = fixture.componentInstance;
+
+      expect(app.searchString()).toBe('database');
+      expect(app.activeSearchQuery()).toBe('database');
+      expect(app.selectedTypeFilter()).toBe('Databases');
+      expect(app.selectedProjectFilter()).toBe('proj-1');
+      expect(app.selectedRegionFilter()).toBe('eu01');
+      expect(app.selectedStatusFilter()).toBe('ACTIVE');
+      expect(mockResourceService.getResources).toHaveBeenCalledWith('database');
+    });
+
+    it('should parse tab deep-link parameter for billing and access tabs', () => {
+      window.history.replaceState(null, '', '/?tab=billing');
+      const fixtureBilling = TestBed.createComponent(App);
+      fixtureBilling.detectChanges();
+      expect(fixtureBilling.componentInstance.selectedIndex()).toBe(1);
+
+      window.history.replaceState(null, '', '/?tab=access&aq=403&amode=ISSUES_ONLY');
+      const fixtureAccess = TestBed.createComponent(App);
+      fixtureAccess.detectChanges();
+      const appAccess = fixtureAccess.componentInstance;
+      expect(appAccess.selectedIndex()).toBe(2);
+      expect(appAccess.accessSearchString()).toBe('403');
+      expect(appAccess.accessFilterMode()).toBe('ISSUES_ONLY');
+    });
+
+    it('should synchronize URL query parameters on search submit', () => {
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const app = fixture.componentInstance;
+
+      app.searchString.set('unattached public-ip');
+      app.onSearch();
+
+      expect(window.location.search).toContain('q=unattached+public-ip');
+    });
+
+    it('should synchronize URL query parameters when toggling facet filters', () => {
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const app = fixture.componentInstance;
+
+      app.toggleTypeFilter('VMs');
+      expect(window.location.search).toContain('type=VMs');
+
+      app.toggleRegionFilter('eu01');
+      expect(window.location.search).toContain('region=eu01');
+
+      app.toggleStatusFilter('DELETED');
+      expect(window.location.search).toContain('status=DELETED');
+
+      app.clearAllFacetFilters();
+      expect(window.location.search).not.toContain('type=');
+      expect(window.location.search).not.toContain('region=');
+      expect(window.location.search).not.toContain('status=');
+    });
+
+    it('should synchronize URL query parameter when changing tabs', () => {
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const app = fixture.componentInstance;
+
+      app.onTabChange(1);
+      expect(window.location.search).toContain('tab=billing');
+
+      app.onTabChange(2);
+      expect(window.location.search).toContain('tab=access');
+
+      app.onTabChange(0);
+      expect(window.location.search).not.toContain('tab=');
+    });
+
+    it('should synchronize URL on access tab search and mode changes', () => {
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const app = fixture.componentInstance;
+
+      app.onTabChange(2);
+      app.onAccessSearchChange('storage');
+      app.toggleAccessFilterMode();
+
+      expect(window.location.search).toContain('tab=access');
+      expect(window.location.search).toContain('aq=storage');
+      expect(window.location.search).toContain('amode=ISSUES_ONLY');
+    });
+
+    it('should handle browser popstate event and restore filters', () => {
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const app = fixture.componentInstance;
+
+      window.history.replaceState(null, '', '/?q=valkey&type=Databases');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+
+      expect(app.activeSearchQuery()).toBe('valkey');
+      expect(app.searchString()).toBe('valkey');
+      expect(app.selectedTypeFilter()).toBe('Databases');
+      expect(mockResourceService.getResources).toHaveBeenCalledWith('valkey');
+    });
+
+    it('should copy share link to clipboard and show visual confirmation feedback', async () => {
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const app = fixture.componentInstance;
+
+      app.searchString.set('Key Flow');
+      app.onSearch();
+
+      let copiedText = '';
+      if (!navigator.clipboard) {
+        (navigator as any).clipboard = {
+          writeText: vi.fn().mockImplementation((text: string) => {
+            copiedText = text;
+            return Promise.resolve();
+          })
+        };
+      } else {
+        vi.spyOn(navigator.clipboard, 'writeText').mockImplementation((text: string) => {
+          copiedText = text;
+          return Promise.resolve();
+        });
+      }
+
+      app.copyShareLink();
+      expect(app.linkCopied()).toBe(true);
+      expect(copiedText).toContain('q=Key+Flow');
+    });
+
+    it('should render Share button in both Resource Explorer and Access Issues toolbars', () => {
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      const compiled = fixture.nativeElement as HTMLElement;
+
+      const explorerShareBtn = compiled.querySelector('.search-container .share-link-button');
+      expect(explorerShareBtn).toBeTruthy();
+
+      const app = fixture.componentInstance;
+      app.selectedIndex.set(2);
+      fixture.detectChanges();
+
+      const accessShareBtn = compiled.querySelector('.access-controls-bar .access-share-button');
+      expect(accessShareBtn).toBeTruthy();
     });
   });
 });

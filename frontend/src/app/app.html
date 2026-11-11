@@ -19,7 +19,7 @@
   </div>
 
   <div class="content-container">
-    <mat-tab-group class="custom-tab-group" [selectedIndex]="selectedIndex()" (selectedIndexChange)="selectedIndex.set($event)">
+    <mat-tab-group class="custom-tab-group" [selectedIndex]="selectedIndex()" (selectedIndexChange)="onTabChange($event)">
       <mat-tab label="Resource Explorer">
         <ng-template mat-tab-label>
           <div class="tab-label-content">
@@ -43,6 +43,16 @@
             </mat-form-field>
             <button mat-flat-button color="primary" (click)="onSearch()" class="search-button border-orange">
               Search
+            </button>
+            <button mat-stroked-button
+                    type="button"
+                    (click)="copyShareLink()"
+                    class="share-link-button border-orange"
+                    [class.copied-state]="linkCopied()"
+                    [attr.aria-label]="linkCopied() ? 'Link copied' : 'Copy share link'"
+                    [title]="linkCopied() ? 'Link copied to clipboard!' : 'Copy shareable link with current search and filters'">
+              <mat-icon class="share-btn-icon">{{ linkCopied() ? 'check' : 'link' }}</mat-icon>
+              <span>{{ linkCopied() ? 'Copied!' : 'Share' }}</span>
             </button>
           </div>
 
@@ -691,6 +701,16 @@
             <button mat-flat-button color="primary" (click)="loadAccessIssues()" class="refresh-access-button border-orange">
               <mat-icon>refresh</mat-icon>
               <span>Refresh</span>
+            </button>
+            <button mat-stroked-button
+                    type="button"
+                    (click)="copyShareLink()"
+                    class="share-link-button access-share-button border-orange"
+                    [class.copied-state]="linkCopied()"
+                    [attr.aria-label]="linkCopied() ? 'Link copied' : 'Copy share link'"
+                    [title]="linkCopied() ? 'Link copied to clipboard!' : 'Copy shareable link with current access issue filters'">
+              <mat-icon class="share-btn-icon">{{ linkCopied() ? 'check' : 'link' }}</mat-icon>
+              <span>{{ linkCopied() ? 'Copied!' : 'Share' }}</span>
             </button>
           </div>
 

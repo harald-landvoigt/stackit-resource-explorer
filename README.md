@@ -93,6 +93,10 @@ The application consists of a high-performance **Quarkus (Java 21)** backend, an
     - **Unattached IPs (Purple)**: 1-click filter for idle / unattached floating public IPs (`"unattached public-ip"`), instantly isolating unassigned public IP addresses.
     - **Token Flow (Red)**: Filters service accounts and users utilizing deprecated static API tokens (`"Token Flow"`).
     - **Key Flow (Orange)**: Filters service accounts utilizing modern asymmetric RSA key pairs (`"Key Flow"`).
+  - **Search & Filter Deep-Linking (`/?q=...&type=...&tab=...`)**:
+    - **Shareable State URLs**: Search queries (`q`), sidebar aggregation facets (`type`, `project`, `region`, `status`), active tab (`tab=billing`, `tab=access`), and Access Issues controls (`aq`, `amode`) automatically synchronize with browser URL parameters in real time.
+    - **Copy Share Link Button**: Instant one-click **Share** button (`.share-link-button`) with animated clipboard feedback (`Copied!`) in both the Resource Explorer and Access Issues toolbars.
+    - **Browser History Integration**: Full HTML5 History API integration (`popstate`) enabling browser Back/Forward navigation to seamlessly restore previous search queries and filter views.
   - **Interactive Multi-Dimensional Facet Filters**:
     - Clicking any item in the left-hand aggregation columns (**Type**, **Project**, **Region**, or **State**) instantly filters the discovered resources list.
     - Active facets appear in a prominent filter bar above the search filters with removable chips (`Type: ...`, `Project: ...`, `Region: ...`, `State: ...`) and a **Clear all** button.
