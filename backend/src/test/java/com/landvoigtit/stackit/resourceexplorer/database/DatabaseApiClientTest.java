@@ -196,6 +196,53 @@ public class DatabaseApiClientTest {
         assertTrue(requestedUrls.get(0).contains("/v2/projects/proj-456/regions/eu01/instances"));
     }
 
+    private static OkHttpClient respondingClient(final List<String> requestedUrls, final java.util.function.Function<Request, String> bodyFn) {
+        return new OkHttpClient.Builder()
+                .addInterceptor(chain -> {
+                    final Request request = chain.request();
+                    requestedUrls.add(request.url().toString());
+                    return new Response.Builder()
+                            .request(request)
+                            .protocol(Protocol.HTTP_1_1)
+                            .code(200)
+                            .message("OK")
+                            .body(ResponseBody.create(bodyFn.apply(request), MediaType.parse("application/json")))
+                            .build();
+                })
+                .build();
+    }
+
+    @Test
+    public void testListInstancesFollowsCountWhenPaginationMetadataMissing() throws IOException {
+        final List<String> requestedUrls = new ArrayList<>();
+        final OkHttpClient client = respondingClient(requestedUrls, request -> {
+            final String page = request.url().queryParameter("page");
+            if (page == null || "1".equals(page)) {
+                return "{\"items\": [{\"id\": \"pg-1\"}, {\"id\": \"pg-2\"}], \"count\": 3}";
+            }
+            return "{\"items\": [{\"id\": \"pg-3\"}], \"count\": 3}";
+        });
+
+        final List<Map<String, Object>> instances = new DatabaseApiClient(client).listInstances("postgresql", "proj-1", "eu01");
+
+        assertEquals(3, instances.size());
+        assertEquals(2, requestedUrls.size());
+        assertTrue(requestedUrls.get(1).contains("page=2"));
+    }
+
+    @Test
+    public void testListInstancesStopsWhenApiIgnoresPageParameter() throws IOException {
+        final List<String> requestedUrls = new ArrayList<>();
+        // count claims more items than ever returned, and the page parameter is ignored
+        final OkHttpClient client = respondingClient(requestedUrls,
+                request -> "{\"items\": [{\"id\": \"pg-1\"}], \"count\": 5}");
+
+        final List<Map<String, Object>> instances = new DatabaseApiClient(client).listInstances("postgresql", "proj-1", "eu01");
+
+        assertEquals(1, instances.size());
+        assertEquals(2, requestedUrls.size());
+    }
+
     @Test
     public void testHttpErrorThrowsIOException() {
         final OkHttpClient client = new OkHttpClient.Builder()

@@ -304,7 +304,7 @@ public class StackitProjectDiscoveryService {
                         projectsById.putIfAbsent(projectIdStr, project);
                     }
                 }
-                if (projectsResponse.getItems().size() < PAGE_SIZE.intValue()) {
+                if (projectsResponse.getItems().size() < effectivePageSize(projectsResponse.getLimit())) {
                     break;
                 }
                 offset = offset.add(BigDecimal.valueOf(projectsResponse.getItems().size()));
@@ -329,7 +329,7 @@ public class StackitProjectDiscoveryService {
                         discoverProjectsRecursively(folder.getContainerId(), projectsById, visitedContainers);
                     }
                 }
-                if (foldersResponse.getItems().size() < PAGE_SIZE.intValue()) {
+                if (foldersResponse.getItems().size() < effectivePageSize(foldersResponse.getLimit())) {
                     break;
                 }
                 folderOffset = folderOffset.add(BigDecimal.valueOf(foldersResponse.getItems().size()));
@@ -337,6 +337,18 @@ public class StackitProjectDiscoveryService {
         } catch (final Exception e) {
             log.warn("Failed to list folders in container {}: {}", containerId, formatApiException(e));
         }
+    }
+
+    /**
+     * The Resource Manager clamps {@code limit} to its own maximum and echoes the applied value in the
+     * response. Comparing against that value (instead of the requested one) avoids stopping early when
+     * the server returns fewer items per page than requested.
+     */
+    private static int effectivePageSize(final BigDecimal responseLimit) {
+        if (responseLimit != null && responseLimit.signum() > 0) {
+            return Math.min(responseLimit.intValue(), PAGE_SIZE.intValue());
+        }
+        return PAGE_SIZE.intValue();
     }
 
     public final String getOrganizationId(final GetProjectResponse projectResponse) {

@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -113,5 +114,44 @@ public class NetworkResourceScraperTest {
         verify(accessIssueRegistry, never()).recordFailure(any(), any(), any(), any(), anyInt(), any());
         verify(accessIssueRegistry, times(1)).recordSuccess(eq(PROJECT_ID.toString()), eq(PROJECT_NAME), eq(StackitConstants.RESOURCE_TYPE_NETWORK), isNull());
         verify(repository, atLeastOnce()).persistOrUpdate(any());
+    }
+
+    @Test
+    public void testScrapeFollowsNextPageIdAcrossAllPages() throws Exception {
+        final LoadBalancer lb1 = new LoadBalancer();
+        lb1.setName("alb-page-1");
+        final ListLoadBalancersResponse page1 = new ListLoadBalancersResponse();
+        page1.setLoadBalancers(List.of(lb1));
+        page1.setNextPageId("page-2");
+
+        final LoadBalancer lb2 = new LoadBalancer();
+        lb2.setName("alb-page-2");
+        final ListLoadBalancersResponse page2 = new ListLoadBalancersResponse();
+        page2.setLoadBalancers(List.of(lb2));
+
+        when(albApi.listLoadBalancers(eq(PROJECT_ID.toString()), eq("eu01"), any(), isNull())).thenReturn(page1);
+        when(albApi.listLoadBalancers(eq(PROJECT_ID.toString()), eq("eu01"), any(), eq("page-2"))).thenReturn(page2);
+
+        scraper.scrape();
+
+        verify(albApi, times(1)).listLoadBalancers(eq(PROJECT_ID.toString()), eq("eu01"), eq(NetworkResourceScraper.ALB_PAGE_SIZE), isNull());
+        verify(albApi, times(1)).listLoadBalancers(eq(PROJECT_ID.toString()), eq("eu01"), eq(NetworkResourceScraper.ALB_PAGE_SIZE), eq("page-2"));
+        verify(repository, times(2)).persistOrUpdate(any());
+    }
+
+    @Test
+    public void testRepeatedNextPageIdDoesNotLoopForever() throws Exception {
+        final LoadBalancer lb = new LoadBalancer();
+        lb.setName("alb-loop");
+        final ListLoadBalancersResponse page = new ListLoadBalancersResponse();
+        page.setLoadBalancers(List.of(lb));
+        page.setNextPageId("same-page");
+
+        when(albApi.listLoadBalancers(eq(PROJECT_ID.toString()), eq("eu01"), any(), any())).thenReturn(page);
+
+        final List<LoadBalancer> all = scraper.listAllLoadBalancers(PROJECT_ID.toString(), "eu01");
+
+        assertEquals(2, all.size());
+        verify(albApi, times(2)).listLoadBalancers(eq(PROJECT_ID.toString()), eq("eu01"), any(), any());
     }
 }

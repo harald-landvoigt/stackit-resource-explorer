@@ -15,7 +15,9 @@ import jakarta.validation.Validator;
 import lombok.extern.slf4j.Slf4j;
 import io.quarkus.scheduler.Scheduled;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -42,6 +44,12 @@ public class NetworkResourceScraper {
 
     @Inject
     com.landvoigtit.stackit.resourceexplorer.access.AccessIssueRegistry accessIssueRegistry;
+
+    /** Maximum page size accepted by the ALB API. */
+    static final String ALB_PAGE_SIZE = "1000";
+
+    /** Safety guard against an API that keeps returning a next page id forever. */
+    static final int MAX_ALB_PAGES = 10_000;
 
     private final AtomicBoolean isScraping = new AtomicBoolean(false);
 
@@ -90,13 +98,7 @@ public class NetworkResourceScraper {
 
         for (final String region : regions) {
             try {
-                final String limit = "100";
-                final ListLoadBalancersResponse albResponse = albApi.listLoadBalancers(projectIdStr, region, limit, null);
-                if (albResponse == null || albResponse.getLoadBalancers() == null) {
-                    continue;
-                }
-
-                for (final LoadBalancer lb : albResponse.getLoadBalancers()) {
+                for (final LoadBalancer lb : listAllLoadBalancers(projectIdStr, region)) {
                     final NetworkResourceDto dto = NetworkResourceMapper.mapToDto(lb);
                     if (dto.getRegion() == null || dto.getRegion().isBlank()) {
                         dto.setRegion(region);
@@ -136,5 +138,31 @@ public class NetworkResourceScraper {
         }
 
         return allRegionsSucceeded;
+    }
+
+    /**
+     * Fetches all Application Load Balancers of a project in a region by following
+     * {@code nextPageId} until the API reports no further pages.
+     */
+    List<LoadBalancer> listAllLoadBalancers(final String projectIdStr, final String region) throws Exception {
+        final List<LoadBalancer> all = new ArrayList<>();
+        final Set<String> seenPageIds = new HashSet<>();
+        String pageId = null;
+        int pages = 0;
+        do {
+            final ListLoadBalancersResponse response = albApi.listLoadBalancers(projectIdStr, region, ALB_PAGE_SIZE, pageId);
+            if (response == null) {
+                break;
+            }
+            if (response.getLoadBalancers() != null) {
+                all.addAll(response.getLoadBalancers());
+            }
+            final String next = response.getNextPageId();
+            if (next == null || next.isBlank() || !seenPageIds.add(next)) {
+                break;
+            }
+            pageId = next;
+        } while (++pages < MAX_ALB_PAGES);
+        return all;
     }
 }
