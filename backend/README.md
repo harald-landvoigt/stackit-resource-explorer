@@ -44,7 +44,7 @@ java -jar target/*-runner.jar
 ### 1. Project Discovery (`StackitProjectDiscoveryService`)
 1. Automatically discovers accessible organization and projects dynamically via the STACKIT Resource Manager API and service account credentials.
 2. Interrogates the STACKIT Resource Manager API to discover the parent organization ID.
-3. Recursively crawls the organization's folder hierarchy to collect all project IDs and project names.
+3. Recursively crawls the organization's folder hierarchy to collect all project IDs and project names. Projects and folders are fetched with offset/limit paging (`limit=50`); the end of a listing is detected against the limit echoed by the API, since the Resource Manager silently clamps oversized limits to its own maximum.
 4. Provides cached, resilient lookup of project names for display in the UI and billing summaries.
 
 ### 2. Scheduled Scraper Services
@@ -56,7 +56,7 @@ Each scraper implements independent schedules (configurable via `application.pro
 | `PublicIpResourceScraper` | `public-ip` | IaaS v2 API (`/v2/projects/{projectId}/regions/{region}/public-ips`) | `1h` |
 | `VmDiskResourceScraper` | `vmdisks` | IaaS API (`/v1/projects/{projectId}/volumes`) | `1h` |
 | `NetworkVpcResourceScraper` | `network-vpc` | IaaS API (`/v1/projects/{projectId}/networks`) | `1h` |
-| `NetworkResourceScraper` | `network` | Load Balancer API | `1h` |
+| `NetworkResourceScraper` | `network` | Application Load Balancer API v2 (`/v2/projects/{projectId}/regions/{region}/load-balancers`) | `1h` |
 | `StorageResourceScraper` | `storage` | Object Storage API (`/v1/projects/{projectId}/buckets`) | `1h` |
 | `IamResourceScraper` | `iam` | Authorization API (`/v2/project/.../members`) & Service Account API | `1h` |
 | `DnsResourceScraper` | `dns-zone` / `dns-record-set` | DNS API (`/v1/projects/{projectId}/zones`) | `1h` |
@@ -182,6 +182,19 @@ Each scraper implements independent schedules (configurable via `application.pro
 - **Structured Operational Logging**: Emits real-time `INFO` logs detailing the target project ID, project name, region, and database engine (`Scraping database type '<engine>' for project <projectId> in region <region>`), alongside counts of discovered instances.
 - Robust fault isolation: projects without activated database services (HTTP 404) trigger clean soft-deletion of missing instances without noise; permission restrictions (HTTP 403) are recorded in the `AccessIssueRegistry`.
 - Cognitive Complexity (< 15) maintained across pagination, detail merging, and engine dispatch routines.
+
+#### Pagination & Scrape Completeness
+Every list call is fully paged so no resource is missed. This matters for correctness, not just coverage: after a successful scrape, `softDeleteMissing` soft-deletes every resource that was not returned, so a truncated listing would wrongly mark live resources as deleted.
+
+| Source | Paging Strategy |
+| :--- | :--- |
+| Resource Manager (projects, folders) | Offset/limit (`limit=50`); stops on an empty page or a page shorter than the limit echoed by the API. |
+| Application Load Balancer API | Cursor paging: `pageSize=1000` (API maximum), follows `nextPageId` until absent. A repeated `nextPageId` aborts the loop. |
+| DNS API (zones, record sets) | Page-number paging (`page`, `pageSize=100`) until `totalPages` is reached. |
+| Managed Database APIs | Page-number paging (`page`, `size=100`) until `pagination.totalPages`; when that metadata is missing, continues while `count` / `pagination.totalRows` exceeds the items collected. Stops when a page yields no new instance IDs (API ignoring `page`) and after a hard cap of 10,000 pages. |
+| IaaS (servers, volumes, networks, public IPs) | Not paged by the API: a single call returns the complete list. |
+| Object Storage (buckets, credentials groups, access keys) | Not paged by the API: a single call returns the complete list. |
+| Authorization / Service Account / Cost APIs | Consumed as single, unpaged responses. |
 
 ### 3. Resilient Scraping & Code Quality Standards
 All scraper jobs and backend domain services adhere to uniform coding, quality, and fault-isolation standards:

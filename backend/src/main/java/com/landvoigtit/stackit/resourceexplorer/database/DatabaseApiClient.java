@@ -13,9 +13,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Resilient HTTP client for querying STACKIT Managed Database and messaging APIs
@@ -33,6 +35,7 @@ public class DatabaseApiClient {
 
     private static final int DEFAULT_PAGE_SIZE = 100;
     private static final int DEFAULT_INITIAL_PAGE = 1;
+    private static final int MAX_PAGES = 10_000;
 
     private final OkHttpClient httpClient;
     private final Map<String, String> engineBaseUrls;
@@ -75,6 +78,7 @@ public class DatabaseApiClient {
         }
 
         final List<Map<String, Object>> allInstances = new ArrayList<>();
+        final Set<String> seenIds = new HashSet<>();
         int page = DEFAULT_INITIAL_PAGE;
         int totalPages = page;
 
@@ -87,16 +91,37 @@ public class DatabaseApiClient {
             }
 
             final List<Map<String, Object>> pageItems = extractInstances(responseObj);
-            allInstances.addAll(pageItems);
+            int newItems = 0;
+            for (final Map<String, Object> item : pageItems) {
+                final String id = instanceIdOf(item);
+                if (id == null || seenIds.add(id)) {
+                    allInstances.add(item);
+                    newItems++;
+                }
+            }
+            // Guard: an API that ignores the page parameter would return the same items again.
+            if (page > DEFAULT_INITIAL_PAGE && newItems == 0) {
+                break;
+            }
 
             if (responseObj instanceof Map<?, ?> responseMap) {
                 @SuppressWarnings("unchecked")
                 final Map<String, Object> map = (Map<String, Object>) responseMap;
                 totalPages = extractTotalPages(map, totalPages);
+                // Fallback for responses without pagination metadata but with a total count
+                // (e.g. {"count": N, "items": [...]}): keep paging while items are missing.
+                final int totalRows = extractTotalRows(map);
+                if (totalPages <= page && totalRows > allInstances.size() && !pageItems.isEmpty()) {
+                    totalPages = page + 1;
+                }
             }
 
             page++;
-        } while (page <= totalPages);
+        } while (page <= totalPages && page <= MAX_PAGES);
+
+        if (page > MAX_PAGES && page <= totalPages) {
+            log.warn("Stopped paging {} instances for project {} region {} after {} pages (safety limit).", engine, projectId, region, MAX_PAGES);
+        }
 
         return allInstances;
     }
@@ -279,6 +304,32 @@ public class DatabaseApiClient {
             }
         });
         return merged;
+    }
+
+    private static String instanceIdOf(final Map<String, Object> item) {
+        if (item == null) {
+            return null;
+        }
+        final Object id = item.get("id") != null ? item.get("id") : item.get("instanceId");
+        return id != null ? String.valueOf(id) : null;
+    }
+
+    private int extractTotalRows(final Map<String, Object> map) {
+        Object total = map.get("count");
+        if (total == null && map.get("pagination") instanceof Map<?, ?> paginationMap) {
+            total = paginationMap.get("totalRows");
+        }
+        if (total instanceof Number num) {
+            return num.intValue();
+        }
+        if (total != null) {
+            try {
+                return Integer.parseInt(total.toString());
+            } catch (final NumberFormatException ignored) {
+                return -1;
+            }
+        }
+        return -1;
     }
 
     private int extractTotalPages(final Map<String, Object> map, final int currentTotal) {
