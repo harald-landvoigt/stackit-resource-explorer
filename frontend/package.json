@@ -24,13 +24,13 @@
     "tslib": "^2.3.0"
   },
   "devDependencies": {
-    "@angular/build": "^21.2.26",
-    "@angular/cli": "^22.2.6",
+    "@angular/build": "^21.2.30",
+    "@angular/cli": "^22.3.0",
     "@angular/compiler-cli": "^21.2.26",
     "@emnapi/core": "^1.11.3",
     "@emnapi/runtime": "^1.11.3",
     "jsdom": "^28.0.0",
-    "prettier": "^3.8.1",
+    "prettier": "^3.10.1",
     "typescript": "~5.9.2",
     "vitest": "^4.0.8"
   }
